@@ -32,21 +32,17 @@ export default function Navbar() {
 
   return (
     <nav className="bg-ink flex items-center px-6 h-14 shrink-0 sticky top-0 z-50 border-b border-white/10">
-      {/* LEFT: Logo */}
       <Link href="/" className="font-display text-lg font-bold tracking-wide text-primary-foreground mr-8">
         <span className="text-primary">AUTO</span>BOT
       </Link>
 
-      {/* CENTER: Nav links */}
       <div className="hidden md:flex items-center gap-2 h-full">
         
-        {/* FIX IT HORIZONTAL DROPDOWN */}
         <div className="group relative h-full flex items-center">
           <button className={`flex items-center gap-1 px-4 h-full font-mono text-sm transition-colors ${pathname.startsWith('/guides') ? 'text-primary' : 'text-primary-foreground/70 group-hover:text-primary-foreground'}`}>
             Fix it <ChevronDown size={14} className="group-hover:rotate-180 transition-transform" />
           </button>
           
-          {/* Container is now flex-row and wider */}
           <div className="absolute top-14 left-0 w-[500px] flex flex-row bg-ink border border-white/10 shadow-xl rounded-b-md transition-all duration-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible translate-y-2 group-hover:translate-y-0 overflow-hidden">
             <HorizontalDropdownItem 
               href="/guides" 
@@ -54,7 +50,7 @@ export default function Navbar() {
               title="Repair Guides" 
               subtitle="Step-by-step manuals" 
             />
-            <div className="w-[1px] bg-white/10 self-stretch" /> {/* Vertical Divider */}
+            <div className="w-[1px] bg-white/10 self-stretch" /> 
             <HorizontalDropdownItem 
               href="/ai-assistant" 
               icon={<Cpu size={20}/>} 
@@ -65,7 +61,6 @@ export default function Navbar() {
           </div>
         </div>
 
-        {/* COMMUNITY HORIZONTAL DROPDOWN */}
         <div className="group relative h-full flex items-center">
           <button className={`flex items-center gap-1 px-4 h-full font-mono text-sm transition-colors ${pathname.startsWith('/community') ? 'text-primary' : 'text-primary-foreground/70 group-hover:text-primary-foreground'}`}>
             Community <ChevronDown size={14} className="group-hover:rotate-180 transition-transform" />
@@ -89,7 +84,6 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* RIGHT: Icons & Profile */}
       <div className="ml-auto flex items-center gap-5">
         {user && (
           <Link href="/bookmarks" className="text-primary-foreground/70 hover:text-primary-foreground transition-colors" title="Bookmarked Guides">
@@ -123,9 +117,14 @@ export default function Navbar() {
             </div>
           </div>
         ) : (
-          <Link href="/login" className="font-mono text-xs bg-primary text-ink px-4 py-1.5 rounded hover:bg-primary/90 transition-colors">
-            Log In
-          </Link>
+          <>
+            <Link href="/login" className="font-mono text-xs bg-primary text-ink px-4 py-1.5 rounded hover:bg-primary/90 transition-colors">
+              Log In
+            </Link>
+            <Link href="/signup" className="font-mono text-xs border border-primary text-primary px-4 py-1.5 rounded hover:bg-primary hover:text-ink transition-colors">
+              Sign Up
+            </Link>
+          </>
         )}
       </div>
     </nav>
