@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import Image from "next/image";
 
 const Login = () => {
   const router = useRouter();
@@ -49,7 +50,7 @@ const Login = () => {
       }
 
       router.push("/");
-      router.refresh(); // refresh server components to pick up new session
+      router.refresh(); 
     } catch (err) {
       setError("Network error. Please try again.");
     } finally {
@@ -60,7 +61,7 @@ const Login = () => {
   return (
     <main className="flex min-h-[calc(100vh-64px)] items-center justify-center px-4">
       <div className="w-full max-w-[420px]">
-        <h1 className="mb-6 text-xl font-semibold text-foreground">Sign in</h1>
+        <h1 className="mb-6 text-xl font-semibold text-foreground">Log in</h1>
 
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div className="space-y-1.5">
@@ -68,7 +69,6 @@ const Login = () => {
             <Input
               id="email"
               type="email"
-              placeholder="you@example.com"
               value={formData.email}
               onChange={handleChange}
               required
@@ -107,6 +107,13 @@ const Login = () => {
         </div>
 
         <Button variant="outline" className="w-full" size="lg" type="button" onClick={handleGoogleAuth}>
+          <Image 
+                      src="/google_icon.svg" 
+                      alt="Google logo" 
+                      width={18} 
+                      height={18} 
+                      priority
+                    />
           Continue with Google
         </Button>
 
