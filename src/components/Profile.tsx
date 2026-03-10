@@ -28,6 +28,7 @@ export default function Profile() {
   const [certificationsDraft, setCertificationsDraft] = useState<CertificationItem[]>([]);
   const [isUploadingProfilePicture, setIsUploadingProfilePicture] = useState(false);
   const profilePictureInputRef = useRef<HTMLInputElement | null>(null);
+  const [selectedCertImage, setSelectedCertImage] = useState<string | null>(null);
 
   useEffect(() => {
     const getProfile = async () => {
@@ -50,7 +51,7 @@ export default function Profile() {
           console.log("Processed certifications:", dbCerts);
           // Always set certifications from DB (even if empty array)
           setCertifications(dbCerts);
-          setCertificationsDraft(dbCerts.length > 0 ? dbCerts : [{ title: "", image: certificationImages[0] }]);
+          setCertificationsDraft(dbCerts.length > 0 ? dbCerts : [{ title: "", image: "" }]);
         } else {
           console.error(data.error);
         }
@@ -182,7 +183,7 @@ export default function Profile() {
 
         finalCerts.push({
           title: cert.title.trim(),
-          image: data.url || cert.image || certificationImages[0],
+          image: data.url || cert.image,
         });
       } else {
         // Keep existing certification (no new file upload)
@@ -229,7 +230,7 @@ export default function Profile() {
   const handleAddCertification = () => {
     setCertificationsDraft((prev) => [
       ...prev,
-      { title: "", image: certificationImages[prev.length % certificationImages.length] },
+      { title: "", image: "" },
     ]);
   };
 
@@ -532,7 +533,7 @@ export default function Profile() {
                     setCertificationsDraft(
                certifications.length > 0
                  ? certifications.map((c) => ({ ...c }))
-                     : [{ title: "", image: certificationImages[0] }]
+                     : [{ title: "", image: "" }]
                     );
                     setIsEditingCertifications(true);
                   }}
@@ -551,14 +552,17 @@ export default function Profile() {
                         key={`certification-edit-${index}`}
                         className="flex flex-col gap-3 rounded-lg border border-gray-200 p-3 sm:flex-row sm:items-center"
                       >
-                        <img
-                          src={certification.image || certificationImages[index % certificationImages.length]}
-                          alt={certification.title || `Certification ${index + 1}`}
-                          className="h-16 w-24 rounded-md object-cover"
-                          onError={(e) => {
-                            e.currentTarget.src = certificationImages[index % certificationImages.length];
-                          }}
-                        />
+                        {certification.image ? (
+                          <img
+                            src={certification.image}
+                            alt={certification.title || `Certification ${index + 1}`}
+                            className="h-16 w-24 rounded-md object-cover bg-gray-100"
+                          />
+                        ) : (
+                          <div className="h-16 w-24 rounded-md bg-gray-100 flex items-center justify-center text-gray-400 text-xs">
+                            No image
+                          </div>
+                        )}
                         <div className="flex-1 space-y-2">
                           <input
                             type="text"
@@ -609,7 +613,7 @@ export default function Profile() {
                         setCertificationsDraft(
                           certifications.length > 0
                             ? certifications
-                            : [{ title: "", image: certificationImages[0] }]
+                            : [{ title: "", image: "" }]
                         );
                         setIsEditingCertifications(false);
                       }}
@@ -627,14 +631,18 @@ export default function Profile() {
                         key={`${certification.title || 'cert'}-${index}`}
                         className="flex items-center gap-4 rounded-lg border border-gray-200 p-3"
                       >
-                        <img
-                          src={certification.image || certificationImages[index % certificationImages.length]}
-                          alt={certification.title || `Certification ${index + 1}`}
-                          className="h-16 w-24 rounded-md object-cover"
-                          onError={(e) => {
-                            e.currentTarget.src = certificationImages[index % certificationImages.length];
-                          }}
-                        />
+                        {certification.image ? (
+                          <img
+                            src={certification.image}
+                            alt={certification.title || `Certification ${index + 1}`}
+                            className="h-16 w-24 rounded-md object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                            onClick={() => setSelectedCertImage(certification.image)}
+                          />
+                        ) : (
+                          <div className="h-16 w-24 rounded-md bg-gray-100 flex items-center justify-center text-gray-400 text-xs">
+                            No image
+                          </div>
+                        )}
                         <p className="text-gray-800 font-medium">{certification.title || "Untitled Certification"}</p>
                       </div>
                     ))
@@ -662,6 +670,29 @@ export default function Profile() {
         )}
       </div>
       </div>
+
+      {/* Certificate Image Modal */}
+      {selectedCertImage && (
+        <div
+          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
+          onClick={() => setSelectedCertImage(null)}
+        >
+          <div className="relative max-w-4xl max-h-[90vh] w-full">
+            <button
+              onClick={() => setSelectedCertImage(null)}
+              className="absolute -top-10 right-0 text-white hover:text-gray-300 text-xl font-bold"
+            >
+              ✕ Close
+            </button>
+            <img
+              src={selectedCertImage}
+              alt="Certificate"
+              className="w-full h-full object-contain rounded-lg"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
