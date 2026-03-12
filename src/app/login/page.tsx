@@ -1,17 +1,14 @@
 "use client";
 import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
-import Image from "next/image";
 
 const Login = () => {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const authError = searchParams.get("error");
   const [formData, setFormData] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -19,22 +16,21 @@ const Login = () => {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData((prev) => ({ ...prev, [e.target.id]: e.target.value }));
   };
-
   const handleGoogleAuth = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-        queryParams: {
-          access_type: "offline",
-          prompt: "consent",
-        },
-        skipBrowserRedirect: false,
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: `${window.location.origin}/auth/callback`,
+      queryParams: {
+        access_type: "offline",
+        prompt: "consent",
       },
-    });
+      skipBrowserRedirect: false,
+    },
+  });
 
-    if (error) setError(error.message);
-  };
+  if (error) setError(error.message);
+};
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -53,7 +49,7 @@ const Login = () => {
       }
 
       router.push("/");
-      router.refresh();
+      router.refresh(); // refresh server components to pick up new session
     } catch (err) {
       setError("Network error. Please try again.");
     } finally {
@@ -64,7 +60,7 @@ const Login = () => {
   return (
     <main className="flex min-h-[calc(100vh-64px)] items-center justify-center px-4">
       <div className="w-full max-w-[420px]">
-        <h1 className="mb-6 text-xl font-semibold text-foreground">Log in</h1>
+        <h1 className="mb-6 text-xl font-semibold text-foreground">Sign in</h1>
 
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div className="space-y-1.5">
@@ -72,6 +68,7 @@ const Login = () => {
             <Input
               id="email"
               type="email"
+              placeholder="you@example.com"
               value={formData.email}
               onChange={handleChange}
               required
@@ -80,10 +77,7 @@ const Login = () => {
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <Label htmlFor="password">Password</Label>
-              <Link
-                href="/forgot-password"
-                className="text-xs text-muted-foreground hover:text-foreground"
-              >
+              <Link href="/forgot-password" className="text-xs text-muted-foreground hover:text-foreground">
                 Forgot Password?
               </Link>
             </div>
@@ -98,16 +92,6 @@ const Login = () => {
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 
-          {authError === "not_registered" && (
-            <p className="mb-4 text-sm text-destructive">
-              No account found for this Google account. Please{" "}
-              <Link href="/signup" className="underline underline-offset-4">
-                register
-              </Link>{" "}
-              first.
-            </p>
-          )}
-          
           <Button className="w-full" size="lg" type="submit" disabled={loading}>
             {loading ? "Signing in..." : "Login"}
           </Button>
@@ -122,29 +106,13 @@ const Login = () => {
           </div>
         </div>
 
-        <Button
-          variant="outline"
-          className="w-full"
-          size="lg"
-          type="button"
-          onClick={handleGoogleAuth}
-        >
-          <Image
-            src="/google_icon.svg"
-            alt="Google logo"
-            width={18}
-            height={18}
-            priority
-          />
+        <Button variant="outline" className="w-full" size="lg" type="button" onClick={handleGoogleAuth}>
           Continue with Google
         </Button>
 
         <p className="mt-6 text-center text-sm text-muted-foreground">
           Don't have an account?{" "}
-          <Link
-            href="/signup"
-            className="text-foreground underline-offset-4 hover:underline"
-          >
+          <Link href="/signup" className="text-foreground underline-offset-4 hover:underline">
             Register
           </Link>
         </p>
