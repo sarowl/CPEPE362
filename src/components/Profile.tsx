@@ -7,8 +7,10 @@ import { ExperienceType, Profiletype } from "@/lib/types";
 const certificationImages = ["/card-ai.jpg", "/card-community.jpg", "/card-guides.jpg"];
 
 type CertificationItem = {
+  id?: string;
   title: string;
   image: string;
+  path?: string;
   file?: File;
 };
 
@@ -45,8 +47,10 @@ export default function Profile() {
           // Load certifications from database
           console.log("Fetched certifications from DB:", data.certifications);
           const dbCerts = (data.certifications || []).map((cert: any) => ({
+            id: cert.id,
             title: cert.title || "Untitled Certification",
             image: cert.address,
+            path: cert.path || cert.address,
           }));
           console.log("Processed certifications:", dbCerts);
           // Always set certifications from DB (even if empty array)
@@ -157,6 +161,23 @@ export default function Profile() {
   }
 
   try {
+    // Delete certifications that were removed from the draft
+    const draftIds = new Set(certificationsDraft.map((c) => c.id).filter(Boolean));
+    const deletedCerts = certifications.filter((c) => c.id && !draftIds.has(c.id));
+
+    for (const cert of deletedCerts) {
+      const res = await fetch("/api/certification_delete", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: cert.id, path: cert.path }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Delete failed");
+      }
+    }
+
     const finalCerts: CertificationItem[] = [];
 
     for (const cert of certificationsDraft) {
@@ -184,12 +205,15 @@ export default function Profile() {
         finalCerts.push({
           title: cert.title.trim(),
           image: data.url || cert.image,
+          path: data.path,
         });
       } else {
         // Keep existing certification (no new file upload)
         finalCerts.push({
+          id: cert.id,
           title: cert.title.trim(),
           image: cert.image,
+          path: cert.path,
         });
       }
     }

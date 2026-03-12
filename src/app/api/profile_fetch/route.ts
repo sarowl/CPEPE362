@@ -116,6 +116,7 @@ export async function GET() {
       return {
         ...cert,
         address: signedData.signedUrl,
+        path: objectPath,
       };
     })
   );
