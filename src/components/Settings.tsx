@@ -155,7 +155,13 @@ export default function Settings() {
 
           {/* Message */}
           {message && (
-            <div className={`p-3 rounded ${message.includes("Error") ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"}`}>
+            <div
+              className={`p-3 rounded ${
+                message.includes("Error") || message === "Passwords do not match"
+                  ? "bg-red-100 text-red-700"
+                  : "bg-green-100 text-green-700"
+              }`}
+            >
               {message}
             </div>
           )}

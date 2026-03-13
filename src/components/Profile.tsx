@@ -14,6 +14,15 @@ type CertificationItem = {
   file?: File;
 };
 
+const mapCertificationsFromApi = (items: any[] = []): CertificationItem[] => {
+  return items.map((cert: any) => ({
+    id: cert.id,
+    title: cert.title || "Untitled Certification",
+    image: cert.address,
+    path: cert.path || cert.address,
+  }));
+};
+
 export default function Profile() {
   const [profile, setProfile] = useState<Profiletype | null>(null);
   const [experience, setExperience] = useState<ExperienceType[]>([]);
@@ -35,7 +44,7 @@ export default function Profile() {
   useEffect(() => {
     const getProfile = async () => {
       try {
-        const res = await fetch("/api/profile_fetch");
+        const res = await fetch("/api/profile_fetch", { cache: "no-store" });
         const data = await res.json();
 
         if (res.ok) {
@@ -46,12 +55,7 @@ export default function Profile() {
           
           // Load certifications from database
           console.log("Fetched certifications from DB:", data.certifications);
-          const dbCerts = (data.certifications || []).map((cert: any) => ({
-            id: cert.id,
-            title: cert.title || "Untitled Certification",
-            image: cert.address,
-            path: cert.path || cert.address,
-          }));
+          const dbCerts = mapCertificationsFromApi(data.certifications || []);
           console.log("Processed certifications:", dbCerts);
           // Always set certifications from DB (even if empty array)
           setCertifications(dbCerts);
@@ -160,6 +164,24 @@ export default function Profile() {
     return;
   }
 
+  const incompleteRows = certificationsDraft
+    .map((cert, index) => {
+      const hasTitle = Boolean(cert.title?.trim());
+      const hasImage = Boolean(cert.file || cert.image?.trim());
+
+      return hasTitle !== hasImage ? index + 1 : null;
+    })
+    .filter((row): row is number => row !== null);
+
+  if (incompleteRows.length > 0) {
+    alert(
+      `Each certification must include both title and picture. Please fix row(s): ${incompleteRows.join(
+        ", "
+      )}`
+    );
+    return;
+  }
+
   try {
     // Delete certifications that were removed from the draft
     const draftIds = new Set(certificationsDraft.map((c) => c.id).filter(Boolean));
@@ -181,15 +203,18 @@ export default function Profile() {
     const finalCerts: CertificationItem[] = [];
 
     for (const cert of certificationsDraft) {
-      // Skip empty or undefined titles
-      if (!cert.title || !cert.title.trim()) continue;
+      const title = cert.title?.trim() || "";
+      const hasImage = Boolean(cert.file || cert.image?.trim());
+
+      // Skip rows intentionally left fully empty.
+      if (!title && !hasImage) continue;
 
       // If there's a new file to upload
       if (cert.file) {
         const formData = new FormData();
         formData.append("file", cert.file);
         formData.append("user_id", profile.user_id);
-        formData.append("title", cert.title.trim());
+        formData.append("title", title);
 
         const res = await fetch("/api/certification_upload", {
           method: "POST",
@@ -203,7 +228,7 @@ export default function Profile() {
         }
 
         finalCerts.push({
-          title: cert.title.trim(),
+          title,
           image: data.url || cert.image,
           path: data.path,
         });
@@ -211,7 +236,7 @@ export default function Profile() {
         // Keep existing certification (no new file upload)
         finalCerts.push({
           id: cert.id,
-          title: cert.title.trim(),
+          title,
           image: cert.image,
           path: cert.path,
         });
@@ -219,6 +244,19 @@ export default function Profile() {
     }
 
     setCertifications(finalCerts);
+    setCertificationsDraft(finalCerts.length > 0 ? finalCerts : [{ title: "", image: "" }]);
+
+    // Re-fetch from server to keep local state aligned with persisted DB state.
+    const refreshRes = await fetch("/api/profile_fetch", { cache: "no-store" });
+    if (refreshRes.ok) {
+      const refreshData = await refreshRes.json();
+      const refreshedCerts = mapCertificationsFromApi(refreshData.certifications || []);
+      setCertifications(refreshedCerts);
+      setCertificationsDraft(
+        refreshedCerts.length > 0 ? refreshedCerts : [{ title: "", image: "" }]
+      );
+    }
+
     setIsEditingCertifications(false);
 
   } catch (error) {
@@ -595,14 +633,26 @@ export default function Profile() {
                             className="w-full p-3 border border-gray-300 rounded-md text-gray-700"
                             placeholder={`Certification title ${index + 1}`}
                           />
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) =>
-                              handleCertificationImageUpload(index, e.target.files?.[0] || null)
-                            }
-                            className="w-full text-sm text-gray-700"
-                          />
+                          <div className="flex items-center gap-3">
+                            <label className="inline-flex cursor-pointer items-center rounded-md border border-gray-300 px-3 py-2 text-sm hover:bg-gray-100">
+                              <span>{certification.file ? "Change image" : "Choose image"}</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) =>
+                                  handleCertificationImageUpload(index, e.target.files?.[0] || null)
+                                }
+                                className="hidden"
+                              />
+                            </label>
+                            <span className="text-xs text-gray-600">
+                              {certification.file?.name
+                                ? certification.file.name
+                                : certification.image
+                                  ? "Image selected"
+                                  : "No file chosen"}
+                            </span>
+                          </div>
                         </div>
                         <button
                           type="button"
