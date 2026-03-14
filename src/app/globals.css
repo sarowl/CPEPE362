@@ -26,8 +26,7 @@
   --radius: 0px; 
   --ink: hsl(240 10% 3.9%);
   --paper: hsl(30 20% 96%);
-  --background-color: hsl(30 20% 96%) !important;
-  --color: hsl(240 10% 3.9%) !important;
+  --background: hsl(0 0% 100%);
   --foreground: var(--ink);
   --primary: hsl(15 90% 50%);
   --primary-foreground: hsl(0 0% 100%);
