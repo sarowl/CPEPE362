@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, Suspense } from "react"; // 1. Added Suspense import
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,8 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import Image from "next/image";
 
-const Login = () => {
+// 2. Renamed the main logic to LoginForm
+const LoginForm = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const authError = searchParams.get("error");
@@ -153,4 +154,11 @@ const Login = () => {
   );
 };
 
-export default Login;
+// 3. Create the wrapped component for the export
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center">Loading...</div>}>
+      <LoginForm />
+    </Suspense>
+  );
+}
