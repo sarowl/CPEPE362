@@ -12,6 +12,7 @@ export default function Navbar() {
   const pathname = usePathname();
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [profilePicture, setProfilePicture] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -24,6 +25,27 @@ export default function Navbar() {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    const fetchProfilePicture = async () => {
+      if (!user) {
+        setProfilePicture(null);
+        return;
+      }
+
+      try {
+        const res = await fetch("/api/profile_fetch");
+        const data = await res.json();
+        if (res.ok && data.user?.profile_picture) {
+          setProfilePicture(data.user.profile_picture);
+        }
+      } catch (error) {
+        console.error("Error fetching profile picture:", error);
+      }
+    };
+
+    fetchProfilePicture();
+  }, [user]);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -94,8 +116,20 @@ export default function Navbar() {
         {user ? (
           <div className="group relative h-full flex items-center">
             <button className="flex items-center gap-2 text-primary-foreground/70 group-hover:text-primary-foreground transition-colors">
-              <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center border border-primary/30 group-hover:border-primary/60 transition-all">
-                <User size={18} className="text-primary" />
+              <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center border border-primary/30 group-hover:border-primary/60 transition-all overflow-hidden">
+                {profilePicture ? (
+                  <img
+                    src={profilePicture}
+                    alt="Profile"
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                      e.currentTarget.parentElement!.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-primary"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>';
+                    }}
+                  />
+                ) : (
+                  <User size={18} className="text-primary" />
+                )}
               </div>
               <ChevronDown size={12} className="group-hover:rotate-180 transition-transform" />
             </button>
