@@ -96,7 +96,7 @@ export default function Mygarage() {
     <div className="min-h-[calc(100vh-3.5rem)] bg-[#f3f5f9]">
       <div className="w-full">
         <div className="grid min-h-[calc(100vh-3.5rem)] grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)]">
-          <aside className="bg-[#050a1a] text-white lg:rounded-b-xl lg:rounded-t-none">
+          <aside className="bg-ink text-white lg:rounded-b-xl lg:rounded-t-none">
             <div className="border-b border-white/10 px-5 py-6">
               <h2 className="text-xl font-semibold tracking-tight">myGarage</h2>
             </div>
