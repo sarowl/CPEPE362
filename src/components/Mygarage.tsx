@@ -1,38 +1,34 @@
 "use client";
 
 import { useState } from "react";
-import { Gauge, Droplets, CalendarClock, Thermometer, Plus, Search } from "lucide-react";
+import { Car, Plus } from "lucide-react";
 import GarageModal, { type NewVehicleInput } from "./garagemodel";
 
 type GarageVehicle = NewVehicleInput & {
   id: string;
-  alerts: number;
-  mileage: number;
-  oilLife: number;
+  colorName: string;
+  colorHex: string;
 };
 
-function safeMileage(value: unknown): number {
-  const parsed = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
-}
-
-function safeOilLife(value: unknown): number {
-  const parsed = typeof value === "number" ? value : Number(value);
-  if (!Number.isFinite(parsed)) return 100;
-  return Math.min(100, Math.max(0, parsed));
-}
+type MaintenanceEntry = {
+  id: string;
+  activity: string;
+  date: string;
+  notes: string;
+  reminder: string;
+};
 
 export default function Mygarage() {
   const [open, setOpen] = useState(false);
   const [vehicles, setVehicles] = useState<GarageVehicle[]>([]);
   const [activeVehicleId, setActiveVehicleId] = useState<string | null>(null);
-
-  const stats = [
-    { id: "service", label: "Next Service", value: "Overdue", icon: CalendarClock },
-    { id: "temp", label: "Coolant Temp", value: "205degF", icon: Thermometer },
-  ];
+  const [maintenanceByVehicle] = useState<Record<string, MaintenanceEntry[]>>({});
 
   const activeVehicle = vehicles.find((vehicle) => vehicle.id === activeVehicleId) ?? null;
+
+  const maintenanceHistory = activeVehicle
+    ? maintenanceByVehicle[activeVehicle.id] ?? []
+    : [];
 
   const handleAddVehicle = (vehicle: NewVehicleInput) => {
     const id = typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -42,9 +38,6 @@ export default function Mygarage() {
     const newVehicle: GarageVehicle = {
       ...vehicle,
       id,
-      alerts: 0,
-      mileage: 0,
-      oilLife: 100,
     };
 
     setVehicles((prev) => [...prev, newVehicle]);
@@ -52,216 +45,152 @@ export default function Mygarage() {
     setOpen(false);
   };
 
-  const handleAddTrip = () => {
-    if (!activeVehicleId) {
-      window.alert("Select a vehicle first.");
-      return;
-    }
-
-    const rawMiles = window.prompt("Enter trip distance in miles", "0");
-    if (rawMiles === null) return;
-
-    const normalizedMiles = rawMiles.trim().replace(/,/g, "");
-    const milesToAdd = Number(normalizedMiles);
-    if (!normalizedMiles || !Number.isFinite(milesToAdd) || milesToAdd <= 0) {
-      window.alert("Please enter a valid number greater than 0.");
-      return;
-    }
-
-    setVehicles((prev) =>
-      prev.map((vehicle) =>
-        vehicle.id === activeVehicleId
-          ? { ...vehicle, mileage: safeMileage(vehicle.mileage) + milesToAdd }
-          : vehicle
-      )
-    );
-  };
-
-  const handleOilChanged = () => {
-    if (!activeVehicleId) {
-      window.alert("Select a vehicle first.");
-      return;
-    }
-
-    setVehicles((prev) =>
-      prev.map((vehicle) =>
-        vehicle.id === activeVehicleId
-          ? { ...vehicle, oilLife: 100 }
-          : vehicle
-      )
-    );
+  const getPlate = (vehicle: GarageVehicle) => {
+    const makeCode = vehicle.make.slice(0, 3).toUpperCase().padEnd(3, "X");
+    const yearCode = String(vehicle.year).slice(-2);
+    return `${makeCode}-${yearCode}${vehicle.model.slice(0, 1).toUpperCase()}`;
   };
 
   return (
-    <div className="min-h-[calc(100vh-3.5rem)] bg-[#f3f5f9]">
-      <div className="w-full">
-        <div className="grid min-h-[calc(100vh-3.5rem)] grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)]">
-          <aside className="bg-ink text-white lg:rounded-b-xl lg:rounded-t-none">
-            <div className="border-b border-white/10 px-5 py-6">
-              <h2 className="text-xl font-semibold tracking-tight">myGarage</h2>
-            </div>
+    <div className="min-h-[calc(100vh-3.5rem)] bg-[#efefef] px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto w-full max-w-5xl">
+        <div className="px-0 py-4">
+          <div className="flex items-center justify-between gap-4">
+            <h1 className="font-mono text-4xl font-bold tracking-wide text-[#181818]">My Garage</h1>
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              className="inline-flex items-center gap-2 border border-[#151515] bg-[#111] px-6 py-3 font-mono text-base font-semibold uppercase tracking-[0.12em] text-white transition hover:bg-[#2a2a2a]"
+            >
+              <Plus className="h-5 w-5" />
+              Add Vehicle
+            </button>
+          </div>
+        </div>
 
-            <div className="px-4 py-6">
-              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-white/45">Vehicles</p>
+        <section className="px-0 py-4">
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+            {vehicles.map((vehicle) => {
+              const selected = vehicle.id === activeVehicleId;
 
-              <div className="space-y-2">
-                {vehicles.map((vehicle) => (
+              return (
+                <article
+                  key={vehicle.id}
+                  className={`border-2 border-dashed px-5 py-5 transition ${
+                    selected ? "border-[#121212] bg-[#ececec]" : "border-[#c1c1c1] bg-[#f5f5f5]"
+                  }`}
+                >
+                  <div className="mb-3 flex justify-center">
+                    <span className="inline-flex h-14 w-14 items-center justify-center border border-[#c8c8c8] bg-[#dedede] text-[#5f5f5f]">
+                      <Car className="h-6 w-6" />
+                    </span>
+                  </div>
+
                   <button
-                    key={vehicle.id}
                     type="button"
                     onClick={() => setActiveVehicleId(vehicle.id)}
-                    className={`flex w-full items-center justify-between rounded-xl px-3 py-3 text-left transition ${
-                      vehicle.id === activeVehicleId
-                        ? "bg-[#0f1b3d] ring-1 ring-[#1f4ed8]/60"
-                        : "hover:bg-white/5"
-                    }`}
+                    className="w-full text-center"
                   >
-                    <div>
-                      <p className="text-sm font-semibold text-white">{vehicle.year} {vehicle.model}</p>
-                      <p className="text-xs text-white/55">{vehicle.make}</p>
-                    </div>
-                    {vehicle.alerts > 0 ? (
-                      <span className="rounded-full bg-[#2563eb] px-2 py-0.5 text-xs font-semibold text-white">
-                        {vehicle.alerts}
+                    <p className="font-mono text-xl font-semibold leading-tight text-[#151515]">
+                      {vehicle.make} {vehicle.model}
+                    </p>
+                    <p className="mt-1.5 font-mono text-sm tracking-wide text-[#6a6a6a]">
+                      {vehicle.year} · {getPlate(vehicle)} ·
+                      <span className="ml-1.5 inline-flex items-center gap-1.5 align-middle">
+                        <span
+                          className="inline-block h-2.5 w-2.5 rounded-full border border-[#999]"
+                          style={{ backgroundColor: vehicle.colorHex }}
+                          aria-hidden="true"
+                        />
+                        <span>{vehicle.colorName}</span>
                       </span>
-                    ) : null}
+                    </p>
                   </button>
-                ))}
 
-                {vehicles.length === 0 ? (
-                  <div className="rounded-xl border border-white/10 px-3 py-3 text-xs text-white/55">
-                    No vehicles yet. Use Add Vehicle to create your garage.
-                  </div>
-                ) : null}
-              </div>
-
-              <button
-                onClick={() => setOpen(true)}
-                className="mt-4 flex w-full items-center gap-2 rounded-xl border border-white/15 px-3 py-2.5 text-sm text-white/85 transition hover:bg-white/5"
-              >
-                <Plus className="h-4 w-4" />
-                Add Vehicle
-              </button>
-            </div>
-          </aside>
-
-          <section className="px-4 py-6 sm:px-6 lg:px-8">
-            <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h1 className="text-3xl font-bold tracking-tight text-[#0f172a]">
-                  {activeVehicle ? `${activeVehicle.year} ${activeVehicle.make} ${activeVehicle.model}` : "No Vehicle Selected"}
-                </h1>
-                <p className="mt-1 text-sm text-slate-500">
-                  {activeVehicle ? "Active repair in progress" : "Add a vehicle to start tracking repairs"}
-                </p>
-              </div>
-
-              <label className="flex h-11 w-full max-w-70 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 sm:w-70">
-                <Search className="h-4 w-4 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Search guides..."
-                  className="w-full border-0 bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
-                />
-              </label>
-            </div>
-
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_260px]">
-              <div className="space-y-5">
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
-                    <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
-                      <Gauge className="h-3.5 w-3.5" />
-                      Mileage
-                    </div>
-                    <p className="text-3xl font-semibold tracking-tight text-slate-900">
-                      {activeVehicle ? `${Math.round(safeMileage(activeVehicle.mileage)).toLocaleString()} mi` : "--"}
-                    </p>
+                  <div className="mt-5 grid grid-cols-3 gap-2">
                     <button
                       type="button"
-                      onClick={handleAddTrip}
-                      disabled={!activeVehicle}
-                      className="mt-3 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      onClick={() => setActiveVehicleId(vehicle.id)}
+                      className="border border-[#b8b8b8] bg-[#f2f2f2] py-1.5 font-mono text-sm font-semibold uppercase tracking-[0.08em] text-[#222] hover:bg-[#e9e9e9]"
                     >
-                      Add Trip
+                      View
                     </button>
-                    {!activeVehicle ? (
-                      <p className="mt-2 text-xs text-slate-400">Add/select a vehicle to update mileage.</p>
-                    ) : null}
-                  </div>
-
-                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
-                    <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
-                      <Droplets className="h-3.5 w-3.5" />
-                      Oil Life
-                    </div>
-                    <p className="text-3xl font-semibold tracking-tight text-slate-900">
-                      {activeVehicle ? `${Math.round(safeOilLife(activeVehicle.oilLife))}%` : "--"}
-                    </p>
                     <button
                       type="button"
-                      onClick={handleOilChanged}
-                      disabled={!activeVehicle}
-                      className="mt-3 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="border border-[#b8b8b8] bg-[#f2f2f2] py-1.5 font-mono text-sm font-semibold uppercase tracking-[0.08em] text-[#222] hover:bg-[#e9e9e9]"
                     >
-                      Oil Changed
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      className="border border-[#b8b8b8] bg-[#f2f2f2] py-1.5 font-mono text-sm font-semibold uppercase tracking-[0.08em] text-[#222] hover:bg-[#e9e9e9]"
+                    >
+                      Delete
                     </button>
                   </div>
+                </article>
+              );
+            })}
 
-                  {stats.map((stat) => (
-                    <div key={stat.id} className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
-                      <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
-                        <stat.icon className="h-3.5 w-3.5" />
-                        {stat.label}
-                      </div>
-                      <p className="text-3xl font-semibold tracking-tight text-slate-900">{stat.value}</p>
-                    </div>
-                  ))}
-                </div>
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              className="flex min-h-56 flex-col items-center justify-center border-2 border-dashed border-[#c1c1c1] bg-[#f6f6f6] px-5 py-5 text-[#8a8a8a] transition hover:border-[#9f9f9f] hover:text-[#5a5a5a]"
+            >
+              <Plus className="h-7 w-7" />
+              <span className="mt-3 font-mono text-base font-semibold uppercase tracking-[0.14em]">Add New Vehicle</span>
+            </button>
+          </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-white p-5">
-                  <p className="mb-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">In Progress</p>
-                  <h2 className="text-xl font-semibold tracking-tight text-slate-900">Guides</h2>
-                  <p className="mt-3 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
-                    No guides to track yet.
-                  </p>
-                </div>
+          <div className="mt-7">
+            <h2 className="border-b border-[#c8c8c8] pb-2.5 font-mono text-2xl font-semibold uppercase tracking-[0.12em] text-[#1c1c1c]">
+              Maintenance History · {activeVehicle ? `${activeVehicle.make} ${activeVehicle.model}` : "No Vehicle Selected"}
+            </h2>
 
-                <div className="rounded-2xl border border-slate-200 bg-white p-5">
-                  <h3 className="text-xl font-semibold tracking-tight text-slate-900">Saved Guides</h3>
-                  <p className="mt-3 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
-                    No saved guides yet.
-                  </p>
-                </div>
-              </div>
-
-              <aside className="h-fit rounded-2xl border border-slate-200 bg-white p-5">
-                <h3 className="mb-4 text-lg font-semibold text-slate-900">Technical Specs</h3>
-
-                <div className="space-y-3 text-sm">
-                  <SpecRow label="Engine" value="5.0L Coyote V8" />
-                  <SpecRow label="VIN" value="1FTEW1EP3PK...47" />
-                  <SpecRow label="Oil" value="5W-20 Synthetic Blend" />
-                  <SpecRow label="Tire PSI" value="35 / 35 PSI" />
-                  <SpecRow label="Trans" value="6-Speed Auto" />
-                  <SpecRow label="Coolant" value="Motorcraft Gold" />
-                </div>
-              </aside>
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full min-w-175 border border-[#cfcfcf] bg-[#f8f8f8]">
+                <thead>
+                  <tr className="bg-[#ececec] text-left">
+                    <th className="border border-[#d5d5d5] px-4 py-2.5 font-mono text-base font-semibold text-[#2a2a2a]">Activity</th>
+                    <th className="border border-[#d5d5d5] px-4 py-2.5 font-mono text-base font-semibold text-[#2a2a2a]">Date</th>
+                    <th className="border border-[#d5d5d5] px-4 py-2.5 font-mono text-base font-semibold text-[#2a2a2a]">Notes</th>
+                    <th className="border border-[#d5d5d5] px-4 py-2.5 font-mono text-base font-semibold text-[#2a2a2a]">Reminder</th>
+                    <th className="border border-[#d5d5d5] px-4 py-2.5 font-mono text-base font-semibold text-[#2a2a2a]">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {maintenanceHistory.length > 0 ? (
+                    maintenanceHistory.map((entry) => (
+                      <tr key={entry.id} className="text-[#373737]">
+                        <td className="border border-[#dfdfdf] px-4 py-2.5 font-mono text-base">{entry.activity}</td>
+                        <td className="border border-[#dfdfdf] px-4 py-2.5 font-mono text-base">{entry.date}</td>
+                        <td className="border border-[#dfdfdf] px-4 py-2.5 font-mono text-base">{entry.notes}</td>
+                        <td className="border border-[#dfdfdf] px-4 py-2.5 font-mono text-base">{entry.reminder}</td>
+                        <td className="border border-[#dfdfdf] px-4 py-2.5">
+                          <button
+                            type="button"
+                            className="border border-[#b8b8b8] bg-[#f2f2f2] px-3 py-1.5 font-mono text-sm font-semibold uppercase tracking-[0.08em] text-[#222] hover:bg-[#e9e9e9]"
+                          >
+                            Edit
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr className="text-[#707070]">
+                      <td colSpan={5} className="border border-[#dfdfdf] px-4 py-8 text-center font-mono text-base uppercase tracking-[0.08em]">
+                        No maintenance records yet
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
-          </section>
-        </div>
+          </div>
+        </section>
       </div>
 
       <GarageModal open={open} onClose={() => setOpen(false)} onAddVehicle={handleAddVehicle} />
-    </div>
-  );
-}
-
-function SpecRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="grid grid-cols-[70px_1fr] gap-2 border-b border-slate-100 pb-2 last:border-b-0 last:pb-0">
-      <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">{label}</span>
-      <span className="justify-self-end text-right font-semibold text-slate-800">{value}</span>
     </div>
   );
 }

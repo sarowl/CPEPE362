@@ -7,6 +7,8 @@ export type NewVehicleInput = {
   year: number;
   make: string;
   model: string;
+  colorName: string;
+  colorHex: string;
   vin?: string;
 };
 
@@ -16,7 +18,7 @@ type Props = {
   onAddVehicle: (vehicle: NewVehicleInput) => void;
 };
 
-type Step = "chooser" | "vin" | "make" | "year" | "confirm";
+type Step = "chooser" | "vin" | "make" | "year" | "color" | "confirm";
 
 const MAKES = ["Toyota", "Honda", "Ford", "Chevrolet", "BMW", "Nissan", "Subaru", "Jeep"];
 
@@ -31,12 +33,25 @@ const MODELS_BY_MAKE: Record<string, string> = {
   Jeep: "Grand Cherokee",
 };
 
+const VEHICLE_COLORS = [
+  { name: "White", hex: "#f5f5f5" },
+  { name: "Black", hex: "#202020" },
+  { name: "Silver", hex: "#b3b3b3" },
+  { name: "Gray", hex: "#7b7f85" },
+  { name: "Blue", hex: "#315f9c" },
+  { name: "Red", hex: "#b03333" },
+  { name: "Green", hex: "#397a4f" },
+  { name: "Brown", hex: "#6a4a3c" },
+] as const;
+
 export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
   const [step, setStep] = useState<Step>("chooser");
   const [vin, setVin] = useState("");
   const [selectedMake, setSelectedMake] = useState("Honda");
   const [selectedModel, setSelectedModel] = useState("Pilot");
   const [selectedYear, setSelectedYear] = useState(2023);
+  const [selectedColorName, setSelectedColorName] = useState("White");
+  const [selectedColorHex, setSelectedColorHex] = useState("#f5f5f5");
 
   const years = useMemo(() => {
     const current = new Date().getFullYear();
@@ -50,6 +65,8 @@ export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
     setSelectedMake("Honda");
     setSelectedModel("Pilot");
     setSelectedYear(2023);
+    setSelectedColorName("White");
+    setSelectedColorHex("#f5f5f5");
   }, [open]);
 
   useEffect(() => {
@@ -78,8 +95,13 @@ export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
       return;
     }
 
-    if (step === "confirm") {
+    if (step === "color") {
       setStep("year");
+      return;
+    }
+
+    if (step === "confirm") {
+      setStep("color");
     }
   };
 
@@ -94,7 +116,7 @@ export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
     setSelectedMake("Honda");
     setSelectedModel("Pilot");
     setSelectedYear(2023);
-    setStep("confirm");
+    setStep("color");
   };
 
   return (
@@ -207,7 +229,7 @@ export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
                       type="button"
                       onClick={() => {
                         setSelectedYear(year);
-                        setStep("confirm");
+                        setStep("color");
                       }}
                       className="h-10 rounded-lg bg-slate-100 text-base font-semibold text-slate-900 transition hover:bg-slate-200"
                     >
@@ -215,6 +237,44 @@ export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
                     </button>
                   ))}
                 </div>
+              </div>
+            </div>
+          ) : null}
+
+          {step === "color" ? (
+            <div>
+              <p className="mb-2.5 text-sm text-slate-500">
+                {selectedYear} {selectedMake} {selectedModel}
+              </p>
+
+              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+                {VEHICLE_COLORS.map((color) => {
+                  const selected = color.name === selectedColorName;
+
+                  return (
+                    <button
+                      key={color.name}
+                      type="button"
+                      onClick={() => {
+                        setSelectedColorName(color.name);
+                        setSelectedColorHex(color.hex);
+                        setStep("confirm");
+                      }}
+                      className={`flex h-11 items-center gap-2.5 rounded-lg border px-3 text-left text-sm font-semibold transition ${
+                        selected
+                          ? "border-[#2d67e3] bg-[#e7edfb] text-[#1f55c7]"
+                          : "border-slate-200 bg-slate-100 text-slate-800 hover:bg-slate-200"
+                      }`}
+                    >
+                      <span
+                        className="inline-block h-4 w-4 rounded-full border border-slate-400"
+                        style={{ backgroundColor: color.hex }}
+                        aria-hidden="true"
+                      />
+                      <span>{color.name}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           ) : null}
@@ -239,6 +299,7 @@ export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
                 <ConfirmRow label="Year" value={String(selectedYear)} />
                 <ConfirmRow label="Make" value={selectedMake} />
                 <ConfirmRow label="Model" value={selectedModel} />
+                <ConfirmRow label="Color" value={selectedColorName} />
               </div>
 
               <button
@@ -248,6 +309,8 @@ export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
                     year: selectedYear,
                     make: selectedMake,
                     model: selectedModel,
+                    colorName: selectedColorName,
+                    colorHex: selectedColorHex,
                     vin: vin || undefined,
                   });
                 }}
@@ -268,6 +331,7 @@ function titleForStep(step: Step) {
   if (step === "vin") return "Enter VIN";
   if (step === "make") return "Select Make";
   if (step === "year") return "Select Year";
+  if (step === "color") return "Select Color";
   return "Confirm Vehicle";
 }
 
