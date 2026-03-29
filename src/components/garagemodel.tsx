@@ -18,20 +18,9 @@ type Props = {
   onAddVehicle: (vehicle: NewVehicleInput) => void;
 };
 
-type Step = "chooser" | "vin" | "make" | "year" | "color" | "confirm";
+type Step = "chooser" | "vin" | "make" | "model" | "year" | "color" | "confirm";
 
 const MAKES = ["Toyota", "Honda", "Ford", "Chevrolet", "BMW", "Nissan", "Subaru", "Jeep"];
-
-const MODELS_BY_MAKE: Record<string, string> = {
-  Toyota: "Camry",
-  Honda: "Pilot",
-  Ford: "F-150",
-  Chevrolet: "Silverado",
-  BMW: "X5",
-  Nissan: "Rogue",
-  Subaru: "Outback",
-  Jeep: "Grand Cherokee",
-};
 
 const VEHICLE_COLORS = [
   { name: "White", hex: "#f5f5f5" },
@@ -48,7 +37,7 @@ export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
   const [step, setStep] = useState<Step>("chooser");
   const [vin, setVin] = useState("");
   const [selectedMake, setSelectedMake] = useState("Honda");
-  const [selectedModel, setSelectedModel] = useState("Pilot");
+  const [selectedModel, setSelectedModel] = useState("");
   const [selectedYear, setSelectedYear] = useState(2023);
   const [selectedColorName, setSelectedColorName] = useState("White");
   const [selectedColorHex, setSelectedColorHex] = useState("#f5f5f5");
@@ -63,7 +52,7 @@ export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
     setStep("chooser");
     setVin("");
     setSelectedMake("Honda");
-    setSelectedModel("Pilot");
+    setSelectedModel("");
     setSelectedYear(2023);
     setSelectedColorName("White");
     setSelectedColorHex("#f5f5f5");
@@ -90,8 +79,13 @@ export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
       return;
     }
 
-    if (step === "year") {
+    if (step === "model") {
       setStep("make");
+      return;
+    }
+
+    if (step === "year") {
+      setStep("model");
       return;
     }
 
@@ -107,7 +101,15 @@ export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
 
   const chooseMake = (make: string) => {
     setSelectedMake(make);
-    setSelectedModel(MODELS_BY_MAKE[make] ?? "Base");
+    setSelectedModel("");
+    setStep("model");
+  };
+
+  const continueWithModel = () => {
+    const normalizedModel = selectedModel.trim();
+    if (!normalizedModel) return;
+
+    setSelectedModel(normalizedModel);
     setStep("year");
   };
 
@@ -212,6 +214,33 @@ export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
                   {make}
                 </button>
               ))}
+            </div>
+          ) : null}
+
+          {step === "model" ? (
+            <div>
+              <p className="mb-2 text-sm font-semibold uppercase tracking-[0.14em] text-slate-500">Vehicle model</p>
+              <p className="mb-2.5 text-sm text-slate-500">Selected make: {selectedMake}</p>
+              <input
+                value={selectedModel}
+                onChange={(event) => setSelectedModel(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    continueWithModel();
+                  }
+                }}
+                className="mb-4 h-10 w-full rounded-lg border border-slate-200 bg-slate-100 px-3.5 text-sm text-slate-700 outline-none transition focus:border-[#2d67e3]"
+                placeholder="e.g. Civic"
+              />
+
+              <button
+                type="button"
+                onClick={continueWithModel}
+                disabled={!selectedModel.trim()}
+                className="h-10 w-full rounded-lg bg-[#2d67e3] text-sm font-semibold text-white transition enabled:hover:bg-[#1f55c7] disabled:cursor-not-allowed disabled:bg-slate-300"
+              >
+                Continue
+              </button>
             </div>
           ) : null}
 
@@ -330,6 +359,7 @@ function titleForStep(step: Step) {
   if (step === "chooser") return "Add Vehicle";
   if (step === "vin") return "Enter VIN";
   if (step === "make") return "Select Make";
+  if (step === "model") return "Enter Model";
   if (step === "year") return "Select Year";
   if (step === "color") return "Select Color";
   return "Confirm Vehicle";

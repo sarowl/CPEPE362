@@ -172,6 +172,44 @@ export default function Mygarage() {
     fetchVehicles();
   }, []);
 
+const deleteVehicleFromDB = async (id: string) => {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  const token = session?.access_token;
+
+  if (!token) {
+    alert("User not logged in");
+    return;
+  }
+
+  try {
+    const res = await fetch("/api/mygarge/delete", {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ id }),
+    });
+
+  
+    let data = null;
+    const text = await res.text();
+
+    if (text) {
+      data = JSON.parse(text);
+    }
+
+    console.log("Deleted:", data);
+
+    await fetchVehicles();
+  } catch (err) {
+    console.error("Delete failed:", err);
+  }
+};
+
   return (
     <div className="min-h-[calc(100vh-3.5rem)] bg-[#efefef] px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-[980px]">
@@ -218,11 +256,20 @@ export default function Mygarage() {
                 return (
                   <article
                     key={vehicle.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setActiveVehicleId(vehicle.id)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        setActiveVehicleId(vehicle.id);
+                      }
+                    }}
                     className={`min-h-[180px] border-2 border-dashed px-5 py-6 ${
                       selected
                         ? "border-[#242424] bg-[#ececec]"
                         : "border-[#c9c9c9] bg-[#f2f2f2]"
-                    }`}
+                    } cursor-pointer`}
                   >
                     <div className="mb-3 flex justify-center">
                       <span className="inline-flex h-11 w-11 items-center justify-center text-[#7a7a7a]">
@@ -254,21 +301,30 @@ export default function Mygarage() {
                     <div className="mt-5 flex items-center justify-center gap-2">
                       <button
                         type="button"
-                        onClick={() => setActiveVehicleId(vehicle.id)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setActiveVehicleId(vehicle.id);
+                        }}
                         className="cursor-pointer border border-[#c9c9c9] px-3 py-1.5 font-mono text-xs uppercase tracking-[0.12em] text-[#1f1f1f] transition-colors hover:border-[#f26a2e] hover:bg-[#f26a2e] hover:text-white"
                       >
                         View
                       </button>
                       <button
                         type="button"
-                        onClick={() => setActiveVehicleId(vehicle.id)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setActiveVehicleId(vehicle.id);
+                        }}
                         className="cursor-pointer border border-[#c9c9c9] px-3 py-1.5 font-mono text-xs uppercase tracking-[0.12em] text-[#1f1f1f] transition-colors hover:border-[#f26a2e] hover:bg-[#f26a2e] hover:text-white"
                       >
                         Edit
                       </button>
                       <button
                         type="button"
-                        onClick={() => setActiveVehicleId(vehicle.id)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          deleteVehicleFromDB(vehicle.id);
+                        }}
                         className="cursor-pointer border border-[#c9c9c9] px-3 py-1.5 font-mono text-xs uppercase tracking-[0.12em] text-[#1f1f1f] transition-colors hover:border-[#d94343] hover:bg-[#d94343] hover:text-white"
                       >
                         Delete
