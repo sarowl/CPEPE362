@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { Car, Plus } from "lucide-react";
 import GarageModal, { type NewVehicleInput } from "./garagemodel";
+import GarageViewModal from "./garageviewmodal";
+import GarageEditModal from "./garageeditmodal";
 import { supabase } from "@/lib/supabase";
 
 type GarageVehicle = NewVehicleInput & {
@@ -21,6 +23,8 @@ type MaintenanceEntry = {
 
 export default function Mygarage() {
   const [open, setOpen] = useState(false);
+  const [viewOpen, setViewOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [vehicles, setVehicles] = useState<GarageVehicle[]>([]);
   const [activeVehicleId, setActiveVehicleId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -31,6 +35,25 @@ export default function Mygarage() {
   const activeVehicle = vehicles.find((vehicle) => vehicle.id === activeVehicleId) ?? null;
 
   const mapVehicleRow = (row: any): GarageVehicle => {
+    const firstString = (...values: unknown[]) => {
+      for (const value of values) {
+        if (typeof value === "string" && value.trim()) {
+          return value.trim();
+        }
+      }
+      return "";
+    };
+
+    const firstNumber = (...values: unknown[]) => {
+      for (const value of values) {
+        const parsed = Number(value);
+        if (Number.isFinite(parsed) && parsed > 0) {
+          return parsed;
+        }
+      }
+      return 0;
+    };
+
     const modelRaw = typeof row?.model === "string" ? row.model.trim() : "Unknown Model";
     const modelParts = modelRaw.split(/\s+/).filter(Boolean);
     const make = modelParts[0] ?? "Unknown";
@@ -50,6 +73,16 @@ export default function Mygarage() {
       year,
       colorName,
       colorHex,
+      vin: firstString(row?.vin, row?.VIN) || undefined,
+      owner: firstString(row?.owner, row?.Owner, row?.registered_owner),
+      enginenumber: firstString(row?.enginenumber, row?.engine_number, row?.engine, row?.EngineNumber),
+      Platenumber: firstString(row?.Platenumber, row?.platenumber, row?.platenum, row?.plate_number),
+      chasisnumber: firstString(row?.chasisnumber, row?.chasis, row?.chassisnumber, row?.chassis_number),
+      type: firstString(row?.type, row?.vehicle_type),
+      ORnumber: firstString(row?.ORnumber, row?.ORnum, row?.or_number),
+      CRnumber: firstString(row?.CRnumber, row?.CRnum, row?.cr_number),
+      Grossweight: firstNumber(row?.Grossweight, row?.grossweight, row?.gross_weight),
+      Netweight: firstNumber(row?.Netweight, row?.netweight, row?.net_weight),
     };
   };
 
@@ -106,42 +139,50 @@ export default function Mygarage() {
   };
 
 
-  const saveVehicleToDB = async (vehicle: GarageVehicle) => {
-    const model = `${vehicle.make} ${vehicle.model}`;
-    const color = `${vehicle.colorName} (${vehicle.colorHex})`;
+const saveVehicleToDB = async (vehicle: GarageVehicle) => {
+  const model = `${vehicle.make} ${vehicle.model}`;
+  const color = `${vehicle.colorName} (${vehicle.colorHex})`;
 
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
 
-    const token = session?.access_token;
+  const token = session?.access_token;
 
-    if (!token) {
-      alert("User not logged in");
-      return;
-    }
+  if (!token) {
+    alert("User not logged in");
+    return;
+  }
 
-    try {
-      const res = await fetch("/api/mygarge/save", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          model,
-          year: vehicle.year,
-          color,
-        }),
-      });
+  try {
+    const res = await fetch("/api/mygarge/save", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        model,
+        year: vehicle.year,
+        color,
+        owner: vehicle.owner,
+        type: vehicle.type,
+        platenum: vehicle.Platenumber,
+        vin: vehicle.vin,
+        chasis: vehicle.chasisnumber,
+        ORnum: vehicle.ORnumber,
+        CRnum: vehicle.CRnumber,
+        Grossweight: vehicle.Grossweight,
+        Netweight: vehicle.Netweight,
+      }),
+    });
 
-      const data = await res.json();
-      console.log("Saved:", data);
-    } catch (err) {
-      console.error("Save failed:", err);
-    }
-  };
-
+    const data = await res.json();
+    console.log("Saved:", data);
+  } catch (err) {
+    console.error("Save failed:", err);
+  }
+};
   const handleAddVehicle = async (vehicle: NewVehicleInput) => {
     const id =
       typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -159,6 +200,13 @@ export default function Mygarage() {
     await saveVehicleToDB(newVehicle);
 
     await fetchVehicles();
+  };
+
+  const handleEditVehicle = (updatedVehicle: GarageVehicle) => {
+    setVehicles((prev) =>
+      prev.map((vehicle) => (vehicle.id === updatedVehicle.id ? updatedVehicle : vehicle))
+    );
+    setEditOpen(false);
   };
 
   const getPlate = (vehicle: GarageVehicle) => {
@@ -304,6 +352,7 @@ const deleteVehicleFromDB = async (id: string) => {
                         onClick={(event) => {
                           event.stopPropagation();
                           setActiveVehicleId(vehicle.id);
+                          setViewOpen(true);
                         }}
                         className="cursor-pointer border border-[#c9c9c9] px-3 py-1.5 font-mono text-xs uppercase tracking-[0.12em] text-[#1f1f1f] transition-colors hover:border-[#f26a2e] hover:bg-[#f26a2e] hover:text-white"
                       >
@@ -314,6 +363,7 @@ const deleteVehicleFromDB = async (id: string) => {
                         onClick={(event) => {
                           event.stopPropagation();
                           setActiveVehicleId(vehicle.id);
+                          setEditOpen(true);
                         }}
                         className="cursor-pointer border border-[#c9c9c9] px-3 py-1.5 font-mono text-xs uppercase tracking-[0.12em] text-[#1f1f1f] transition-colors hover:border-[#f26a2e] hover:bg-[#f26a2e] hover:text-white"
                       >
@@ -410,6 +460,26 @@ const deleteVehicleFromDB = async (id: string) => {
         onClose={() => setOpen(false)}
         onAddVehicle={handleAddVehicle}
       />
+
+      <GarageViewModal
+        open={viewOpen}
+        vehicle={activeVehicle}
+        onClose={() => setViewOpen(false)}
+      />
+
+      <GarageEditModal
+        open={editOpen}
+        vehicle={activeVehicle}
+        onClose={() => setEditOpen(false)}
+        onSave={(vehicle) => handleEditVehicle(vehicle)}
+      />
     </div>
   );
 }
+
+
+
+
+
+
+

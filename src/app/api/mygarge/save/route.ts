@@ -4,9 +4,23 @@ import { createClient } from "@supabase/supabase-js";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { model, year, color } = body;
 
-    // ✅ basic validation
+    const {
+      model,
+      year,
+      color,
+      type,
+      platenum,
+      vin,
+      chasis,
+      ORnum,
+      CRnum,
+      Grossweight,
+      Netweight,
+      owner,
+    } = body;
+
+    // ✅ Required fields
     if (!model || !year || !color) {
       return NextResponse.json(
         { message: "Missing required fields" },
@@ -14,10 +28,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-
     const supabase = createClient(
-     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
 
     const authHeader = req.headers.get("authorization");
@@ -43,7 +56,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 🔥 INSERT into Supabase
+    // 🔥 INSERT ALL FIELDS
     const { data, error } = await supabase
       .from("User_cars")
       .insert([
@@ -52,6 +65,15 @@ export async function POST(req: NextRequest) {
           model,
           year,
           color,
+          type,
+          platenum,
+          vin,
+          chasis,
+          ORnum,
+          CRnum,
+          Grossweight,
+          Netweight,
+          owner: body.owner || "", // Optional field
         },
       ]);
 
