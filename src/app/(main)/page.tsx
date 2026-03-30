@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
@@ -20,9 +21,22 @@ const MOCK_GUIDES = [
 ];
 
 export default function HomePage() {
+  const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [search, setSearch] = useState("");
   const guides = MOCK_GUIDES.slice(0, 6);
+
+  const handleSearchSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const q = search.trim();
+
+    if (q) {
+      router.push(`/search?q=${encodeURIComponent(q)}`);
+      return;
+    }
+
+    router.push("/search");
+  };
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -55,7 +69,10 @@ export default function HomePage() {
           </p>
 
           {/* Search bar */}
-          <div className="w-full max-w-lg flex items-center bg-background rounded-sm overflow-hidden shadow-lg border border-border">
+          <form
+            onSubmit={handleSearchSubmit}
+            className="w-full max-w-lg flex items-center bg-background rounded-sm overflow-hidden shadow-lg border border-border"
+          >
             <div className="pl-4 text-muted-foreground">
               <Search size={18} />
             </div>
@@ -65,13 +82,13 @@ export default function HomePage() {
               placeholder='Try "Toyota Corolla brake pads"'
               className="flex-1 h-12 bg-transparent font-mono text-sm px-3 text-foreground placeholder:text-muted-foreground focus:outline-none"
             />
-            <Link
-              href={`/guides?search=${search}`}
+            <button
+              type="submit"
               className="bg-primary text-primary-foreground font-mono text-xs font-bold px-5 h-12 flex items-center tracking-wide hover:opacity-90 transition-opacity"
             >
               SEARCH
-            </Link>
-          </div>
+            </button>
+          </form>
 
           <p className="font-mono text-xs text-primary-foreground/50">or</p>
 
