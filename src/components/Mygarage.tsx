@@ -15,6 +15,7 @@ type GarageVehicle = NewVehicleInput & {
 
 type MaintenanceEntry = {
   id: string;
+  carId: string;
   activity: string;
   date: string;
   notes: string;
@@ -30,9 +31,12 @@ export default function Mygarage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [maintenanceRows] = useState<MaintenanceEntry[]>([]);
+  const [maintenanceRows, setMaintenanceRows] = useState<MaintenanceEntry[]>([]);
 
   const activeVehicle = vehicles.find((vehicle) => vehicle.id === activeVehicleId) ?? null;
+  const visibleMaintenanceRows = maintenanceRows.filter(
+    (row) => activeVehicleId !== null && row.carId === activeVehicleId
+  );
 
   const mapVehicleRow = (row: any): GarageVehicle => {
     const firstString = (...values: unknown[]) => {
@@ -86,7 +90,76 @@ export default function Mygarage() {
     };
   };
 
-  // 🔥 FETCH VEHICLES
+  const mapMaintenanceRow = (row: any): MaintenanceEntry => {
+    const safeText = (value: unknown) => (typeof value === "string" ? value.trim() : "");
+
+    return {
+      id: String(row?.id ?? `maintenance-${Math.random().toString(36).slice(2, 10)}`),
+      carId: String(row?.car_id ?? ""),
+      activity: safeText(row?.activity) || "N/A",
+      date: safeText(row?.date) || "N/A",
+      notes: safeText(row?.notes),
+      reminder: safeText(row?.reminder) || "N/A",
+    };
+  };
+
+
+const updateVehicleInDB = async (vehicle: GarageVehicle) => {
+ const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  const token = session?.access_token;
+
+  if (!token) {
+    alert("User not logged in");
+    return;
+  }
+
+  // 🔥 map fields (IMPORTANT)
+  const mappedVehicle = {
+    id: vehicle.id,
+    model: `${vehicle.make} ${vehicle.model}`,
+    year: vehicle.year,
+    color: `${vehicle.colorName} (${vehicle.colorHex})`,
+    type: vehicle.type,
+    platenum: vehicle.Platenumber,
+    vin: vehicle.vin,
+    chasis: vehicle.chasisnumber,
+    ORnum: vehicle.ORnumber,
+    CRnum: vehicle.CRnumber,
+    Grossweight: vehicle.Grossweight,
+    Netweight: vehicle.Netweight,
+    owner: vehicle.owner,
+  };
+
+  try {
+    const res = await fetch("/api/mygarge/update", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(mappedVehicle),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      console.error("Update failed:", data.message);
+      return;
+    }
+
+    console.log("Updated:", data);
+
+    // 🔥 refresh from DB (BEST PRACTICE)
+    await fetchVehicles();
+  } catch (err) {
+    console.error("Update failed:", err);
+  }
+
+}
+
   const fetchVehicles = async () => {
     setIsLoading(true);
     setErrorMessage(null);
@@ -99,6 +172,7 @@ export default function Mygarage() {
     if (!token) {
       setIsAuthenticated(false);
       setVehicles([]);
+      setMaintenanceRows([]);
       setActiveVehicleId(null);
       setIsLoading(false);
       return;
@@ -122,8 +196,11 @@ export default function Mygarage() {
 
       const rows = Array.isArray(data?.vehicles) ? data.vehicles : [];
       const formatted: GarageVehicle[] = rows.map(mapVehicleRow);
+      const maintenanceData = Array.isArray(data?.maintenance) ? data.maintenance : [];
+      const formattedMaintenance: MaintenanceEntry[] = maintenanceData.map(mapMaintenanceRow);
 
       setVehicles(formatted);
+      setMaintenanceRows(formattedMaintenance);
 
       if (formatted.length > 0) {
         setActiveVehicleId(formatted[0].id);
@@ -133,6 +210,7 @@ export default function Mygarage() {
     } catch (err) {
       console.error("Fetch failed:", err);
       setErrorMessage("Unable to load your garage right now.");
+      setMaintenanceRows([]);
     } finally {
       setIsLoading(false);
     }
@@ -202,17 +280,16 @@ const saveVehicleToDB = async (vehicle: GarageVehicle) => {
     await fetchVehicles();
   };
 
-  const handleEditVehicle = (updatedVehicle: GarageVehicle) => {
-    setVehicles((prev) =>
-      prev.map((vehicle) => (vehicle.id === updatedVehicle.id ? updatedVehicle : vehicle))
-    );
+  const handleEditVehicle = async (updatedVehicle: GarageVehicle) => {
     setEditOpen(false);
+
+    await updateVehicleInDB(updatedVehicle);
+
   };
 
   const getPlate = (vehicle: GarageVehicle) => {
-    const makeCode = vehicle.make.slice(0, 3).toUpperCase().padEnd(3, "X");
-    const yearCode = String(vehicle.year).slice(-2);
-    return `${makeCode}-${yearCode}${vehicle.model.slice(0, 1).toUpperCase()}`;
+    const dbPlate = typeof vehicle.Platenumber === "string" ? vehicle.Platenumber.trim() : "";
+    return dbPlate || "No platenum";
   };
 
   
@@ -421,8 +498,8 @@ const deleteVehicleFromDB = async (id: string) => {
                   </tr>
                 </thead>
                 <tbody>
-                  {maintenanceRows.length > 0 ? (
-                    maintenanceRows.map((row) => (
+                  {visibleMaintenanceRows.length > 0 ? (
+                    visibleMaintenanceRows.map((row) => (
                       <tr key={row.id} className="border-b border-[#cfcfcf] last:border-b-0">
                         <td className="px-4 py-5">{row.activity}</td>
                         <td className="px-4 py-5">{row.date}</td>

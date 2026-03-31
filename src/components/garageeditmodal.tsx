@@ -15,6 +15,54 @@ type Props = {
   onSave: (vehicle: GarageEditableVehicle) => void;
 };
 
+const COLOR_NAME_TO_HEX: Record<string, string> = {
+  white: "#f5f5f5",
+  black: "#202020",
+  silver: "#b3b3b3",
+  gray: "#7b7f85",
+  grey: "#7b7f85",
+  blue: "#315f9c",
+  red: "#b03333",
+  green: "#397a4f",
+  brown: "#6a4a3c",
+  yellow: "#d4a017",
+  orange: "#e67e22",
+  purple: "#7b3f99",
+};
+
+const isHexColor = (value: string) => /^#[0-9a-fA-F]{6}$/.test(value);
+
+const rgbToHex = (value: string) => {
+  const match = value
+    .trim()
+    .match(/^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*(\d*\.?\d+))?\s*\)$/i);
+
+  if (!match) return null;
+
+  const [r, g, b] = [match[1], match[2], match[3]].map((channel) => Number(channel));
+  if ([r, g, b].some((channel) => !Number.isFinite(channel) || channel < 0 || channel > 255)) {
+    return null;
+  }
+
+  return `#${[r, g, b].map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
+};
+
+const toHexColor = (input: string, fallback: string) => {
+  const normalized = input.trim().toLowerCase();
+  if (!normalized) return fallback;
+
+  if (isHexColor(normalized)) {
+    return normalized;
+  }
+
+  const fromRgb = rgbToHex(normalized);
+  if (fromRgb) {
+    return fromRgb;
+  }
+
+  return COLOR_NAME_TO_HEX[normalized] ?? fallback;
+};
+
 const EMPTY_FORM: NewVehicleInput = {
   year: new Date().getFullYear(),
   make: "",
@@ -36,6 +84,14 @@ const EMPTY_FORM: NewVehicleInput = {
 export default function GarageEditModal({ open, vehicle, onClose, onSave }: Props) {
   const [form, setForm] = useState<NewVehicleInput>(EMPTY_FORM);
 
+  const handleColorNameChange = (nextColorName: string) => {
+    setForm((prev) => ({
+      ...prev,
+      colorName: nextColorName,
+      colorHex: toHexColor(nextColorName, prev.colorHex),
+    }));
+  };
+
   useEffect(() => {
     if (!open || !vehicle) return;
     setForm({
@@ -43,7 +99,7 @@ export default function GarageEditModal({ open, vehicle, onClose, onSave }: Prop
       make: vehicle.make,
       model: vehicle.model,
       colorName: vehicle.colorName,
-      colorHex: vehicle.colorHex,
+      colorHex: toHexColor(vehicle.colorHex, toHexColor(vehicle.colorName, EMPTY_FORM.colorHex)),
       vin: vehicle.vin || "",
       owner: vehicle.owner,
       enginenumber: vehicle.enginenumber,
@@ -118,7 +174,7 @@ export default function GarageEditModal({ open, vehicle, onClose, onSave }: Prop
                   <input
                     type="text"
                     value={form.colorName}
-                    onChange={(event) => setForm((prev) => ({ ...prev, colorName: event.target.value }))}
+                    onChange={(event) => handleColorNameChange(event.target.value)}
                     className="h-8 w-28 rounded border border-[#cfd2d8] bg-white px-2 font-mono text-xs font-semibold text-[#11151e] outline-none"
                   />
                 </div>
