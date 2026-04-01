@@ -1,9 +1,3 @@
-// ============================================================
-// PURPOSE: Client-side hook that reads the sessionStorage admin
-//          session and redirects to /login if none is found.
-//          Import and call this at the top of any admin page/component.
-// ============================================================
-
 "use client";
 
 import { useEffect, useState } from "react";
