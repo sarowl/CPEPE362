@@ -2,7 +2,6 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 
-// 1. Correct Initialization
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
 export async function POST(req: Request) {
@@ -10,9 +9,8 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { callType, initialProblem, qaHistory } = body;
 
-    // 2. Select the model (Use the latest version available in your tier)
     const model = genAI.getGenerativeModel({ 
-      model: "gemini-2.5-flash" 
+      model: "gemini-3.1-flash-lite-preview" 
     });
 
     const systemInstruction = `
@@ -63,7 +61,6 @@ export async function POST(req: Request) {
         generationConfig: {
           temperature: 0.2,
           responseMimeType: "application/json",
-          // The standard SDK expects the schema in this format
           responseSchema: {
             type: SchemaType.OBJECT,
             properties: {
@@ -81,7 +78,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ type: "questions", questions: response.questions });
     }
 
-    // ── Call 2: Get Diagnosis ───────────────────────────────────────────
     if (callType === "get-diagnosis") {
       const historyText = qaHistory.map((qa: any) => `Q: ${qa.question}\nA: ${qa.answer}`).join("\n");
       const prompt = `${systemInstruction}\n\nProblem: "${initialProblem}"\nContext:\n${historyText}\n\nReturn the top 4 most likely diagnoses.`;
@@ -122,7 +118,6 @@ export async function POST(req: Request) {
 
   } catch (error: any) {
     console.error("Gemini API Error:", error);
-    // If you get a 400 here, it's likely a Model Name or API Key issue
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
