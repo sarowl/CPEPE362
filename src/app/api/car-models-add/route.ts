@@ -1,15 +1,14 @@
+// ================================================================
+// CHANGES: Now accepts optional `info` field alongside name/category/years.
+//          Image upload is handled separately by /api/car-models-image-upload
+//          after this route creates the row and returns the model_id + slug.
+// ================================================================
+
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase-admin";
-import { isAdminEmail } from "@/lib/adminAccounts";
+import { createClient } from "@/lib/supabase-server";
 
 export async function POST(req: Request) {
   try {
-    // Verify admin identity first
-    const adminEmail = req.headers.get("x-admin-email") ?? "";
-    if (!adminEmail || !isAdminEmail(adminEmail)) {
-      return NextResponse.json({ error: "Forbidden — admin only." }, { status: 403 });
-    }
-
     const body = await req.json();
     const { brand_id, name, category, years, info } = body as {
       brand_id: string;
@@ -33,9 +32,7 @@ export async function POST(req: Request) {
       .replace(/[^a-z0-9\s-]/g, "")
       .replace(/\s+/g, "-");
 
-    // Use admin client — bypasses RLS so INSERT succeeds without a
-    // Supabase auth session (Admin Fix #3)
-    const supabase = createAdminClient();
+    const supabase = await createClient();
 
     const { data, error } = await supabase
       .from("car_models")

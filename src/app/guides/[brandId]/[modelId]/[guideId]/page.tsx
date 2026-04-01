@@ -1,23 +1,15 @@
 "use client";
 
 // ================================================================
-//  [1  Like / Dislike buttons on each guide.
-//            - Cannot react to own guide (disabled + tooltip)
-//            - Toggle: clicking same reaction removes it
-//            - Shows live like + dislike counts
-//
-//  [2]  Creator's name is now a clickable link → /user/[userId]
-//            Opens public profile page (about + approved guides)
+// PURPOSE: Renders a full approved guide for any user to read.
+//          Shows steps, images, tools, and creator profile.
 // ================================================================
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
-import {
-  Clock, Wrench, ChevronRight, ArrowLeft, User,
-  AlertCircle, BookOpen, Video, ThumbsUp, ThumbsDown, RefreshCw,
-} from "lucide-react";
+import { Clock, Wrench, ChevronRight, ArrowLeft, User, AlertCircle, BookOpen, Video } from "lucide-react";
 
 interface Guide {
   guide_id: string; title: string; summary: string; introduction: string;
@@ -29,13 +21,13 @@ interface Step {
   step_id: string; step_number: number; title: string;
   instructions: string; images: string[]; video_url: string | null;
 }
-interface Creator { name: string; user_id: string; }
+interface Creator { name: string; }
 
 const DIFFICULTY_COLORS: Record<string, string> = {
-  Beginner:     "bg-green-50 text-green-700 border-green-200",
+  Beginner: "bg-green-50 text-green-700 border-green-200",
   Intermediate: "bg-yellow-50 text-yellow-700 border-yellow-200",
-  Advanced:     "bg-orange-50 text-orange-700 border-orange-200",
-  Expert:       "bg-red-50 text-red-700 border-red-200",
+  Advanced: "bg-orange-50 text-orange-700 border-orange-200",
+  Expert: "bg-red-50 text-red-700 border-red-200",
 };
 
 export default function GuideViewPage() {
@@ -43,20 +35,12 @@ export default function GuideViewPage() {
   const router  = useRouter();
   const guideId = params?.guideId as string;
 
-  const [guide,        setGuide]        = useState<Guide | null>(null);
-  const [steps,        setSteps]        = useState<Step[]>([]);
-  const [creator,      setCreator]      = useState<Creator | null>(null);
-  const [loading,      setLoading]      = useState(true);
-  const [error,        setError]        = useState("");
+  const [guide,   setGuide]   = useState<Guide | null>(null);
+  const [steps,   setSteps]   = useState<Step[]>([]);
+  const [creator, setCreator] = useState<Creator | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState("");
 
-  // [Req #8] Like / dislike state
-  const [likes,        setLikes]        = useState(0);
-  const [dislikes,     setDislikes]     = useState(0);
-  const [myReaction,   setMyReaction]   = useState<"like" | "dislike" | null>(null);
-  const [myUserId,     setMyUserId]     = useState<string | null>(null);
-  const [reacting,     setReacting]     = useState(false);
-
-  // ── Load guide, steps, creator ───────────────────────────────
   useEffect(() => {
     if (!guideId) return;
     fetch(`/api/guides/${guideId}`)
@@ -65,54 +49,14 @@ export default function GuideViewPage() {
         if (json.error) { setError(json.error); setLoading(false); return; }
         setGuide(json.guide);
         setSteps(json.steps ?? []);
+        // Fetch creator profile name
         return fetch(`/api/profile_fetch?user_id=${json.guide.user_id}`);
       })
       .then((r) => r?.json())
-      .then((j) => {
-        if (j?.user) setCreator({ name: j.user.name, user_id: j.user.user_id });
-      })
+      .then((j) => { if (j?.user) setCreator({ name: j.user.name }); })
       .catch(() => setError("Failed to load guide."))
       .finally(() => setLoading(false));
   }, [guideId]);
-
-  // ── Load like/dislike counts ─────────────────────────────────
-  useEffect(() => {
-    if (!guideId) return;
-    fetch(`/api/guides-likes?guide_id=${guideId}`)
-      .then((r) => r.json())
-      .then((json) => {
-        setLikes(json.likes ?? 0);
-        setDislikes(json.dislikes ?? 0);
-        setMyReaction(json.myReaction ?? null);
-        setMyUserId(json.myUserId ?? null);
-      })
-      .catch(() => {/* not logged in or error — silently ignore */});
-  }, [guideId]);
-
-  // ── Handle like / dislike toggle ─────────────────────────────
-  const handleReact = async (reaction: "like" | "dislike") => {
-    if (reacting) return;
-    // Toggle: same reaction again = remove it
-    const newReaction = myReaction === reaction ? null : reaction;
-    setReacting(true);
-    try {
-      const res = await fetch("/api/guides-likes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ guide_id: guideId, reaction: newReaction }),
-      });
-      const json = await res.json();
-      if (res.ok) {
-        setLikes(json.likes ?? 0);
-        setDislikes(json.dislikes ?? 0);
-        setMyReaction(json.myReaction);
-      }
-    } catch (_) { /* ignore */ }
-    setReacting(false);
-  };
-
-  const isOwnGuide = !!(guide && myUserId && guide.user_id === myUserId);
-  const isLoggedIn = !!myUserId;
 
   if (loading) {
     return (
@@ -174,25 +118,16 @@ export default function GuideViewPage() {
             <div className="flex items-center gap-1.5 text-muted-foreground">
               <BookOpen size={12} /> <span>{steps.length} step{steps.length !== 1 ? "s" : ""}</span>
             </div>
-            {/* [Req #9] Creator name → clickable link to public profile */}
             {creator && (
               <div className="flex items-center gap-1.5 text-muted-foreground">
-                <User size={12} />
-                <span>by{" "}
-                  <Link
-                    href={`/user/${creator.user_id}`}
-                    className="font-bold text-ink hover:text-primary hover:underline transition-colors"
-                  >
-                    {creator.name}
-                  </Link>
-                </span>
+                <User size={12} /> <span>by <strong className="text-ink">{creator.name}</strong></span>
               </div>
             )}
           </div>
 
           {/* Tools */}
           {guide.tools?.length > 0 && (
-            <div className="mb-4">
+            <div>
               <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-1.5">
                 <Wrench size={11} /> Required Tools
               </p>
@@ -203,56 +138,6 @@ export default function GuideViewPage() {
               </div>
             </div>
           )}
-
-          {/* [Req #8] Like / Dislike buttons */}
-          <div className="flex items-center gap-3 pt-4 border-t border-border">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Was this guide helpful?</span>
-            <div className="flex items-center gap-2 ml-auto">
-              {/* Like button */}
-              <button
-                onClick={() => handleReact("like")}
-                disabled={reacting || isOwnGuide || !isLoggedIn}
-                title={
-                  isOwnGuide    ? "You cannot react to your own guide" :
-                  !isLoggedIn   ? "Log in to like this guide" :
-                  myReaction === "like" ? "Remove like" : "Like this guide"
-                }
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold border transition-all disabled:cursor-not-allowed ${
-                  myReaction === "like"
-                    ? "bg-green-600 text-white border-green-600"
-                    : "bg-background border-border text-muted-foreground hover:border-green-400 hover:text-green-600 disabled:opacity-40"
-                }`}
-              >
-                {reacting && myReaction !== "like" ? <RefreshCw size={11} className="animate-spin" /> : <ThumbsUp size={12} />}
-                <span>{likes}</span>
-              </button>
-
-              {/* Dislike button */}
-              <button
-                onClick={() => handleReact("dislike")}
-                disabled={reacting || isOwnGuide || !isLoggedIn}
-                title={
-                  isOwnGuide    ? "You cannot react to your own guide" :
-                  !isLoggedIn   ? "Log in to rate this guide" :
-                  myReaction === "dislike" ? "Remove dislike" : "Dislike this guide"
-                }
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold border transition-all disabled:cursor-not-allowed ${
-                  myReaction === "dislike"
-                    ? "bg-red-600 text-white border-red-600"
-                    : "bg-background border-border text-muted-foreground hover:border-red-400 hover:text-red-500 disabled:opacity-40"
-                }`}
-              >
-                {reacting && myReaction !== "dislike" ? <RefreshCw size={11} className="animate-spin" /> : <ThumbsDown size={12} />}
-                <span>{dislikes}</span>
-              </button>
-
-              {!isLoggedIn && (
-                <Link href="/login" className="text-[10px] text-muted-foreground hover:text-primary underline">
-                  Log in to react
-                </Link>
-              )}
-            </div>
-          </div>
         </div>
 
         {/* Introduction */}
@@ -273,24 +158,25 @@ export default function GuideViewPage() {
               </div>
 
               <div className="p-5">
+                {/* Images */}
                 {step.images?.filter(Boolean).length > 0 && (
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
                     {step.images.filter(Boolean).map((url, i) => (
-                      <img
-                        key={i} src={url}
-                        alt={`Step ${step.step_number} photo ${i + 1}`}
-                        className="w-full aspect-video object-cover border border-border"
-                        onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                      />
+                      <img key={i} src={url} alt={`Step ${step.step_number} photo ${i + 1}`} className="w-full aspect-video object-cover border border-border" />
                     ))}
                   </div>
                 )}
 
                 <p className="text-sm leading-relaxed">{step.instructions}</p>
 
+                {/* Video link */}
                 {step.video_url && (
-                  <a href={step.video_url} target="_blank" rel="noopener noreferrer"
-                    className="mt-3 inline-flex items-center gap-1.5 text-xs text-primary font-bold hover:underline">
+                  <a
+                    href={step.video_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-3 inline-flex items-center gap-1.5 text-xs text-primary font-bold hover:underline"
+                  >
                     <Video size={12} /> Watch video for this step
                   </a>
                 )}
@@ -304,12 +190,9 @@ export default function GuideViewPage() {
           <button onClick={() => router.back()} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-ink transition-colors">
             <ArrowLeft size={13} /> Back to models
           </button>
-          {/* [Req #9] Creator profile link in footer too */}
-          {creator && (
-            <Link href={`/user/${creator.user_id}`} className="text-[10px] font-mono text-muted-foreground hover:text-primary transition-colors uppercase tracking-widest">
-              By {creator.name}
-            </Link>
-          )}
+          <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">
+            © {new Date(guide.created_at).getFullYear()} Autobot Systems
+          </p>
         </div>
 
       </main>

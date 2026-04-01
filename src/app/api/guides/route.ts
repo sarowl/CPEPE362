@@ -19,7 +19,7 @@ export async function GET() {
     const { data: guides, error } = await supabase
       .from("guides")
       .select(`
-        guide_id, title, summary, brand_id, model_name,
+        guide_id, title, summary, brand_id, model_id, model_name,
         difficulty, time_required, status,
         created_at, updated_at, submitted_at, reviewed_at
       `)

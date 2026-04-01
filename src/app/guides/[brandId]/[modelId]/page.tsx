@@ -1,9 +1,8 @@
 "use client";
 
 // ================================================================
-// CHANGES: All "Create a Guide" links now pass
-//   ?brand=<brandId>&model=<modelId>  so both are pre-selected
-//   when the user opens the guide creation form.
+// PURPOSE: Shows all approved guides for a specific car model.
+//          If none exist, prompts user to create one.
 // ================================================================
 
 import { useEffect, useState } from "react";
@@ -23,12 +22,13 @@ interface Guide {
   user_id: string;
   created_at: string;
 }
+interface Creator { user_id: string; name: string; }
 
 const DIFFICULTY_COLORS: Record<string, string> = {
-  Beginner:     "bg-green-50 text-green-700 border-green-200",
+  Beginner: "bg-green-50 text-green-700 border-green-200",
   Intermediate: "bg-yellow-50 text-yellow-700 border-yellow-200",
-  Advanced:     "bg-orange-50 text-orange-700 border-orange-200",
-  Expert:       "bg-red-50 text-red-700 border-red-200",
+  Advanced: "bg-orange-50 text-orange-700 border-orange-200",
+  Expert: "bg-red-50 text-red-700 border-red-200",
 };
 
 export default function ModelGuidesPage() {
@@ -44,7 +44,6 @@ export default function ModelGuidesPage() {
 
   useEffect(() => {
     if (!brandId || !modelId) return;
-
     // Fetch model name
     fetch(`/api/car-models/${brandId}`)
       .then((r) => r.json())
@@ -77,9 +76,6 @@ export default function ModelGuidesPage() {
 
   const brandLabel = brandId ? brandId.charAt(0).toUpperCase() + brandId.slice(1) : "";
 
-  // ✅ Shared URL for "Create a Guide" — pre-selects brand AND model
-  const createGuideUrl = `/guides/create?brand=${brandId}&model=${modelId}`;
-
   return (
     <div className="min-h-screen bg-paper text-ink flex flex-col animate-fade-in">
       <Navbar />
@@ -100,13 +96,10 @@ export default function ModelGuidesPage() {
             <h1 className="font-black uppercase tracking-tighter text-3xl">
               {brandLabel} <span className="text-primary">{modelName}</span>
             </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Repair guides created by the community
-            </p>
+            <p className="text-sm text-muted-foreground mt-1">Repair guides created by the community</p>
           </div>
-          {/* ✅ FIX: pre-selects brand + model */}
           <Link
-            href={createGuideUrl}
+            href="/guides/create"
             className="shrink-0 flex items-center gap-2 px-5 py-2.5 bg-primary text-white text-xs font-bold hover:brightness-110 transition-all shadow-[4px_4px_0_0_rgba(0,0,0,0.15)]"
           >
             <Plus size={13} /> Create a Guide
@@ -115,9 +108,7 @@ export default function ModelGuidesPage() {
 
         {/* Content */}
         {loading ? (
-          <div className="py-20 text-center text-sm text-muted-foreground animate-pulse">
-            Loading guides...
-          </div>
+          <div className="py-20 text-center text-sm text-muted-foreground animate-pulse">Loading guides...</div>
         ) : guides.length === 0 ? (
           /* Empty state */
           <div className="border border-dashed border-border bg-background flex flex-col items-center justify-center py-20 gap-4">
@@ -126,80 +117,61 @@ export default function ModelGuidesPage() {
               <p className="text-sm font-bold">No guides created for this model yet.</p>
               <p className="text-xs text-muted-foreground mt-1">Would you like to create one?</p>
             </div>
-            {/* ✅ FIX: empty state also pre-selects brand + model */}
             <Link
-              href={createGuideUrl}
+              href="/guides/create"
               className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white text-xs font-bold hover:brightness-110 transition-all"
             >
               <Plus size={13} /> Create a Guide
             </Link>
           </div>
         ) : (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {guides.map((guide) => (
-                <Link
-                  key={guide.guide_id}
-                  href={`/guides/${brandId}/${modelId}/${guide.guide_id}`}
-                  className="group border border-border bg-background hover:border-primary hover:-translate-y-1 hover:shadow-[6px_6px_0_0_var(--primary)] transition-all duration-200 flex flex-col"
-                >
-                  {/* Top color bar by difficulty */}
-                  <div className={`h-1 w-full ${
-                    guide.difficulty === "Beginner"     ? "bg-green-400" :
-                    guide.difficulty === "Intermediate" ? "bg-yellow-400" :
-                    guide.difficulty === "Advanced"     ? "bg-orange-400" : "bg-red-500"
-                  }`} />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {guides.map((guide) => (
+              <Link
+                key={guide.guide_id}
+                href={`/guides/${brandId}/${modelId}/${guide.guide_id}`}
+                className="group border border-border bg-background hover:border-primary hover:-translate-y-1 hover:shadow-[6px_6px_0_0_var(--primary)] transition-all duration-200 flex flex-col"
+              >
+                {/* Top color bar by difficulty */}
+                <div className={`h-1 w-full ${
+                  guide.difficulty === "Beginner" ? "bg-green-400" :
+                  guide.difficulty === "Intermediate" ? "bg-yellow-400" :
+                  guide.difficulty === "Advanced" ? "bg-orange-400" : "bg-red-500"
+                }`} />
 
-                  <div className="p-5 flex-1 flex flex-col">
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <h3 className="font-black uppercase tracking-tighter text-sm leading-snug group-hover:text-primary transition-colors flex-1">
-                        {guide.title}
-                      </h3>
-                      <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 border shrink-0 ${DIFFICULTY_COLORS[guide.difficulty] ?? "bg-secondary border-border"}`}>
-                        {guide.difficulty}
+                <div className="p-5 flex-1 flex flex-col">
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <h3 className="font-black uppercase tracking-tighter text-sm leading-snug group-hover:text-primary transition-colors flex-1">
+                      {guide.title}
+                    </h3>
+                    <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 border shrink-0 ${DIFFICULTY_COLORS[guide.difficulty] ?? "bg-secondary border-border"}`}>
+                      {guide.difficulty}
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-muted-foreground leading-relaxed mb-4 line-clamp-2 flex-1">
+                    {guide.summary}
+                  </p>
+
+                  <div className="flex items-center justify-between gap-3 mt-auto pt-3 border-t border-border">
+                    <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <Clock size={10} /> {guide.time_required}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <User size={10} /> {creators[guide.user_id] ?? "..."}
                       </span>
                     </div>
-
-                    <p className="text-xs text-muted-foreground leading-relaxed mb-4 line-clamp-2 flex-1">
-                      {guide.summary}
-                    </p>
-
-                    <div className="flex items-center justify-between gap-3 mt-auto pt-3 border-t border-border">
-                      <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <Clock size={10} /> {guide.time_required}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <User size={10} /> {creators[guide.user_id] ?? "..."}
-                        </span>
-                      </div>
-                      <ChevronRight size={13} className="text-muted-foreground group-hover:text-primary transition-colors" />
-                    </div>
+                    <ChevronRight size={13} className="text-muted-foreground group-hover:text-primary transition-colors" />
                   </div>
-                </Link>
-              ))}
-            </div>
-
-            {/* Bottom create guide prompt after seeing existing guides */}
-            <div className="mt-8 border border-dashed border-border p-5 flex items-center justify-between gap-4">
-              <p className="text-xs text-muted-foreground">
-                Know a fix that isn't listed here? Share your knowledge.
-              </p>
-              <Link
-                href={createGuideUrl}
-                className="shrink-0 flex items-center gap-2 px-4 py-2 border border-primary text-primary text-xs font-bold hover:bg-primary hover:text-white transition-all"
-              >
-                <Plus size={12} /> Create a Guide
+                </div>
               </Link>
-            </div>
-          </>
+            ))}
+          </div>
         )}
 
         <div className="mt-10 flex items-center">
-          <button
-            onClick={() => router.back()}
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-ink transition-colors"
-          >
+          <button onClick={() => router.back()} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-ink transition-colors">
             <ArrowLeft size={13} /> Back to models
           </button>
         </div>
