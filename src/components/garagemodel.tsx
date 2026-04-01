@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CarFront, ChevronLeft, ChevronRight, ScanLine, X, Check } from "lucide-react";
+import { CarFront, ChevronLeft, X, Check } from "lucide-react";
 
 export type NewVehicleInput = {
   year: number;
@@ -27,7 +27,7 @@ type Props = {
   onAddVehicle: (vehicle: NewVehicleInput) => void;
 };
 
-type Step = "chooser" | "vin" | "make" | "year" | "color" | "details" | "confirm";
+type Step = "make" | "year" | "color" | "details" | "confirm";
 
 const MAKES = ["Toyota", "Honda", "Ford", "Chevrolet", "BMW", "Nissan", "Subaru", "Jeep"];
 
@@ -43,7 +43,7 @@ const VEHICLE_COLORS = [
 ] as const;
 
 export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
-  const [step, setStep] = useState<Step>("chooser");
+  const [step, setStep] = useState<Step>("make");
   const [vin, setVin] = useState("");
   const [selectedMake, setSelectedMake] = useState("");
   const [selectedModel, setSelectedModel] = useState("");
@@ -67,7 +67,7 @@ export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
 
   useEffect(() => {
     if (!open) return;
-    setStep("chooser");
+    setStep("make");
     setVin("");
     setSelectedMake("");
     setSelectedModel("");
@@ -88,11 +88,6 @@ export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
   if (!open) return null;
 
   const goBack = () => {
-    if (step === "vin" || step === "make") {
-      setStep("chooser");
-      return;
-    }
-
     if (step === "year") {
       setStep("make");
       return;
@@ -117,14 +112,6 @@ export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
     setSelectedMake(make);
   };
 
-  const decodeVin = () => {
-    // Placeholder decode flow to match current mock behavior.
-    setSelectedMake("Honda");
-    setSelectedModel("Pilot");
-    setSelectedYear(2023);
-    setStep("color");
-  };
-
   return (
     <div
       className="fixed inset-0 z-80 flex items-center justify-center bg-slate-900/45 px-4 backdrop-blur-[2px]"
@@ -137,7 +124,7 @@ export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
       >
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
           <div className="flex items-center gap-2 leading-none">
-            {step !== "chooser" ? (
+            {step !== "make" ? (
               <button
                 type="button"
                 onClick={goBack}
@@ -161,50 +148,6 @@ export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
         </div>
 
         <div className="px-4 py-4">
-          {step === "chooser" ? (
-            <div className="space-y-2.5">
-              <ActionCard
-                icon={<ScanLine className="h-5 w-5 text-[#2d67e3]" />}
-                title="Enter VIN"
-                description="Auto-detect year, make, and model from your 17-character VIN"
-                onClick={() => setStep("vin")}
-              />
-              <ActionCard
-                icon={<CarFront className="h-5 w-5 text-[#2d67e3]" />}
-                title="Manual Entry"
-                description="Select year, make, and model manually"
-                onClick={() => setStep("make")}
-              />
-            </div>
-          ) : null}
-
-          {step === "vin" ? (
-            <div>
-              <p className="mb-3 text-sm font-semibold uppercase tracking-[0.14em] text-slate-500">
-                Vehicle Identification Number
-              </p>
-              <input
-                value={vin}
-                onChange={(event) => setVin(event.target.value.toUpperCase().slice(0, 17))}
-                className="mb-3 h-10 w-full rounded-lg border border-slate-200 bg-slate-100 px-3.5 text-sm tracking-[0.13em] text-slate-700 outline-none transition focus:border-[#2d67e3]"
-                placeholder="e.g. 5TFCZ5AN3JX184732"
-              />
-
-              <div className="mb-4 flex items-center justify-between text-xs text-slate-500">
-                <p>Found on driver-side door jamb or windshield base</p>
-                <p>{vin.length}/17</p>
-              </div>
-
-              <button
-                type="button"
-                onClick={decodeVin}
-                className="h-10 w-full rounded-lg bg-[#2d67e3] text-sm font-semibold text-white transition hover:bg-[#1f55c7]"
-              >
-                Decode VIN
-              </button>
-            </div>
-          ) : null}
-
           {step === "make" ? (
             <div>
               <p className="mb-2.5 text-sm text-slate-500">Choose a make, then enter your model.</p>
@@ -450,6 +393,7 @@ export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
                     className="h-10 w-full rounded-lg border border-slate-200 bg-slate-100 px-3.5 text-sm text-slate-700 outline-none transition focus:border-[#2d67e3]"
                   />
                 </div>
+
               </div>
 
               <div className="flex gap-3">
@@ -528,42 +472,11 @@ export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
 }
 
 function titleForStep(step: Step) {
-  if (step === "chooser") return "Add Vehicle";
-  if (step === "vin") return "Enter VIN";
   if (step === "make") return "Make & Model";
   if (step === "year") return "Select Year";
   if (step === "color") return "Select Color";
   if (step === "details") return "Vehicle Details";
   return "Confirm Vehicle";
-}
-
-function ActionCard({
-  icon,
-  title,
-  description,
-  onClick,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex w-full items-center justify-between rounded-lg bg-slate-100 px-3.5 py-2.5 text-left transition hover:bg-slate-200"
-    >
-      <div className="flex items-center gap-2.5">
-        <span className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-[#e7edfb]">{icon}</span>
-        <div>
-          <p className="text-lg font-semibold text-slate-900">{title}</p>
-          <p className="text-xs text-slate-500">{description}</p>
-        </div>
-      </div>
-      <ChevronRight className="h-4 w-4 text-slate-400" />
-    </button>
-  );
 }
 
 function ConfirmRow({ label, value }: { label: string; value: string }) {

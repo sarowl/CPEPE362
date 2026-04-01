@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-export async function PUT(req: NextRequest) {
+export async function POST(req: NextRequest) {
 	try {
 		const body = await req.json();
-		const { id, activity, date, notes, reminder } = body;
+		const { car_id, activity, date, notes, reminder } = body;
 
-		if (!id || !activity || !date) {
+		if (!car_id || !activity || !date) {
 			return NextResponse.json(
 				{ message: "Missing required fields" },
 				{ status: 400 }
@@ -43,27 +43,27 @@ export async function PUT(req: NextRequest) {
 
 		const { data, error } = await supabase
 			.from("Maintenance_History")
-			.update({
-				activity,
-				date,
-				notes: notes || "",
-				reminder: reminder || "",
-			})
-			.eq("id", id)
-			.eq("user_id", user.id)
-			.select("id")
-			.single();
+			.insert([
+				{
+					user_id: user.id,
+					car_id,
+					activity,
+					date,
+					notes: notes || "",
+					reminder: reminder || "",
+				},
+			]);
 
 		if (error) {
-			console.error("Maintenance update error:", error);
+			console.error("Maintenance insert error:", error);
 			return NextResponse.json(
-				{ message: "Update failed", error: error.message },
+				{ message: "Insert failed", error: error.message },
 				{ status: 500 }
 			);
 		}
 
 		return NextResponse.json({
-			message: "Maintenance history updated",
+			message: "Maintenance history saved",
 			data,
 		});
 	} catch (err) {
@@ -74,4 +74,5 @@ export async function PUT(req: NextRequest) {
 		);
 	}
 }
+
 

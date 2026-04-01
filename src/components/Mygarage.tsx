@@ -20,23 +20,48 @@ type MaintenanceEntry = {
   date: string;
   notes: string;
   reminder: string;
+  createdAt: string;
 };
 
 export default function Mygarage() {
   const [open, setOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [addMaintenanceOpen, setAddMaintenanceOpen] = useState(false);
   const [vehicles, setVehicles] = useState<GarageVehicle[]>([]);
   const [activeVehicleId, setActiveVehicleId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [maintenanceRows, setMaintenanceRows] = useState<MaintenanceEntry[]>([]);
+  const [maintenanceActivity, setMaintenanceActivity] = useState("");
+  const [maintenanceDate, setMaintenanceDate] = useState("");
+  const [maintenanceNotes, setMaintenanceNotes] = useState("");
+  const [maintenanceReminder, setMaintenanceReminder] = useState("");
+  const [maintenanceEditingId, setMaintenanceEditingId] = useState<string | null>(null);
+  const [isSavingMaintenance, setIsSavingMaintenance] = useState(false);
+  const [maintenanceFormError, setMaintenanceFormError] = useState<string | null>(null);
 
   const activeVehicle = vehicles.find((vehicle) => vehicle.id === activeVehicleId) ?? null;
-  const visibleMaintenanceRows = maintenanceRows.filter(
-    (row) => activeVehicleId !== null && row.carId === activeVehicleId
-  );
+  const visibleMaintenanceRows = maintenanceRows
+    .filter((row) => activeVehicleId !== null && row.carId === activeVehicleId)
+    .sort((a, b) => {
+      const aCreated = Date.parse(a.createdAt);
+      const bCreated = Date.parse(b.createdAt);
+
+      if (!Number.isNaN(aCreated) && !Number.isNaN(bCreated) && aCreated !== bCreated) {
+        return bCreated - aCreated;
+      }
+
+      const aDate = Date.parse(a.date);
+      const bDate = Date.parse(b.date);
+
+      if (!Number.isNaN(aDate) && !Number.isNaN(bDate) && aDate !== bDate) {
+        return bDate - aDate;
+      }
+
+      return b.id.localeCompare(a.id);
+    });
 
   const mapVehicleRow = (row: any): GarageVehicle => {
     const firstString = (...values: unknown[]) => {
@@ -100,7 +125,17 @@ export default function Mygarage() {
       date: safeText(row?.date) || "N/A",
       notes: safeText(row?.notes),
       reminder: safeText(row?.reminder) || "N/A",
+      createdAt: safeText(row?.created_at),
     };
+  };
+
+  const resetMaintenanceForm = () => {
+    setMaintenanceActivity("");
+    setMaintenanceDate("");
+    setMaintenanceNotes("");
+    setMaintenanceReminder("");
+    setMaintenanceEditingId(null);
+    setMaintenanceFormError(null);
   };
 
 
@@ -256,6 +291,7 @@ const saveVehicleToDB = async (vehicle: GarageVehicle) => {
     });
 
     const data = await res.json();
+
     console.log("Saved:", data);
   } catch (err) {
     console.error("Save failed:", err);
@@ -332,6 +368,79 @@ const deleteVehicleFromDB = async (id: string) => {
     await fetchVehicles();
   } catch (err) {
     console.error("Delete failed:", err);
+  }
+};
+
+const saveMaintenanceToDB = async () => {
+  if (!activeVehicleId) {
+    setMaintenanceFormError("Select a vehicle first.");
+    return;
+  }
+
+  if (!maintenanceActivity.trim() || !maintenanceDate.trim()) {
+    setMaintenanceFormError("Activity and date are required.");
+    return;
+  }
+
+  setIsSavingMaintenance(true);
+  setMaintenanceFormError(null);
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  const token = session?.access_token;
+
+  if (!token) {
+    setMaintenanceFormError("User not logged in.");
+    setIsSavingMaintenance(false);
+    return;
+  }
+
+  try {
+    const isEditMode = maintenanceEditingId !== null;
+    const endpoint = isEditMode ? "/api/mygarge/maintenance_update" : "/api/mygarge/maintenance_save";
+    const method = isEditMode ? "PUT" : "POST";
+    const payload = isEditMode
+      ? {
+          id: maintenanceEditingId,
+          activity: maintenanceActivity.trim(),
+          date: maintenanceDate.trim(),
+          notes: maintenanceNotes.trim(),
+          reminder: maintenanceReminder.trim(),
+        }
+      : {
+          car_id: activeVehicleId,
+          activity: maintenanceActivity.trim(),
+          date: maintenanceDate.trim(),
+          notes: maintenanceNotes.trim(),
+          reminder: maintenanceReminder.trim(),
+        };
+
+    const res = await fetch(endpoint, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      setMaintenanceFormError(data?.message ?? "Unable to save maintenance history.");
+      return;
+    }
+
+    setAddMaintenanceOpen(false);
+    resetMaintenanceForm();
+    await fetchVehicles();
+  } catch (err) {
+    console.error("Maintenance save failed:", err);
+    setMaintenanceFormError("Unable to save maintenance history.");
+  } finally {
+    setIsSavingMaintenance(false);
   }
 };
 
@@ -478,12 +587,27 @@ const deleteVehicleFromDB = async (id: string) => {
 
         {!isLoading && isAuthenticated ? (
           <section className="pt-6">
-            <div className="mb-3 flex items-center gap-2 font-mono text-base uppercase tracking-[0.28em] text-[#747474]">
-              <span>Maintenance History</span>
-              <span>·</span>
-              <span className="text-[#1d1d1d]">
-                {activeVehicle ? `${activeVehicle.make} ${activeVehicle.model}` : "No Vehicle Selected"}
-              </span>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2 font-mono text-base uppercase tracking-[0.28em] text-[#747474]">
+                <span>Maintenance History</span>
+                <span>·</span>
+                <span className="text-[#1d1d1d]">
+                  {activeVehicle ? `${activeVehicle.make} ${activeVehicle.model}` : "No Vehicle Selected"}
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  resetMaintenanceForm();
+                  setAddMaintenanceOpen(true);
+                }}
+                disabled={!activeVehicle}
+                className="inline-flex items-center gap-2 border border-[#151515] bg-[#111] px-4 py-2 font-mono text-xs font-semibold uppercase tracking-[0.14em] text-white transition hover:bg-[#2a2a2a] disabled:cursor-not-allowed disabled:border-[#9d9d9d] disabled:bg-[#bdbdbd]"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add Maintenance
+              </button>
             </div>
 
             <div className="overflow-x-auto border border-[#cfcfcf] bg-[#f4f4f4]">
@@ -508,6 +632,15 @@ const deleteVehicleFromDB = async (id: string) => {
                         <td className="px-4 py-5">
                           <button
                             type="button"
+                            onClick={() => {
+                              setMaintenanceEditingId(row.id);
+                              setMaintenanceActivity(row.activity === "N/A" ? "" : row.activity);
+                              setMaintenanceDate(row.date === "N/A" ? "" : row.date);
+                              setMaintenanceNotes(row.notes);
+                              setMaintenanceReminder(row.reminder === "N/A" ? "" : row.reminder);
+                              setMaintenanceFormError(null);
+                              setAddMaintenanceOpen(true);
+                            }}
                             className="cursor-pointer border border-[#c9c9c9] px-3 py-1.5 text-xs uppercase tracking-[0.12em] hover:bg-[#ececec]"
                           >
                             Edit
@@ -550,6 +683,105 @@ const deleteVehicleFromDB = async (id: string) => {
         onClose={() => setEditOpen(false)}
         onSave={(vehicle) => handleEditVehicle(vehicle)}
       />
+
+      {addMaintenanceOpen ? (
+        <div className="fixed inset-0 z-80 flex items-center justify-center bg-slate-900/45 px-4 backdrop-blur-[2px]">
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="w-full max-w-xl rounded-xl border border-slate-200 bg-white shadow-2xl"
+          >
+            <div className="border-b border-slate-200 px-4 py-3">
+              <h2 className="font-mono text-lg font-semibold uppercase tracking-[0.14em] text-[#1d1d1d]">
+                {maintenanceEditingId ? "Edit Maintenance History" : "Add Maintenance History"}
+              </h2>
+              <p className="mt-1 font-mono text-xs uppercase tracking-[0.08em] text-[#6d6d6d]">
+                {activeVehicle ? `${activeVehicle.make} ${activeVehicle.model}` : "No Vehicle Selected"}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 px-4 py-4 md:grid-cols-2">
+              <div>
+                <label className="mb-2 block font-mono text-xs font-semibold uppercase tracking-[0.12em] text-[#505050]">
+                  Activity
+                </label>
+                <input
+                  type="text"
+                  value={maintenanceActivity}
+                  onChange={(event) => setMaintenanceActivity(event.target.value)}
+                  placeholder="e.g. Oil Change"
+                  className="h-10 w-full border border-[#cfcfcf] bg-[#f7f7f7] px-3 font-mono text-sm text-[#1e1e1e] outline-none transition focus:border-[#2d67e3]"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block font-mono text-xs font-semibold uppercase tracking-[0.12em] text-[#505050]">
+                  Date
+                </label>
+                <input
+                  type="date"
+                  value={maintenanceDate}
+                  onChange={(event) => setMaintenanceDate(event.target.value)}
+                  className="h-10 w-full border border-[#cfcfcf] bg-[#f7f7f7] px-3 font-mono text-sm text-[#1e1e1e] outline-none transition focus:border-[#2d67e3]"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block font-mono text-xs font-semibold uppercase tracking-[0.12em] text-[#505050]">
+                  Reminder
+                </label>
+                <input
+                  type="text"
+                  value={maintenanceReminder}
+                  onChange={(event) => setMaintenanceReminder(event.target.value)}
+                  placeholder="e.g. Every 6 months"
+                  className="h-10 w-full border border-[#cfcfcf] bg-[#f7f7f7] px-3 font-mono text-sm text-[#1e1e1e] outline-none transition focus:border-[#2d67e3]"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block font-mono text-xs font-semibold uppercase tracking-[0.12em] text-[#505050]">
+                  Notes
+                </label>
+                <input
+                  type="text"
+                  value={maintenanceNotes}
+                  onChange={(event) => setMaintenanceNotes(event.target.value)}
+                  placeholder="Optional notes"
+                  className="h-10 w-full border border-[#cfcfcf] bg-[#f7f7f7] px-3 font-mono text-sm text-[#1e1e1e] outline-none transition focus:border-[#2d67e3]"
+                />
+              </div>
+            </div>
+
+            {maintenanceFormError ? (
+              <p className="px-4 pb-2 font-mono text-xs uppercase tracking-[0.08em] text-[#b33636]">
+                {maintenanceFormError}
+              </p>
+            ) : null}
+
+            <div className="flex gap-3 border-t border-slate-200 px-4 py-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setAddMaintenanceOpen(false);
+                  resetMaintenanceForm();
+                }}
+                className="h-10 flex-1 border border-[#cfcfcf] bg-white font-mono text-xs font-semibold uppercase tracking-[0.12em] text-[#1f1f1f] transition hover:bg-[#f4f4f4]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={saveMaintenanceToDB}
+                disabled={isSavingMaintenance}
+                className="h-10 flex-1 border border-[#151515] bg-[#111] font-mono text-xs font-semibold uppercase tracking-[0.12em] text-white transition hover:bg-[#2a2a2a] disabled:cursor-not-allowed disabled:border-[#9d9d9d] disabled:bg-[#bdbdbd]"
+              >
+                {isSavingMaintenance ? "Saving..." : maintenanceEditingId ? "Update Entry" : "Save Entry"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
