@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { decrypt } from "@/lib/encryption";
 
 export async function GET(req: NextRequest) {
   try {
@@ -25,7 +26,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ message: "Invalid user" }, { status: 401 });
     }
 
-    // ✅ FETCH VEHICLES
+
     const { data: vehicles, error: vehiclesError } = await supabase
       .from("User_cars")
       .select("*")
@@ -36,7 +37,27 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ message: "Vehicle fetch failed" }, { status: 500 });
     }
 
-    // ✅ FETCH MAINTENANCE HISTORY
+    const normalizedVehicles = (vehicles ?? []).map((vehicle) => {
+      const decrypted = {
+        ...vehicle,
+        // Map encrypted fields and decrypt them
+        Platenumber: decrypt(vehicle?.platenum || ''),
+        vin: decrypt(vehicle?.vin || ''),
+        chasisnumber: decrypt(vehicle?.chasis || ''),
+        ORnumber: decrypt(vehicle?.ORnum || ''),
+        CRnumber: decrypt(vehicle?.CRnum || ''),
+        enginenumber: decrypt(
+          vehicle?.enginenum ?? 
+          vehicle?.enginenumber ?? 
+          vehicle?.engine_number ?? 
+          vehicle?.engine ?? 
+          ''
+        ),
+      };
+      return decrypted;
+    });
+
+  
     const { data: maintenance, error: maintenanceError } = await supabase
       .from("Maintenance_History")
       .select("*")
@@ -47,9 +68,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ message: "Maintenance fetch failed" }, { status: 500 });
     }
 
-    // ✅ RETURN BOTH
+   
     return NextResponse.json({
-      vehicles,
+      vehicles: normalizedVehicles,
       maintenance,
     });
 

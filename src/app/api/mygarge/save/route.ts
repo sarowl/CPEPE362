@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { encrypt } from "@/lib/encryption";
 
 export async function POST(req: NextRequest) {
   try {
@@ -18,6 +19,7 @@ export async function POST(req: NextRequest) {
       Grossweight,
       Netweight,
       owner,
+      enginenum,
     } = body;
 
     // ✅ Required fields
@@ -56,7 +58,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 🔥 INSERT ALL FIELDS
+    // 🔥 INSERT ALL FIELDS (encrypt sensitive data)
     const { data, error } = await supabase
       .from("User_cars")
       .insert([
@@ -66,13 +68,14 @@ export async function POST(req: NextRequest) {
           year,
           color,
           type,
-          platenum,
-          vin,
-          chasis,
-          ORnum,
-          CRnum,
+          platenum: encrypt(platenum),
+          vin: encrypt(vin),
+          chasis: encrypt(chasis),
+          ORnum: encrypt(ORnum),
+          CRnum: encrypt(CRnum),
           Grossweight,
           Netweight,
+          enginenum: encrypt(enginenum),
           owner: body.owner || "", // Optional field
         },
       ]);

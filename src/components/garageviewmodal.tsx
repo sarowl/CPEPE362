@@ -30,15 +30,18 @@ type Props = {
 export default function GarageViewModal({ open, vehicle, onClose }: Props) {
 	if (!open || !vehicle) return null;
 
-	const showOrNA = (value: string | undefined | null) => {
-		if (typeof value !== "string") return "N/A";
-		const trimmed = value.trim();
-		return trimmed ? trimmed : "N/A";
-	};
+	const showOrNA = (value: unknown) => {
+		if (typeof value === "string") {
+			const trimmed = value.trim();
+			return trimmed ? trimmed : "N/A";
+		}
 
-	const plateCode = `${vehicle.make.slice(0, 3).toUpperCase().padEnd(3, "X")}-${String(vehicle.year).slice(-2)}${
-		vehicle.model.slice(0, 1).toUpperCase()
-	}`;
+		if (typeof value === "number" && Number.isFinite(value)) {
+			return String(value);
+		}
+
+		return "N/A";
+	};
 
 	return (
 		<div
@@ -106,11 +109,12 @@ export default function GarageViewModal({ open, vehicle, onClose }: Props) {
 								label="Plate Number"
 								value={
 									<span className="rounded-full border border-[#1d1f25] px-3 py-0.5 font-mono text-sm font-bold uppercase tracking-[0.12em] text-[#11131a]">
-										{plateCode}
+										{showOrNA(vehicle.Platenumber)}
 									</span>
 								}
 							/>
 							<DetailRow label="VIN" value={showOrNA(vehicle.vin)} />
+							<DetailRow label="Engine No." value={showOrNA(vehicle.enginenumber)} />
 							<DetailRow label="Chassis No." value={showOrNA(vehicle.chasisnumber)} />
 							<DetailRow label="Registered Owner" value={showOrNA(vehicle.owner)} />
 						</Section>

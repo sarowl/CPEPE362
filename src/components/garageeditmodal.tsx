@@ -15,6 +15,25 @@ type Props = {
   onSave: (vehicle: GarageEditableVehicle) => void;
 };
 
+type ValidationErrors = Partial<{
+  Platenumber: string;
+  vin: string;
+  chasisnumber: string;
+  enginenumber: string;
+  ORnumber: string;
+  CRnumber: string;
+  owner: string;
+}>;
+
+const VALIDATION_PATTERNS = {
+  PLATENUM: /^[A-Z]{3}-?\d{3,4}$|^\d{3}[A-Z]{3}$/,
+  VIN: /^[A-HJ-NPR-Z0-9]{17}$/,
+  CHASSIS: /^[A-Z0-9-]{6,20}$/,
+  ENGINE: /^[A-Z0-9-]{6,20}$/,
+  OR: /^\d{6,10}$/,
+  CR: /^[A-Z0-9-]{6,15}$/,
+};
+
 const COLOR_NAME_TO_HEX: Record<string, string> = {
   white: "#f5f5f5",
   black: "#202020",
@@ -83,6 +102,7 @@ const EMPTY_FORM: NewVehicleInput = {
 
 export default function GarageEditModal({ open, vehicle, onClose, onSave }: Props) {
   const [form, setForm] = useState<NewVehicleInput>(EMPTY_FORM);
+  const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
 
   const handleColorNameChange = (nextColorName: string) => {
     setForm((prev) => ({
@@ -111,11 +131,50 @@ export default function GarageEditModal({ open, vehicle, onClose, onSave }: Prop
       Grossweight: vehicle.Grossweight,
       Netweight: vehicle.Netweight,
     });
+    setValidationErrors({});
   }, [open, vehicle]);
 
   if (!open || !vehicle) return null;
 
+  const validateIdentificationAndRegistration = (): boolean => {
+    const nextErrors: ValidationErrors = {};
+
+    if (form.Platenumber && !VALIDATION_PATTERNS.PLATENUM.test(form.Platenumber)) {
+      nextErrors.Platenumber = "Invalid plate number (e.g. ABC-1234 or 123ABC)";
+    }
+
+    if (form.vin && !VALIDATION_PATTERNS.VIN.test(form.vin)) {
+      nextErrors.vin = "VIN must be exactly 17 alphanumeric characters (no I, O, Q)";
+    }
+
+    if (form.chasisnumber && !VALIDATION_PATTERNS.CHASSIS.test(form.chasisnumber)) {
+      nextErrors.chasisnumber = "Chassis number must be 6-20 alphanumeric characters or hyphens";
+    }
+
+    if (form.enginenumber && !VALIDATION_PATTERNS.ENGINE.test(form.enginenumber)) {
+      nextErrors.enginenumber = "Engine number must be 6-20 alphanumeric characters or hyphens";
+    }
+
+    if (form.ORnumber && !VALIDATION_PATTERNS.OR.test(form.ORnumber)) {
+      nextErrors.ORnumber = "OR number must be 6-10 digits";
+    }
+
+    if (form.CRnumber && !VALIDATION_PATTERNS.CR.test(form.CRnumber)) {
+      nextErrors.CRnumber = "CR number must be 6-15 alphanumeric characters or hyphens";
+    }
+
+    if (!form.owner || form.owner.trim() === "") {
+      nextErrors.owner = "Registered owner is required.";
+    }
+
+    setValidationErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  };
+
   const saveChanges = () => {
+    if (!validateIdentificationAndRegistration()) {
+      return;
+    }
     onSave({
       id: vehicle.id,
       ...form,
@@ -186,17 +245,25 @@ export default function GarageEditModal({ open, vehicle, onClose, onSave }: Prop
                 label="Plate Number"
                 value={form.Platenumber}
                 onChange={(value) => setForm((prev) => ({ ...prev, Platenumber: value }))}
+                error={validationErrors.Platenumber}
               />
-              <EditInputRow label="VIN" value={form.vin || ""} onChange={(value) => setForm((prev) => ({ ...prev, vin: value }))} />
+              <EditInputRow
+                label="VIN"
+                value={form.vin || ""}
+                onChange={(value) => setForm((prev) => ({ ...prev, vin: value }))}
+                error={validationErrors.vin}
+              />
               <EditInputRow
                 label="Chassis No."
                 value={form.chasisnumber}
                 onChange={(value) => setForm((prev) => ({ ...prev, chasisnumber: value }))}
+                error={validationErrors.chasisnumber}
               />
               <EditInputRow
                 label="Engine No."
                 value={form.enginenumber}
                 onChange={(value) => setForm((prev) => ({ ...prev, enginenumber: value }))}
+                error={validationErrors.enginenumber}
               />
             </Section>
 
@@ -205,13 +272,20 @@ export default function GarageEditModal({ open, vehicle, onClose, onSave }: Prop
                 label="OR Number"
                 value={form.ORnumber}
                 onChange={(value) => setForm((prev) => ({ ...prev, ORnumber: value }))}
+                error={validationErrors.ORnumber}
               />
               <EditInputRow
                 label="CR Number"
                 value={form.CRnumber}
                 onChange={(value) => setForm((prev) => ({ ...prev, CRnumber: value }))}
+                error={validationErrors.CRnumber}
               />
-              <EditInputRow label="Owner" value={form.owner} onChange={(value) => setForm((prev) => ({ ...prev, owner: value }))} />
+              <EditInputRow
+                label="Owner"
+                value={form.owner}
+                onChange={(value) => setForm((prev) => ({ ...prev, owner: value }))}
+                error={validationErrors.owner}
+              />
             </Section>
 
             <Section title="SPECIFICATIONS">
@@ -268,21 +342,28 @@ function EditInputRow({
   value,
   onChange,
   type = "text",
+  error,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   type?: "text" | "number";
+  error?: string;
 }) {
   return (
-    <div className="grid grid-cols-[1fr_auto] items-center border-b border-[#d6d7db] py-2 gap-2">
+    <div className="grid grid-cols-[1fr_auto] items-start border-b border-[#d6d7db] py-2 gap-2">
       <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#637085]">{label}</span>
-      <input
-        type={type}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-8 w-36 rounded border border-[#cfd2d8] bg-white px-2 font-mono text-xs font-semibold text-[#11151e] outline-none focus:border-[#f08a57]"
-      />
+      <div>
+        <input
+          type={type}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          className={`h-8 w-36 rounded border bg-white px-2 font-mono text-xs font-semibold text-[#11151e] outline-none focus:border-[#f08a57] ${error ? "border-red-400" : "border-[#cfd2d8]"}`}
+        />
+        {error ? (
+          <p className="mt-1 text-xs text-red-600">{error}</p>
+        ) : null}
+      </div>
     </div>
   );
 }

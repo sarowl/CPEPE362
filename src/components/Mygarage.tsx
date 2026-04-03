@@ -69,6 +69,10 @@ export default function Mygarage() {
         if (typeof value === "string" && value.trim()) {
           return value.trim();
         }
+
+        if (typeof value === "number" && Number.isFinite(value)) {
+          return String(value);
+        }
       }
       return "";
     };
@@ -104,7 +108,7 @@ export default function Mygarage() {
       colorHex,
       vin: firstString(row?.vin, row?.VIN) || undefined,
       owner: firstString(row?.owner, row?.Owner, row?.registered_owner),
-      enginenumber: firstString(row?.enginenumber, row?.engine_number, row?.engine, row?.EngineNumber),
+      enginenumber: firstString(row?.enginenumber, row?.enginenum, row?.engine_number, row?.engine, row?.EngineNumber),
       Platenumber: firstString(row?.Platenumber, row?.platenumber, row?.platenum, row?.plate_number),
       chasisnumber: firstString(row?.chasisnumber, row?.chasis, row?.chassisnumber, row?.chassis_number),
       type: firstString(row?.type, row?.vehicle_type),
@@ -163,6 +167,7 @@ const updateVehicleInDB = async (vehicle: GarageVehicle) => {
     chasis: vehicle.chasisnumber,
     ORnum: vehicle.ORnumber,
     CRnum: vehicle.CRnumber,
+    enginenum: vehicle.enginenumber,
     Grossweight: vehicle.Grossweight,
     Netweight: vehicle.Netweight,
     owner: vehicle.owner,
@@ -285,6 +290,7 @@ const saveVehicleToDB = async (vehicle: GarageVehicle) => {
         chasis: vehicle.chasisnumber,
         ORnum: vehicle.ORnumber,
         CRnum: vehicle.CRnumber,
+        enginenum: vehicle.enginenumber,
         Grossweight: vehicle.Grossweight,
         Netweight: vehicle.Netweight,
       }),
@@ -355,7 +361,16 @@ const deleteVehicleFromDB = async (id: string) => {
       body: JSON.stringify({ id }),
     });
 
-  
+    if (!res.ok) {
+      const text = await res.text();
+      let data = null;
+      if (text) {
+        data = JSON.parse(text);
+      }
+      alert(`Delete failed: ${data?.error || "Unknown error"}`);
+      return;
+    }
+
     let data = null;
     const text = await res.text();
 
@@ -365,9 +380,14 @@ const deleteVehicleFromDB = async (id: string) => {
 
     console.log("Deleted:", data);
 
+    if (activeVehicleId === id) {
+      setActiveVehicleId(null);
+    }
+
     await fetchVehicles();
   } catch (err) {
     console.error("Delete failed:", err);
+    alert("Delete failed: " + (err instanceof Error ? err.message : String(err)));
   }
 };
 

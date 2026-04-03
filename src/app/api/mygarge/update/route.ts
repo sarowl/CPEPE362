@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { encrypt } from "@/lib/encryption";
 
 export async function PUT(req: NextRequest) {
   try {
@@ -16,6 +17,7 @@ export async function PUT(req: NextRequest) {
       chasis,
       ORnum,
       CRnum,
+      enginenum,
       Grossweight,
       Netweight,
       owner,
@@ -58,6 +60,7 @@ export async function PUT(req: NextRequest) {
     }
 
    
+    // 🔥 UPDATE WITH ENCRYPTED SENSITIVE FIELDS
     const { data, error } = await supabase
       .from("User_cars")
       .update({
@@ -65,11 +68,12 @@ export async function PUT(req: NextRequest) {
         year,
         color,
         type,
-        platenum,
-        vin,
-        chasis,
-        ORnum,
-        CRnum,
+        platenum: encrypt(platenum),
+        vin: encrypt(vin),
+        chasis: encrypt(chasis),
+        ORnum: encrypt(ORnum),
+        CRnum: encrypt(CRnum),
+        enginenum: encrypt(enginenum),
         Grossweight,
         Netweight,
         owner: owner || "",
