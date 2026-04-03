@@ -1,4 +1,4 @@
-//src\components\AIRepairFlow\Screens\ProblemEntryScreen.tsx
+// src/components/AIRepairFlow/Screens/ProblemEntryScreen.tsx
 import { useState } from "react";
 import { Search, ArrowRight, Loader2 } from "lucide-react";
 
@@ -31,10 +31,15 @@ async function getNextStep(
 }
 
 const ProblemEntryScreen = ({ onSubmit }: ProblemEntryScreenProps) => {
-  const [phase, setPhase] = useState<"initial" | "followup">("initial");
+  const [phase, setPhase] = useState<"initial" | "followup" | "diagnosing">("initial");
   const [initialProblem, setInitialProblem] = useState("");
   const [currentInput, setCurrentInput] = useState("");
-  const [followUpQuestion, setFollowUpQuestion] = useState<string | null>(null);
+
+  // Stores all 4 questions returned from the first API call
+  const [questions, setQuestions] = useState<string[]>([]);
+  // Question index
+  const [questionIndex, setQuestionIndex] = useState(0);
+  // Question-answer history 
   const [qaHistory, setQaHistory] = useState<QA[]>([]);
   const [isThinking, setIsThinking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,10 +66,12 @@ const ProblemEntryScreen = ({ onSubmit }: ProblemEntryScreenProps) => {
 
       try {
         const result = await getNextStep("get-questions", trimmed, []);
+
         if (result.type === "diagnosis") {
           onSubmit(`Problem: ${trimmed}`, result.diagnoses);
         } else {
-          setFollowUpQuestion(result.questions[0]);
+          setQuestions(result.questions);
+          setQuestionIndex(0);
           setPhase("followup");
         }
       } catch {
@@ -75,28 +82,52 @@ const ProblemEntryScreen = ({ onSubmit }: ProblemEntryScreenProps) => {
       return;
     }
 
-    const updatedHistory: QA[] = [
-      ...qaHistory,
-      { question: followUpQuestion!, answer: trimmed },
-    ];
-    setQaHistory(updatedHistory);
-    setCurrentInput("");
-    setFollowUpQuestion(null);
-    setIsThinking(true);
+    // Follow up questions
+    if (phase === "followup") {
+      const currentQuestion = questions[questionIndex];
+      const updatedHistory: QA[] = [
+        ...qaHistory,
+        { question: currentQuestion, answer: trimmed },
+      ];
 
-    try {
-      const result = await getNextStep("get-diagnosis", initialProblem, updatedHistory);
-      if (result.type === "diagnosis") {
-        onSubmit(buildContext(updatedHistory), result.diagnoses);
-      } else {
-        setFollowUpQuestion(result.questions[0]);
+      setQaHistory(updatedHistory);
+      setCurrentInput("");
+
+      const nextIndex = questionIndex + 1;
+
+      if (nextIndex < questions.length) {
+        setQuestionIndex(nextIndex);
+        return;
       }
-    } catch {
-      setError("Couldn't reach the AI. Please try again.");
-    } finally {
-      setIsThinking(false);
+
+      // Get diagnosis
+      setPhase("diagnosing");
+      setIsThinking(true);
+
+      try {
+        const result = await getNextStep("get-diagnosis", initialProblem, updatedHistory);
+
+        if (result.type === "diagnosis") {
+          onSubmit(buildContext(updatedHistory), result.diagnoses);
+        } else {
+          setError("Unexpected response from AI. Please try again.");
+          setPhase("followup");
+          setQuestionIndex(questions.length - 1); 
+        }
+      } catch {
+        setError("Couldn't reach the AI. Please try again.");
+        setPhase("followup");
+        setQuestionIndex(questions.length - 1);
+      } finally {
+        setIsThinking(false);
+      }
     }
   };
+
+  const currentQuestion =
+    phase === "followup" && questions.length > 0
+      ? questions[questionIndex]
+      : null;
 
   const placeholder =
     phase === "initial"
@@ -106,6 +137,8 @@ const ProblemEntryScreen = ({ onSubmit }: ProblemEntryScreenProps) => {
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] px-4">
       <div className="w-full max-w-lg space-y-8">
+
+        {/* Header */}
         <div className="text-center space-y-2">
           <h1 className="text-2xl font-bold text-foreground">
             {phase === "initial" ? "What's the problem?" : "A quick follow-up"}
@@ -113,18 +146,20 @@ const ProblemEntryScreen = ({ onSubmit }: ProblemEntryScreenProps) => {
           <p className="text-sm text-muted-foreground">
             {phase === "initial"
               ? "Describe what's happening in your own words"
-              : "Help us narrow it down"}
+              : `Question ${questionIndex + 1} of ${questions.length}`}
           </p>
         </div>
 
-        {followUpQuestion && !isThinking && (
+        {/* Current follow-up question */}
+        {currentQuestion && !isThinking && (
           <div className="animate-slide-up">
             <p className="text-sm text-accent-foreground mb-3 font-medium">
-              {followUpQuestion}
+              {currentQuestion}
             </p>
           </div>
         )}
 
+        {/* Thinking indicator */}
         {isThinking && (
           <div className="flex items-center justify-center gap-3 py-4">
             <div className="flex gap-1">
@@ -132,12 +167,16 @@ const ProblemEntryScreen = ({ onSubmit }: ProblemEntryScreenProps) => {
               <div className="w-2 h-2 rounded-full bg-primary thinking-pulse" style={{ animationDelay: "0.3s" }} />
               <div className="w-2 h-2 rounded-full bg-primary thinking-pulse" style={{ animationDelay: "0.6s" }} />
             </div>
-            <span className="text-sm text-muted-foreground">Analyzing…</span>
+            <span className="text-sm text-muted-foreground">
+              {phase === "diagnosing" ? "Diagnosing…" : "Analyzing…"}
+            </span>
           </div>
         )}
 
+        {/* Error */}
         {error && <p className="text-sm text-red-500 text-center">{error}</p>}
 
+        {/* Input */}
         <div className="relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
           <input
@@ -162,6 +201,7 @@ const ProblemEntryScreen = ({ onSubmit }: ProblemEntryScreenProps) => {
           </button>
         </div>
 
+        {/* Q&A history recap */}
         {qaHistory.length > 0 && (
           <div className="space-y-2">
             {qaHistory.map((qa, i) => (
@@ -173,9 +213,10 @@ const ProblemEntryScreen = ({ onSubmit }: ProblemEntryScreenProps) => {
             ))}
           </div>
         )}
+
       </div>
     </div>
   );
 };
 
-export default ProblemEntryScreen;
+export default ProblemEntryScreen;  

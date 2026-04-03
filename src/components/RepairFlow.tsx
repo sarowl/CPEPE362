@@ -1,3 +1,4 @@
+// src/components/RepairFlow.tsx
 import { useState } from "react";
 import ProgressIndicator from "./AIRepairFlow/ProgressIndicator";
 import ProblemEntryScreen from "./AIRepairFlow/Screens/ProblemEntryScreen";
@@ -23,8 +24,8 @@ const stepOrder: FlowStep[] = ["problem", "diagnosis", "repair", "visual", "comp
 
 const RepairFlow = () => {
   const [currentStep, setCurrentStep] = useState<FlowStep>("problem");
-  const [diagnoses, setDiagnoses] = useState<Diagnosis[]>([]);        // ← added
-  const [selectedDiagnosis, setSelectedDiagnosis] = useState<Diagnosis | null>(null); // ← added
+  const [diagnoses, setDiagnoses] = useState<Diagnosis[]>([]);
+  const [selectedDiagnosis, setSelectedDiagnosis] = useState<Diagnosis | null>(null);
   const [showVehicle, setShowVehicle] = useState(false);
 
   const currentIndex = stepOrder.indexOf(currentStep) + 1;
@@ -53,7 +54,7 @@ const RepairFlow = () => {
       <div className="flex-1">
         {currentStep === "problem" && (
           <ProblemEntryScreen
-            onSubmit={(problem, incomingDiagnoses) => {   // ← capture both args
+            onSubmit={(problem, incomingDiagnoses) => {
               setDiagnoses(incomingDiagnoses);
               setShowVehicle(true);
               setCurrentStep("diagnosis");
@@ -63,9 +64,9 @@ const RepairFlow = () => {
 
         {currentStep === "diagnosis" && (
           <DiagnosisScreen
-            diagnoses={diagnoses}                          // ← pass diagnoses down
+            diagnoses={diagnoses}
             onSelect={(diagnosis) => {
-              setSelectedDiagnosis(diagnosis);             // ← store selection
+              setSelectedDiagnosis(diagnosis);
               setCurrentStep("repair");
             }}
           />
@@ -73,9 +74,14 @@ const RepairFlow = () => {
 
         {currentStep === "repair" && (
           <RepairModeScreen
-            diagnosis={selectedDiagnosis}                 // ← pass to repair screen when ready
+            diagnosis={selectedDiagnosis}
             onComplete={() => setCurrentStep("visual")}
             onEscalate={() => setCurrentStep("escalation")}
+            // Go back to diagnosis — diagnoses array is still intact in parent state
+            onBack={() => {
+              setSelectedDiagnosis(null); // clear stale selection
+              setCurrentStep("diagnosis");
+            }}
           />
         )}
 
