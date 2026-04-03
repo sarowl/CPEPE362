@@ -9,14 +9,15 @@ interface QA {
 
 type GeminiResult =
   | { type: "questions"; questions: string[] }
-  | { type: "diagnosis"; diagnoses: any[] };
+  | { type: "diagnosis"; diagnoses: any[] }
+  | { type: "validation"; isValid: boolean; reason: string };
 
 interface ProblemEntryScreenProps {
   onSubmit: (problem: string, diagnoses: any[]) => void;
 }
 
 async function getNextStep(
-  callType: "get-questions" | "get-diagnosis",
+  callType: "validate-input" | "get-questions" | "get-diagnosis",
   initialProblem: string,
   qaHistory: QA[]
 ): Promise<GeminiResult> {
@@ -60,16 +61,27 @@ const ProblemEntryScreen = ({ onSubmit }: ProblemEntryScreenProps) => {
     setError(null);
 
     if (phase === "initial") {
-      setInitialProblem(trimmed);
       setCurrentInput("");
       setIsThinking(true);
 
       try {
+        // ── Step 1: Validate that the input is automotive-related ──────
+        const validation = await getNextStep("validate-input", trimmed, []);
+
+        if (validation.type === "validation" && !validation.isValid) {
+          // Reject the input and show the AI's reason to the user
+          setError("Please describe a car or vehicle-related problem.");
+          setIsThinking(false);
+          return;
+        }
+
+        // ── Step 2: Input is valid — fetch follow-up questions ─────────
+        setInitialProblem(trimmed);
         const result = await getNextStep("get-questions", trimmed, []);
 
         if (result.type === "diagnosis") {
           onSubmit(`Problem: ${trimmed}`, result.diagnoses);
-        } else {
+        } else if (result.type === "questions") {
           setQuestions(result.questions);
           setQuestionIndex(0);
           setPhase("followup");
@@ -173,8 +185,12 @@ const ProblemEntryScreen = ({ onSubmit }: ProblemEntryScreenProps) => {
           </div>
         )}
 
-        {/* Error */}
-        {error && <p className="text-sm text-red-500 text-center">{error}</p>}
+        {/* Error / validation rejection */}
+        {error && (
+          <div className="text-red-600 rounded-xl px-4 py-3">
+            <p className="text-sm">{error}</p>
+          </div>
+        )}
 
         {/* Input */}
         <div className="relative">
@@ -219,4 +235,4 @@ const ProblemEntryScreen = ({ onSubmit }: ProblemEntryScreenProps) => {
   );
 };
 
-export default ProblemEntryScreen;  
+export default ProblemEntryScreen;

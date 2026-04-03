@@ -4,23 +4,23 @@ import ProgressIndicator from "./AIRepairFlow/ProgressIndicator";
 import ProblemEntryScreen from "./AIRepairFlow/Screens/ProblemEntryScreen";
 import DiagnosisScreen from "./AIRepairFlow/Screens/DiagnosisScreen";
 import RepairModeScreen from "./AIRepairFlow/Screens/RepairModeScreen";
-import VisualAssistScreen from "./AIRepairFlow/Screens/VisualAssistScreen";
 import EscalationScreen from "./AIRepairFlow/Screens/EscalationScreen";
 import PostRepairScreen from "./AIRepairFlow/Screens/PostRepairScreen";
 import { Diagnosis } from "./AIRepairFlow/Screens/DiagnosisScreen";
 
-type FlowStep = "problem" | "diagnosis" | "repair" | "visual" | "escalation" | "complete";
+// 1. Removed 'visual' from the type definition
+type FlowStep = "problem" | "diagnosis" | "repair" | "escalation" | "complete";
 
 const stepLabels: Record<FlowStep, string> = {
   problem: "Describe Problem",
   diagnosis: "Diagnosis",
   repair: "Repair",
-  visual: "Visual Check",
   escalation: "Escalation",
   complete: "Complete",
 };
 
-const stepOrder: FlowStep[] = ["problem", "diagnosis", "repair", "visual", "complete"];
+// 2. Removed 'visual' from the step order array
+const stepOrder: FlowStep[] = ["problem", "diagnosis", "repair", "complete"];
 
 const RepairFlow = () => {
   const [currentStep, setCurrentStep] = useState<FlowStep>("problem");
@@ -75,19 +75,13 @@ const RepairFlow = () => {
         {currentStep === "repair" && (
           <RepairModeScreen
             diagnosis={selectedDiagnosis}
-            onComplete={() => setCurrentStep("visual")}
+            // 3. Updated onComplete to jump directly to 'complete'
+            onComplete={() => setCurrentStep("complete")}
             onEscalate={() => setCurrentStep("escalation")}
-            // Go back to diagnosis — diagnoses array is still intact in parent state
             onBack={() => {
-              setSelectedDiagnosis(null); // clear stale selection
+              setSelectedDiagnosis(null);
               setCurrentStep("diagnosis");
             }}
-          />
-        )}
-
-        {currentStep === "visual" && (
-          <VisualAssistScreen
-            onConfirm={() => setCurrentStep("complete")}
           />
         )}
 

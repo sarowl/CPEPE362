@@ -27,12 +27,6 @@ export async function POST(req: Request) {
         - Do not guess wildly. Base reasoning on given symptoms and context.
         - Keep explanations simple and easy to understand.
 
-        Diagnostic Guidelines:
-        - Vibrations or wobble at speed → prioritize wheels, tires, suspension, alignment, and balancing.
-        - Noises (knocking, ticking) → consider engine, valvetrain, or exhaust.
-        - Difficulty starting → consider battery, starter, fuel system.
-        - Overheating → consider coolant system, radiator, thermostat.
-        - Braking issues → consider brake pads, rotors, fluid.
 
         Question Behavior:
         - Ask exactly 4 questions.
@@ -51,6 +45,34 @@ export async function POST(req: Request) {
 
         Always aim to guide the user toward a clear next step.
         `;
+
+    // ── Call 0: Validate Input ──────────────────────────────────────────
+    if (callType === "validate-input") {
+      const prompt = `Determine if the following user input is related to a car, vehicle, truck, motorcycle, or any automotive problem.
+
+User input: "${initialProblem}"
+
+Respond with a JSON object. If it IS automotive-related, set isValid to true and reason to an empty string. If it is NOT automotive-related, set isValid to false and set reason to a short friendly message explaining that Autobot only handles car and vehicle issues.`;
+
+      const result = await model.generateContent({
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0,
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: SchemaType.OBJECT,
+            properties: {
+              isValid: { type: SchemaType.BOOLEAN },
+              reason: { type: SchemaType.STRING },
+            },
+            required: ["isValid", "reason"],
+          },
+        },
+      });
+
+      const response = JSON.parse(result.response.text());
+      return NextResponse.json({ type: "validation", isValid: response.isValid, reason: response.reason });
+    }
 
     // ── Call 1: Get Questions ───────────────────────────────────────────
     if (callType === "get-questions") {
