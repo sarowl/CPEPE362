@@ -74,7 +74,7 @@ const Signup = () => {
         password: formData.password,
         options: { data: { full_name: formData.name } },
       });
-
+      
       if (error) {
         setError(error.message);
         return;
