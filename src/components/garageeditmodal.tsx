@@ -6,6 +6,7 @@ import type { NewVehicleInput } from "./garagemodel";
 
 type GarageEditableVehicle = NewVehicleInput & {
   id: string;
+  photoPath?: string;
 };
 
 type Props = {
@@ -94,6 +95,7 @@ const EMPTY_FORM: NewVehicleInput = {
   Platenumber: "",
   chasisnumber: "",
   type: "",
+  classification: "private",
   ORnumber: "",
   CRnumber: "",
   Grossweight: 0,
@@ -126,6 +128,7 @@ export default function GarageEditModal({ open, vehicle, onClose, onSave }: Prop
       Platenumber: vehicle.Platenumber,
       chasisnumber: vehicle.chasisnumber,
       type: vehicle.type,
+      classification: vehicle.classification,
       ORnumber: vehicle.ORnumber,
       CRnumber: vehicle.CRnumber,
       Grossweight: vehicle.Grossweight,
@@ -177,6 +180,7 @@ export default function GarageEditModal({ open, vehicle, onClose, onSave }: Prop
     }
     onSave({
       id: vehicle.id,
+      photoPath: vehicle.photoPath,
       ...form,
       vin: form.vin || undefined,
     });
@@ -222,21 +226,31 @@ export default function GarageEditModal({ open, vehicle, onClose, onSave }: Prop
               />
               <EditInputRow label="Type" value={form.type} onChange={(value) => setForm((prev) => ({ ...prev, type: value }))} />
               <div className="grid grid-cols-[1fr_auto] items-center border-b border-[#d6d7db] py-2 gap-2">
+                <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#637085]">Classification</span>
+                <select
+                  value={form.classification}
+                  onChange={(event) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      classification: event.target.value as NewVehicleInput["classification"],
+                    }))
+                  }
+                  className="h-8 w-28 rounded border border-[#cfd2d8] bg-white px-2 font-mono text-xs font-semibold text-[#11151e] outline-none"
+                >
+                  <option value="private">Private</option>
+                  <option value="electric">Electric</option>
+                  <option value="public">Public</option>
+                  <option value="government">Government</option>
+                </select>
+              </div>
+              <div className="grid grid-cols-[1fr_auto] items-center border-b border-[#d6d7db] py-2 gap-2">
                 <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#637085]">Color</span>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={form.colorHex}
-                    onChange={(event) => setForm((prev) => ({ ...prev, colorHex: event.target.value }))}
-                    className="h-8 w-8 cursor-pointer rounded border border-[#cfd2d8] bg-transparent p-0"
-                  />
-                  <input
-                    type="text"
-                    value={form.colorName}
-                    onChange={(event) => handleColorNameChange(event.target.value)}
-                    className="h-8 w-28 rounded border border-[#cfd2d8] bg-white px-2 font-mono text-xs font-semibold text-[#11151e] outline-none"
-                  />
-                </div>
+                <input
+                  type="text"
+                  value={form.colorName}
+                  onChange={(event) => handleColorNameChange(event.target.value)}
+                  className="h-8 w-28 rounded border border-[#cfd2d8] bg-white px-2 font-mono text-xs font-semibold text-[#11151e] outline-none"
+                />
               </div>
             </Section>
 

@@ -11,6 +11,8 @@ type GarageVehicle = NewVehicleInput & {
   id: string;
   colorName: string;
   colorHex: string;
+  photoPath?: string;
+  photoUrl?: string;
 };
 
 type MaintenanceEntry = {
@@ -24,6 +26,9 @@ type MaintenanceEntry = {
 };
 
 export default function Mygarage() {
+  const GARAGE_BUCKET = "Autobot_Storage";
+  const GARAGE_FOLDER = "Mygarage";
+
   const [open, setOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -92,9 +97,9 @@ export default function Mygarage() {
     const make = modelParts[0] ?? "Unknown";
     const model = modelParts.slice(1).join(" ") || "Model";
 
-    const colorRaw = typeof row?.color === "string" ? row.color : "Unknown (#000000)";
+    const colorRaw = typeof row?.color === "string" ? row.color.trim() : "Unknown";
     const colorName = colorRaw.split(" (")[0] || "Unknown";
-    const colorHex = colorRaw.match(/\((.*?)\)/)?.[1] || "#000000";
+    const colorHex = colorRaw.match(/\((.*?)\)/)?.[1] || "#9ca3af";
 
     const yearParsed = Number(row?.year);
     const year = Number.isFinite(yearParsed) ? yearParsed : new Date().getFullYear();
@@ -112,10 +117,20 @@ export default function Mygarage() {
       Platenumber: firstString(row?.Platenumber, row?.platenumber, row?.platenum, row?.plate_number),
       chasisnumber: firstString(row?.chasisnumber, row?.chasis, row?.chassisnumber, row?.chassis_number),
       type: firstString(row?.type, row?.vehicle_type),
+      classification:
+        firstString(row?.classification, row?.Classification, row?.vehicle_classification) === "electric"
+          ? "electric"
+          : firstString(row?.classification, row?.Classification, row?.vehicle_classification) === "public"
+            ? "public"
+            : firstString(row?.classification, row?.Classification, row?.vehicle_classification) === "government"
+              ? "government"
+              : "private",
       ORnumber: firstString(row?.ORnumber, row?.ORnum, row?.or_number),
       CRnumber: firstString(row?.CRnumber, row?.CRnum, row?.cr_number),
       Grossweight: firstNumber(row?.Grossweight, row?.grossweight, row?.gross_weight),
       Netweight: firstNumber(row?.Netweight, row?.netweight, row?.net_weight),
+      photoPath: firstString(row?.image_path) || undefined,
+      photoUrl: firstString(row?.photo_url, row?.picture_url, row?.vehicle_image_url, row?.image_path) || undefined,
     };
   };
 
@@ -160,8 +175,10 @@ const updateVehicleInDB = async (vehicle: GarageVehicle) => {
     id: vehicle.id,
     model: `${vehicle.make} ${vehicle.model}`,
     year: vehicle.year,
-    color: `${vehicle.colorName} (${vehicle.colorHex})`,
+    color: vehicle.colorName,
     type: vehicle.type,
+    classification: vehicle.classification,
+    photoPath: vehicle.photoPath,
     platenum: vehicle.Platenumber,
     vin: vehicle.vin,
     chasis: vehicle.chasisnumber,
@@ -235,7 +252,8 @@ const updateVehicleInDB = async (vehicle: GarageVehicle) => {
       const data = await res.json();
 
       const rows = Array.isArray(data?.vehicles) ? data.vehicles : [];
-      const formatted: GarageVehicle[] = rows.map(mapVehicleRow);
+      const formattedRaw: GarageVehicle[] = rows.map(mapVehicleRow);
+      const formatted = await resolveVehiclePhotos(formattedRaw);
       const maintenanceData = Array.isArray(data?.maintenance) ? data.maintenance : [];
       const formattedMaintenance: MaintenanceEntry[] = maintenanceData.map(mapMaintenanceRow);
 
@@ -259,7 +277,7 @@ const updateVehicleInDB = async (vehicle: GarageVehicle) => {
 
 const saveVehicleToDB = async (vehicle: GarageVehicle) => {
   const model = `${vehicle.make} ${vehicle.model}`;
-  const color = `${vehicle.colorName} (${vehicle.colorHex})`;
+  const color = vehicle.colorName;
 
   const {
     data: { session },
@@ -283,8 +301,10 @@ const saveVehicleToDB = async (vehicle: GarageVehicle) => {
         model,
         year: vehicle.year,
         color,
+        photoPath: vehicle.photoPath,
         owner: vehicle.owner,
         type: vehicle.type,
+        classification: vehicle.classification,
         platenum: vehicle.Platenumber,
         vin: vehicle.vin,
         chasis: vehicle.chasisnumber,
@@ -303,15 +323,87 @@ const saveVehicleToDB = async (vehicle: GarageVehicle) => {
     console.error("Save failed:", err);
   }
 };
-  const handleAddVehicle = async (vehicle: NewVehicleInput) => {
+
+const uploadVehiclePhoto = async (photoFile: File): Promise<string | null> => {
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    console.error("Unable to resolve user for image upload", userError);
+    return null;
+  }
+
+  const fileExt = photoFile.name.split(".").pop()?.toLowerCase() || "jpg";
+  const fileName = `picture-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${fileExt}`;
+  const storagePath = `${GARAGE_FOLDER}/${user.id}/${fileName}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from(GARAGE_BUCKET)
+    .upload(storagePath, photoFile, {
+      cacheControl: "3600",
+      upsert: false,
+      contentType: photoFile.type || undefined,
+    });
+
+  if (uploadError) {
+    console.error("Vehicle image upload failed", uploadError);
+    return null;
+  }
+
+  return storagePath;
+};
+
+  const resolveVehiclePhotos = async (rows: GarageVehicle[]) => {
+    return Promise.all(
+      rows.map(async (vehicle) => {
+        const storedPath = vehicle.photoPath?.trim();
+
+        if (!storedPath) {
+          return vehicle;
+        }
+
+        if (/^https?:\/\//i.test(storedPath)) {
+          return {
+            ...vehicle,
+            photoUrl: storedPath,
+          };
+        }
+
+        const { data, error } = await supabase.storage.from(GARAGE_BUCKET).createSignedUrl(storedPath, 60 * 60);
+
+        if (error || !data?.signedUrl) {
+          console.error("Failed to create signed URL for vehicle image", error);
+          return vehicle;
+        }
+
+        return {
+          ...vehicle,
+          photoUrl: data.signedUrl,
+        };
+      })
+    );
+  };
+
+  const handleAddVehicle = async (vehicle: NewVehicleInput, photoFile: File | null) => {
     const id =
       typeof crypto !== "undefined" && "randomUUID" in crypto
         ? crypto.randomUUID()
         : `vehicle-${Date.now()}`;
 
+    let photoPath: string | undefined;
+    if (photoFile) {
+      const uploadedUrl = await uploadVehiclePhoto(photoFile);
+      if (uploadedUrl) {
+        photoPath = uploadedUrl;
+      }
+    }
+
     const newVehicle: GarageVehicle = {
       ...vehicle,
       id,
+      photoPath,
     };
 
     setOpen(false);
@@ -526,9 +618,17 @@ const saveMaintenanceToDB = async () => {
                     } cursor-pointer`}
                   >
                     <div className="mb-3 flex justify-center">
-                      <span className="inline-flex h-11 w-11 items-center justify-center text-[#7a7a7a]">
-                        <Car className="h-7 w-7" />
-                      </span>
+                      {vehicle.photoUrl ? (
+                        <img
+                          src={vehicle.photoUrl}
+                          alt={`${vehicle.make} ${vehicle.model}`}
+                          className="h-20 w-full rounded-md border border-[#d5d5d5] object-cover"
+                        />
+                      ) : (
+                        <span className="inline-flex h-11 w-11 items-center justify-center text-[#7a7a7a]">
+                          <Car className="h-7 w-7" />
+                        </span>
+                      )}
                     </div>
 
                     <button
@@ -542,13 +642,7 @@ const saveMaintenanceToDB = async () => {
 
                       <p className="mt-2 font-mono text-base text-[#6f6f6f]">
                         {vehicle.year} · {getPlate(vehicle)} ·
-                        <span className="ml-2 inline-flex items-center gap-1.5 align-middle">
-                          <span
-                            className="inline-block h-2.5 w-2.5 rounded-full border border-[#8a8a8a]"
-                            style={{ backgroundColor: vehicle.colorHex }}
-                          />
-                          <span>{vehicle.colorName}</span>
-                        </span>
+                        <span className="ml-2 align-middle">{vehicle.colorName}</span>
                       </p>
                     </button>
 

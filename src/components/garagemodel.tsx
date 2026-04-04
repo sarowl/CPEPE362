@@ -15,6 +15,7 @@ export type NewVehicleInput = {
   Platenumber:string;
   chasisnumber:string;
   type:string;
+  classification: "private" | "electric" | "public" | "government";
   ORnumber:string;
   CRnumber:string;
   Grossweight:number;
@@ -24,7 +25,7 @@ export type NewVehicleInput = {
 type Props = {
   open: boolean;
   onClose: () => void;
-  onAddVehicle: (vehicle: NewVehicleInput) => void;
+  onAddVehicle: (vehicle: NewVehicleInput, photoFile: File | null) => void;
 };
 
 type Step = "make" | "year" | "color" | "details" | "confirm";
@@ -46,6 +47,12 @@ const CHASSIS_PATTERN = /^[A-Z0-9-]{6,20}$/;
 const ENGINE_PATTERN = /^[A-Z0-9-]{6,20}$/;
 const OR_PATTERN = /^\d{6,10}$/;
 const CR_PATTERN = /^[A-Z0-9-]{6,15}$/;
+const CLASSIFICATION_OPTIONS: NewVehicleInput["classification"][] = [
+  "private",
+  "electric",
+  "public",
+  "government",
+];
 
 export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
   const [step, setStep] = useState<Step>("make");
@@ -60,10 +67,13 @@ export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
   const [Platenumber, setPlatenumber] = useState("");
   const [chasisnumber, setChasisnumber] = useState("");
   const [type, setType] = useState("");
+  const [classification, setClassification] = useState<NewVehicleInput["classification"]>("private");
   const [ORnumber, setORnumber] = useState("");
   const [CRnumber, setCRnumber] = useState("");
   const [Grossweight, setGrossweight] = useState(0);
   const [Netweight, setNetweight] = useState(0);
+  const [selectedPhotoFile, setSelectedPhotoFile] = useState<File | null>(null);
+  const [selectedPhotoPreview, setSelectedPhotoPreview] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
 
   const years = useMemo(() => {
@@ -85,12 +95,23 @@ export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
     setPlatenumber("");
     setChasisnumber("");
     setType("");
+    setClassification("private");
     setORnumber("");
     setCRnumber("");
     setGrossweight(0);
     setNetweight(0);
+    setSelectedPhotoFile(null);
+    setSelectedPhotoPreview(null);
     setValidationErrors({});
   }, [open]);
+
+  useEffect(() => {
+    return () => {
+      if (selectedPhotoPreview) {
+        URL.revokeObjectURL(selectedPhotoPreview);
+      }
+    };
+  }, [selectedPhotoPreview]);
 
   if (!open) return null;
 
@@ -232,7 +253,7 @@ export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
                       onClick={() => chooseMake(make)}
                       className={`h-10 rounded-lg px-3.5 text-left text-base font-medium transition ${
                         selected
-                          ? "border border-[#2d67e3] bg-[#e7edfb] text-[#1f55c7]"
+                          ? "border border-[#f26a2e] bg-[#ffe9df] text-[#d85720]"
                           : "bg-slate-100 text-slate-900 hover:bg-slate-200"
                       }`}
                     >
@@ -248,14 +269,14 @@ export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
                 value={selectedModel}
                 onChange={(event) => setSelectedModel(event.target.value)}
                 placeholder="e.g. Ranger, Civic, Hilux"
-                className="mb-4 h-10 w-full rounded-lg border border-slate-200 bg-slate-100 px-3.5 text-sm text-slate-700 outline-none transition focus:border-[#2d67e3]"
+                className="mb-4 h-10 w-full rounded-lg border border-slate-200 bg-slate-100 px-3.5 text-sm text-slate-700 outline-none transition focus:border-[#f26a2e]"
               />
 
               <button
                 type="button"
                 onClick={() => setStep("year")}
                 disabled={!selectedMake || !selectedModel.trim()}
-                className="h-10 w-full rounded-lg bg-[#2d67e3] text-sm font-semibold text-white transition enabled:hover:bg-[#1f55c7] disabled:cursor-not-allowed disabled:bg-slate-300"
+                className="h-10 w-full rounded-lg bg-[#f26a2e] text-sm font-semibold text-white transition enabled:hover:bg-[#d85720] disabled:cursor-not-allowed disabled:bg-slate-300"
               >
                 Continue
               </button>
@@ -302,29 +323,15 @@ export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
                     value={selectedColorName}
                     onChange={(event) => setSelectedColorName(event.target.value)}
                     placeholder="e.g. Cherry Red, Metallic Grey"
-                    className="h-10 w-full rounded-lg border border-slate-200 bg-slate-100 px-3.5 text-sm text-slate-700 outline-none transition focus:border-[#2d67e3]"
+                    className="h-10 w-full rounded-lg border border-slate-200 bg-slate-100 px-3.5 text-sm text-slate-700 outline-none transition focus:border-[#f26a2e]"
                   />
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-slate-600">Color swatch</label>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="color"
-                      value={selectedColorHex}
-                      onChange={(event) => setSelectedColorHex(event.target.value)}
-                      aria-label="Vehicle color swatch"
-                      className="h-10 w-16 cursor-pointer rounded-md border border-slate-200 bg-slate-100 p-1"
-                    />
-                    <span className="text-sm text-slate-500">{selectedColorHex.toUpperCase()}</span>
-                  </div>
                 </div>
 
                 <button
                   type="button"
                   onClick={() => setStep("details")}
                   disabled={!selectedColorName.trim()}
-                  className="h-10 w-full rounded-lg bg-[#2d67e3] text-sm font-semibold text-white transition enabled:hover:bg-[#1f55c7] disabled:cursor-not-allowed disabled:bg-slate-300"
+                  className="h-10 w-full rounded-lg bg-[#f26a2e] text-sm font-semibold text-white transition enabled:hover:bg-[#d85720] disabled:cursor-not-allowed disabled:bg-slate-300"
                 >
                   Continue
                 </button>
@@ -338,84 +345,85 @@ export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
                 {selectedYear} {selectedMake} {selectedModel}
               </p>
 
-              <div className="grid grid-cols-2 gap-4 mb-5">
-                <div>
-                  <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                    Plate Number
-                  </label>
-                  <input
-                    type="text"
-                    value={Platenumber}
-                    onChange={(e) => {
-                      setPlatenumber(e.target.value);
-                      setValidationErrors((prev) => ({ ...prev, Platenumber: undefined }));
-                    }}
-                    placeholder="e.g. ABC-1234"
-                    className={`h-10 w-full rounded-lg bg-slate-100 px-3.5 text-sm text-slate-700 outline-none transition focus:border-[#2d67e3] ${validationErrors.Platenumber ? "border border-red-400" : "border border-slate-200"}`}
-                  />
-                  {validationErrors.Platenumber ? (
-                    <p className="mt-1 text-xs text-red-600">{validationErrors.Platenumber}</p>
-                  ) : null}
-                </div>
+              <div className="mb-5 max-h-[52vh] overflow-y-auto pr-1">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      Plate Number
+                    </label>
+                    <input
+                      type="text"
+                      value={Platenumber}
+                      onChange={(e) => {
+                        setPlatenumber(e.target.value);
+                        setValidationErrors((prev) => ({ ...prev, Platenumber: undefined }));
+                      }}
+                      placeholder="e.g. ABC-1234"
+                      className={`h-10 w-full rounded-lg bg-slate-100 px-3.5 text-sm text-slate-700 outline-none transition focus:border-[#f26a2e] ${validationErrors.Platenumber ? "border border-red-400" : "border border-slate-200"}`}
+                    />
+                    {validationErrors.Platenumber ? (
+                      <p className="mt-1 text-xs text-red-600">{validationErrors.Platenumber}</p>
+                    ) : null}
+                  </div>
 
-                <div>
-                  <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                    VIN
-                  </label>
-                  <input
-                    type="text"
-                    value={vin}
-                    onChange={(e) => {
-                      setVin(e.target.value.toUpperCase().slice(0, 17));
-                      setValidationErrors((prev) => ({ ...prev, vin: undefined }));
-                    }}
-                    placeholder="Vehicle Identification"
-                    className={`h-10 w-full rounded-lg bg-slate-100 px-3.5 text-sm text-slate-700 outline-none transition focus:border-[#2d67e3] ${validationErrors.vin ? "border border-red-400" : "border border-slate-200"}`}
-                  />
-                  {validationErrors.vin ? (
-                    <p className="mt-1 text-xs text-red-600">{validationErrors.vin}</p>
-                  ) : null}
-                </div>
+                  <div>
+                    <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      VIN
+                    </label>
+                    <input
+                      type="text"
+                      value={vin}
+                      onChange={(e) => {
+                        setVin(e.target.value.toUpperCase().slice(0, 17));
+                        setValidationErrors((prev) => ({ ...prev, vin: undefined }));
+                      }}
+                      placeholder="Vehicle Identification"
+                      className={`h-10 w-full rounded-lg bg-slate-100 px-3.5 text-sm text-slate-700 outline-none transition focus:border-[#f26a2e] ${validationErrors.vin ? "border border-red-400" : "border border-slate-200"}`}
+                    />
+                    {validationErrors.vin ? (
+                      <p className="mt-1 text-xs text-red-600">{validationErrors.vin}</p>
+                    ) : null}
+                  </div>
 
-                <div>
-                  <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                    Chassis Number
-                  </label>
-                  <input
-                    type="text"
-                    value={chasisnumber}
-                    onChange={(e) => {
-                      setChasisnumber(e.target.value);
-                      setValidationErrors((prev) => ({ ...prev, chasisnumber: undefined }));
-                    }}
-                    placeholder="e.g. CHN-2024-0001"
-                    className={`h-10 w-full rounded-lg bg-slate-100 px-3.5 text-sm text-slate-700 outline-none transition focus:border-[#2d67e3] ${validationErrors.chasisnumber ? "border border-red-400" : "border border-slate-200"}`}
-                  />
-                  {validationErrors.chasisnumber ? (
-                    <p className="mt-1 text-xs text-red-600">{validationErrors.chasisnumber}</p>
-                  ) : null}
-                </div>
+                  <div>
+                    <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      Chassis Number
+                    </label>
+                    <input
+                      type="text"
+                      value={chasisnumber}
+                      onChange={(e) => {
+                        setChasisnumber(e.target.value);
+                        setValidationErrors((prev) => ({ ...prev, chasisnumber: undefined }));
+                      }}
+                      placeholder="e.g. CHN-2024-0001"
+                      className={`h-10 w-full rounded-lg bg-slate-100 px-3.5 text-sm text-slate-700 outline-none transition focus:border-[#f26a2e] ${validationErrors.chasisnumber ? "border border-red-400" : "border border-slate-200"}`}
+                    />
+                    {validationErrors.chasisnumber ? (
+                      <p className="mt-1 text-xs text-red-600">{validationErrors.chasisnumber}</p>
+                    ) : null}
+                  </div>
 
-                <div>
-                  <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                    Engine Number
-                  </label>
-                  <input
-                    type="text"
-                    value={enginenumber}
-                    onChange={(e) => {
-                      setEnginenumber(e.target.value);
-                      setValidationErrors((prev) => ({ ...prev, enginenumber: undefined }));
-                    }}
-                    placeholder="e.g. ENG-2AR-0001"
-                    className={`h-10 w-full rounded-lg bg-slate-100 px-3.5 text-sm text-slate-700 outline-none transition focus:border-[#2d67e3] ${validationErrors.enginenumber ? "border border-red-400" : "border border-slate-200"}`}
-                  />
-                  {validationErrors.enginenumber ? (
-                    <p className="mt-1 text-xs text-red-600">{validationErrors.enginenumber}</p>
-                  ) : null}
-                </div>
+                  <div>
+                    <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      Engine Number
+                    </label>
+                    <input
+                      type="text"
+                      value={enginenumber}
+                      onChange={(e) => {
+                        setEnginenumber(e.target.value);
+                        setValidationErrors((prev) => ({ ...prev, enginenumber: undefined }));
+                      }}
+                      placeholder="e.g. ENG-2AR-0001"
+                      className={`h-10 w-full rounded-lg bg-slate-100 px-3.5 text-sm text-slate-700 outline-none transition focus:border-[#f26a2e] ${validationErrors.enginenumber ? "border border-red-400" : "border border-slate-200"}`}
+                    />
+                    {validationErrors.enginenumber ? (
+                      <p className="mt-1 text-xs text-red-600">{validationErrors.enginenumber}</p>
+                    ) : null}
+                  </div>
 
-                <div>
+                  <div>
                   <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
                     Vehicle Type
                   </label>
@@ -424,11 +432,28 @@ export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
                     value={type}
                     onChange={(e) => setType(e.target.value)}
                     placeholder="e.g. SUV, Sedan"
-                    className="h-10 w-full rounded-lg border border-slate-200 bg-slate-100 px-3.5 text-sm text-slate-700 outline-none transition focus:border-[#2d67e3]"
+                    className="h-10 w-full rounded-lg border border-slate-200 bg-slate-100 px-3.5 text-sm text-slate-700 outline-none transition focus:border-[#f26a2e]"
                   />
-                </div>
+                  </div>
 
-                <div>
+                  <div>
+                  <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    Classification
+                  </label>
+                  <select
+                    value={classification}
+                    onChange={(e) => setClassification(e.target.value as NewVehicleInput["classification"])}
+                    className="h-10 w-full rounded-lg border border-slate-200 bg-slate-100 px-3.5 text-sm text-slate-700 outline-none transition focus:border-[#f26a2e]"
+                  >
+                    {CLASSIFICATION_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option.charAt(0).toUpperCase() + option.slice(1)}
+                      </option>
+                    ))}
+                  </select>
+                  </div>
+
+                  <div>
                   <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
                     OR Number
                   </label>
@@ -440,14 +465,14 @@ export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
                       setValidationErrors((prev) => ({ ...prev, ORnumber: undefined }));
                     }}
                     placeholder="e.g. 1234567"
-                    className={`h-10 w-full rounded-lg bg-slate-100 px-3.5 text-sm text-slate-700 outline-none transition focus:border-[#2d67e3] ${validationErrors.ORnumber ? "border border-red-400" : "border border-slate-200"}`}
+                    className={`h-10 w-full rounded-lg bg-slate-100 px-3.5 text-sm text-slate-700 outline-none transition focus:border-[#f26a2e] ${validationErrors.ORnumber ? "border border-red-400" : "border border-slate-200"}`}
                   />
                   {validationErrors.ORnumber ? (
                     <p className="mt-1 text-xs text-red-600">{validationErrors.ORnumber}</p>
                   ) : null}
-                </div>
+                  </div>
 
-                <div>
+                  <div>
                   <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
                     CR Number
                   </label>
@@ -459,14 +484,14 @@ export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
                       setValidationErrors((prev) => ({ ...prev, CRnumber: undefined }));
                     }}
                     placeholder="e.g. ABC-1234567"
-                    className={`h-10 w-full rounded-lg bg-slate-100 px-3.5 text-sm text-slate-700 outline-none transition focus:border-[#2d67e3] ${validationErrors.CRnumber ? "border border-red-400" : "border border-slate-200"}`}
+                    className={`h-10 w-full rounded-lg bg-slate-100 px-3.5 text-sm text-slate-700 outline-none transition focus:border-[#f26a2e] ${validationErrors.CRnumber ? "border border-red-400" : "border border-slate-200"}`}
                   />
                   {validationErrors.CRnumber ? (
                     <p className="mt-1 text-xs text-red-600">{validationErrors.CRnumber}</p>
                   ) : null}
-                </div>
+                  </div>
 
-                <div>
+                  <div>
                   <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
                     Gross Weight
                   </label>
@@ -475,9 +500,9 @@ export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
                     value={Grossweight}
                     onChange={(e) => setGrossweight(Number(e.target.value))}
                     placeholder="e.g. 1,850 kg"
-                    className="h-10 w-full rounded-lg border border-slate-200 bg-slate-100 px-3.5 text-sm text-slate-700 outline-none transition focus:border-[#2d67e3]"
+                    className="h-10 w-full rounded-lg border border-slate-200 bg-slate-100 px-3.5 text-sm text-slate-700 outline-none transition focus:border-[#f26a2e]"
                   />
-                </div>
+                  </div>
 
                 <div>
                   <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
@@ -488,11 +513,11 @@ export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
                     value={Netweight}
                     onChange={(e) => setNetweight(Number(e.target.value))}
                     placeholder="e.g. 1,520 kg"
-                    className="h-10 w-full rounded-lg border border-slate-200 bg-slate-100 px-3.5 text-sm text-slate-700 outline-none transition focus:border-[#2d67e3]"
+                    className="h-10 w-full rounded-lg border border-slate-200 bg-slate-100 px-3.5 text-sm text-slate-700 outline-none transition focus:border-[#f26a2e]"
                   />
                 </div>
 
-                <div className="col-span-2">
+                  <div className="col-span-2">
                   <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
                     Registered Owner
                   </label>
@@ -504,13 +529,48 @@ export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
                       setValidationErrors((prev) => ({ ...prev, owner: undefined }));
                     }}
                     placeholder="Full name of owner"
-                    className={`h-10 w-full rounded-lg bg-slate-100 px-3.5 text-sm text-slate-700 outline-none transition focus:border-[#2d67e3] ${validationErrors.owner ? "border border-red-400" : "border border-slate-200"}`}
+                    className={`h-10 w-full rounded-lg bg-slate-100 px-3.5 text-sm text-slate-700 outline-none transition focus:border-[#f26a2e] ${validationErrors.owner ? "border border-red-400" : "border border-slate-200"}`}
                   />
                   {validationErrors.owner ? (
                     <p className="mt-1 text-xs text-red-600">{validationErrors.owner}</p>
                   ) : null}
-                </div>
+                  </div>
 
+                  <div className="col-span-2">
+                  <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    Vehicle Picture
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] ?? null;
+                      setSelectedPhotoFile(file);
+
+                      if (selectedPhotoPreview) {
+                        URL.revokeObjectURL(selectedPhotoPreview);
+                      }
+
+                      if (file) {
+                        setSelectedPhotoPreview(URL.createObjectURL(file));
+                      } else {
+                        setSelectedPhotoPreview(null);
+                      }
+                    }}
+                    className="block w-full rounded-lg border border-slate-200 bg-slate-100 px-3.5 py-2 text-sm text-slate-700 file:mr-3 file:rounded-md file:border-0 file:bg-[#f26a2e] file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white"
+                  />
+
+                  {selectedPhotoPreview ? (
+                    <div className="mt-3 overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+                      <img
+                        src={selectedPhotoPreview}
+                        alt="Vehicle preview"
+                        className="h-36 w-full object-cover"
+                      />
+                    </div>
+                  ) : null}
+                  </div>
+                </div>
               </div>
 
               <div className="flex gap-3">
@@ -536,8 +596,8 @@ export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
             <div>
               <div className="mb-4 flex items-center justify-between rounded-lg border border-slate-200 px-3.5 py-3">
                 <div className="flex items-center gap-4">
-                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-[#e7edfb]">
-                    <CarFront className="h-5 w-5 text-[#2d67e3]" />
+                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-[#ffe9df]">
+                    <CarFront className="h-5 w-5 text-[#f26a2e]" />
                   </span>
 
                   <p className="text-lg font-semibold tracking-tight text-slate-900">
@@ -553,6 +613,8 @@ export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
                 <ConfirmRow label="Make" value={selectedMake} />
                 <ConfirmRow label="Model" value={selectedModel} />
                 <ConfirmRow label="Color" value={selectedColorName.trim()} />
+                <ConfirmRow label="Classification" value={classification} />
+                <ConfirmRow label="Photo" value={selectedPhotoFile ? selectedPhotoFile.name : "None"} />
               </div>
 
               <button
@@ -570,13 +632,14 @@ export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
                     Platenumber,
                     chasisnumber,
                     type,
+                    classification,
                     ORnumber,
                     CRnumber,
                     Grossweight,
                     Netweight,
-                  });
+                  }, selectedPhotoFile);
                 }}
-                className="h-10 w-full rounded-lg bg-[#2d67e3] text-sm font-semibold text-white transition hover:bg-[#1f55c7]"
+                className="h-10 w-full rounded-lg bg-[#f26a2e] text-sm font-semibold text-white transition hover:bg-[#d85720]"
               >
                 Add to Garage
               </button>

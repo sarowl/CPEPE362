@@ -9,12 +9,14 @@ type GarageViewVehicle = {
 	model: string;
 	colorName: string;
 	colorHex: string;
+	photoUrl?: string;
 	vin?: string;
 	owner: string;
 	enginenumber: string;
 	Platenumber: string;
 	chasisnumber: string;
 	type: string;
+	classification: "private" | "electric" | "public" | "government";
 	ORnumber: string;
 	CRnumber: string;
 	Grossweight: number;
@@ -70,6 +72,16 @@ export default function GarageViewModal({ open, vehicle, onClose }: Props) {
 				</div>
 
 				<div className="px-5 pb-5 pt-3">
+					{vehicle.photoUrl ? (
+						<div className="mb-4 overflow-hidden rounded-md border border-[#cfd2d8] bg-white">
+							<img
+								src={vehicle.photoUrl}
+								alt={`${vehicle.make} ${vehicle.model}`}
+								className="h-40 w-full object-cover"
+							/>
+						</div>
+					) : null}
+
 					<div className="mb-4 flex justify-center">
 						<div className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-[#dfdfe1]">
 							<CarFront className="h-6 w-6 text-[#1f232b]" strokeWidth={1.6} />
@@ -90,17 +102,10 @@ export default function GarageViewModal({ open, vehicle, onClose }: Props) {
 							<DetailRow label="Year" value={String(vehicle.year)} />
 							<DetailRow
 								label="Color"
-								value={
-									<span className="inline-flex items-center gap-2 font-mono text-sm font-bold uppercase tracking-[0.08em] text-[#11151e]">
-										<span
-											className="h-3.5 w-3.5 rounded-full border border-[#747883]"
-											style={{ backgroundColor: vehicle.colorHex }}
-										/>
-										{showOrNA(vehicle.colorName)}
-									</span>
-								}
+								value={showOrNA(vehicle.colorName)}
 							/>
 							<DetailRow label="Type" value={showOrNA(vehicle.type)} />
+							<DetailRow label="Classification" value={showOrNA(vehicle.classification)} />
 						</Section>
 
 						{/* IDENTIFICATION */}

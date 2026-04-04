@@ -10,7 +10,10 @@ export async function POST(req: NextRequest) {
       model,
       year,
       color,
+      photoPath,
+      photoUrl,
       type,
+      classification,
       platenum,
       vin,
       chasis,
@@ -58,6 +61,30 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    let imageValue: string | null = null;
+    const incomingImage = typeof photoPath === "string" && photoPath.trim()
+      ? photoPath.trim()
+      : typeof photoUrl === "string" && photoUrl.trim()
+        ? photoUrl.trim()
+        : "";
+
+    if (incomingImage) {
+      if (/^https?:\/\//i.test(incomingImage)) {
+        imageValue = incomingImage;
+      } else {
+        const { data: signedData, error: signedError } = await supabase.storage
+          .from("Autobot_Storage")
+          .createSignedUrl(incomingImage, 60 * 60 * 24 * 30);
+
+        if (signedError || !signedData?.signedUrl) {
+          console.error("Signed URL generation failed during save:", signedError);
+          imageValue = incomingImage;
+        } else {
+          imageValue = signedData.signedUrl;
+        }
+      }
+    }
+
     // 🔥 INSERT ALL FIELDS (encrypt sensitive data)
     const { data, error } = await supabase
       .from("User_cars")
@@ -67,7 +94,9 @@ export async function POST(req: NextRequest) {
           model,
           year,
           color,
+          image_path: imageValue,
           type,
+          classification: classification || "private",
           platenum: encrypt(platenum),
           vin: encrypt(vin),
           chasis: encrypt(chasis),

@@ -11,7 +11,10 @@ export async function PUT(req: NextRequest) {
       model,
       year,
       color,
+      photoPath,
+      photoUrl,
       type,
+      classification,
       platenum,
       vin,
       chasis,
@@ -61,23 +64,49 @@ export async function PUT(req: NextRequest) {
 
    
     // 🔥 UPDATE WITH ENCRYPTED SENSITIVE FIELDS
+    const updatePayload: Record<string, unknown> = {
+      model,
+      year,
+      color,
+      type,
+      classification: classification || "private",
+      platenum: encrypt(platenum),
+      vin: encrypt(vin),
+      chasis: encrypt(chasis),
+      ORnum: encrypt(ORnum),
+      CRnum: encrypt(CRnum),
+      enginenum: encrypt(enginenum),
+      Grossweight,
+      Netweight,
+      owner: owner || "",
+    };
+
+    const incomingImage = typeof photoPath === "string" && photoPath.trim()
+      ? photoPath.trim()
+      : typeof photoUrl === "string" && photoUrl.trim()
+        ? photoUrl.trim()
+        : "";
+
+    if (incomingImage) {
+      if (/^https?:\/\//i.test(incomingImage)) {
+        updatePayload.image_path = incomingImage;
+      } else {
+        const { data: signedData, error: signedError } = await supabase.storage
+          .from("Autobot_Storage")
+          .createSignedUrl(incomingImage, 60 * 60 * 24 * 30);
+
+        if (signedError || !signedData?.signedUrl) {
+          console.error("Signed URL generation failed during update:", signedError);
+          updatePayload.image_path = incomingImage;
+        } else {
+          updatePayload.image_path = signedData.signedUrl;
+        }
+      }
+    }
+
     const { data, error } = await supabase
       .from("User_cars")
-      .update({
-        model,
-        year,
-        color,
-        type,
-        platenum: encrypt(platenum),
-        vin: encrypt(vin),
-        chasis: encrypt(chasis),
-        ORnum: encrypt(ORnum),
-        CRnum: encrypt(CRnum),
-        enginenum: encrypt(enginenum),
-        Grossweight,
-        Netweight,
-        owner: owner || "",
-      })
+      .update(updatePayload)
       .eq("id", id)
       .eq("user_id", user.id); // 🔒 security
 
