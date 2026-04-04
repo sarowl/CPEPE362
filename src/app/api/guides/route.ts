@@ -11,19 +11,14 @@ import { createClient } from "@/lib/supabase-server";
 export async function GET() {
   try {
     const supabase = await createClient();
-    const { data: authData, error: authError } = await supabase.auth.getUser();
-    if (authError || !authData.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const { data: guides, error } = await supabase
       .from("guides")
       .select(`
-        guide_id, title, summary, brand_id, model_name,
+        guide_id, title, summary, brand_id, model_id, model_name,
         difficulty, time_required, status,
         created_at, updated_at, submitted_at, reviewed_at
       `)
-      .eq("user_id", authData.user.id)
+      .eq("status", "approved")
       .order("updated_at", { ascending: false });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
