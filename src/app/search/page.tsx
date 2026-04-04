@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, Suspense } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -68,7 +68,7 @@ const SEARCH_CATEGORIES = ["All", "Store", "Devices", "Guides", "Wikis", "Answer
 
 
 
-export default function SearchPage() {
+function SearchPageComponent() {
   const params = useSearchParams();
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
@@ -308,5 +308,13 @@ export default function SearchPage() {
         </section>
       </section>
     </main>
+  );
+}
+
+export default function SearchPage() {
+  return (
+    <Suspense fallback={<div>Loading search...</div>}>
+      <SearchPageComponent />
+    </Suspense>
   );
 }
