@@ -1,6 +1,13 @@
 // src/components/AIRepairFlow/Screens/ProblemEntryScreen.tsx
-import { useState } from "react";
-import { Search, ArrowRight, Loader2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Search, ArrowRight, Loader2, Logs } from "lucide-react";
+import GarageModal, { Vehicle } from "@/components/GarageModal";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 interface QA {
   question: string;
@@ -10,9 +17,9 @@ interface QA {
 type GeminiResult =
   | { type: "questions"; questions: string[] }
   | { type: "diagnosis"; diagnoses: any[] }
-  | { type: "validation"; isValid: boolean; reason: string };
+  | { type: "validation"; isValid: boolean };
 
-interface ProblemEntryScreenProps {
+interface Props {
   onSubmit: (problem: string, diagnoses: any[]) => void;
 }
 
@@ -27,204 +34,257 @@ async function getNextStep(
     body: JSON.stringify({ callType, initialProblem, qaHistory }),
   });
 
-  if (!res.ok) throw new Error(`Server error: ${res.status}`);
-  return await res.json();
+  if (!res.ok) throw new Error();
+  return res.json();
 }
 
-const ProblemEntryScreen = ({ onSubmit }: ProblemEntryScreenProps) => {
+const ProblemEntryScreen = ({ onSubmit }: Props) => {
   const [phase, setPhase] = useState<"initial" | "followup" | "diagnosing">("initial");
   const [initialProblem, setInitialProblem] = useState("");
-  const [currentInput, setCurrentInput] = useState("");
-
-  // Stores all 4 questions returned from the first API call
+  const [input, setInput] = useState("");
   const [questions, setQuestions] = useState<string[]>([]);
-  // Question index
-  const [questionIndex, setQuestionIndex] = useState(0);
-  // Question-answer history 
-  const [qaHistory, setQaHistory] = useState<QA[]>([]);
-  const [isThinking, setIsThinking] = useState(false);
+  const [index, setIndex] = useState(0);
+  const [history, setHistory] = useState<QA[]>([]);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const buildContext = (history: QA[]) => {
-    const lines = [`Problem: ${initialProblem}`];
-    history.forEach((qa) => {
-      lines.push(`Q: ${qa.question}`);
-      lines.push(`A: ${qa.answer}`);
+  const [isGarageOpen, setIsGarageOpen] = useState(false);
+  const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
+
+  const [garageVehicles, setGarageVehicles] = useState<Vehicle[]>([]);
+  const [garageFetchError, setGarageFetchError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchGarage = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        if (!token) return;
+
+        const res = await fetch("/api/mygarage/fetch", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!res.ok) {
+          setGarageFetchError("Could not load your garage.");
+          return;
+        }
+
+        const data = await res.json();
+        console.log("garage raw:", data.vehicles?.[0]);
+        const mapped: Vehicle[] = (data.vehicles ?? []).map((v: any) => ({
+          img: v.image_path ?? undefined,
+          model: v.model ?? "",
+          year: v.year ?? "",
+        }));
+        
+        setGarageVehicles(mapped);
+      } catch {
+        setGarageFetchError("Could not load your garage.");
+      }
+    };
+
+    fetchGarage();
+  }, []);
+
+  const buildContext = (qa: QA[]) => {
+    const lines = [];
+
+    if (selectedVehicle) {
+      lines.push(
+        `Vehicle: ${selectedVehicle.year} ${selectedVehicle.make} ${selectedVehicle.model}`
+      );
+    }
+
+    lines.push(`Problem: ${initialProblem}`);
+
+    qa.forEach((q) => {
+      lines.push(`Q: ${q.question}`);
+      lines.push(`A: ${q.answer}`);
     });
+
     return lines.join("\n");
   };
 
   const handleSubmit = async () => {
-    const trimmed = currentInput.trim();
-    if (!trimmed || isThinking) return;
+    const text = input.trim();
+    if (!text || loading) return;
 
     setError(null);
 
+    // INITIAL
     if (phase === "initial") {
-      setCurrentInput("");
-      setIsThinking(true);
+      setInput("");
+      setLoading(true);
 
       try {
-        // ── Step 1: Validate that the input is automotive-related ──────
-        const validation = await getNextStep("validate-input", trimmed, []);
+        const validation = await getNextStep("validate-input", text, []);
 
         if (validation.type === "validation" && !validation.isValid) {
-          // Reject the input and show the AI's reason to the user
-          setError("Please describe a car or vehicle-related problem.");
-          setIsThinking(false);
+          setError("Enter a vehicle-related problem.");
           return;
         }
 
-        // ── Step 2: Input is valid — fetch follow-up questions ─────────
-        setInitialProblem(trimmed);
-        const result = await getNextStep("get-questions", trimmed, []);
+        setInitialProblem(text);
+
+        const result = await getNextStep("get-questions", text, []);
 
         if (result.type === "diagnosis") {
-          onSubmit(`Problem: ${trimmed}`, result.diagnoses);
-        } else if (result.type === "questions") {
+          const context = selectedVehicle
+            ? `Vehicle: ${selectedVehicle.year} ${selectedVehicle.make} ${selectedVehicle.model}\nProblem: ${text}`
+            : `Problem: ${text}`;
+
+          onSubmit(context, result.diagnoses);
+        }
+
+        if (result.type === "questions") {
           setQuestions(result.questions);
-          setQuestionIndex(0);
+          setIndex(0);
           setPhase("followup");
         }
       } catch {
-        setError("Couldn't reach the AI. Please try again.");
+        setError("AI request failed.");
       } finally {
-        setIsThinking(false);
+        setLoading(false);
       }
+
       return;
     }
 
-    // Follow up questions
+    // FOLLOWUP
     if (phase === "followup") {
-      const currentQuestion = questions[questionIndex];
-      const updatedHistory: QA[] = [
-        ...qaHistory,
-        { question: currentQuestion, answer: trimmed },
+      const updated = [
+        ...history,
+        { question: questions[index], answer: text },
       ];
 
-      setQaHistory(updatedHistory);
-      setCurrentInput("");
+      setHistory(updated);
+      setInput("");
 
-      const nextIndex = questionIndex + 1;
-
-      if (nextIndex < questions.length) {
-        setQuestionIndex(nextIndex);
+      if (index + 1 < questions.length) {
+        setIndex(index + 1);
         return;
       }
 
-      // Get diagnosis
       setPhase("diagnosing");
-      setIsThinking(true);
+      setLoading(true);
 
       try {
-        const result = await getNextStep("get-diagnosis", initialProblem, updatedHistory);
+        const result = await getNextStep("get-diagnosis", initialProblem, updated);
 
         if (result.type === "diagnosis") {
-          onSubmit(buildContext(updatedHistory), result.diagnoses);
+          onSubmit(buildContext(updated), result.diagnoses);
         } else {
-          setError("Unexpected response from AI. Please try again.");
+          setError("Unexpected response.");
           setPhase("followup");
-          setQuestionIndex(questions.length - 1); 
         }
       } catch {
-        setError("Couldn't reach the AI. Please try again.");
+        setError("AI request failed.");
         setPhase("followup");
-        setQuestionIndex(questions.length - 1);
       } finally {
-        setIsThinking(false);
+        setLoading(false);
       }
     }
   };
 
   const currentQuestion =
-    phase === "followup" && questions.length > 0
-      ? questions[questionIndex]
-      : null;
-
-  const placeholder =
-    phase === "initial"
-      ? "e.g. My car makes a grinding noise when braking…"
-      : "Your answer…";
+    phase === "followup" ? questions[index] : null;
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] px-4">
-      <div className="w-full max-w-lg space-y-8">
+    <div className="flex items-center justify-center min-h-[60vh] px-4">
+      <div className="w-full max-w-lg space-y-6">
 
         {/* Header */}
-        <div className="text-center space-y-2">
-          <h1 className="text-2xl font-bold text-foreground">
-            {phase === "initial" ? "What's the problem?" : "A quick follow-up"}
+        <div className="text-center">
+          <h1 className="text-xl font-bold">
+            {phase === "initial" ? "What's the problem?" : "Follow-up"}
           </h1>
           <p className="text-sm text-muted-foreground">
             {phase === "initial"
-              ? "Describe what's happening in your own words"
-              : `Question ${questionIndex + 1} of ${questions.length}`}
+              ? "Describe the issue"
+              : `Question ${index + 1} of ${questions.length}`}
           </p>
         </div>
 
-        {/* Current follow-up question */}
-        {currentQuestion && !isThinking && (
-          <div className="animate-slide-up">
-            <p className="text-sm text-accent-foreground mb-3 font-medium">
-              {currentQuestion}
-            </p>
+        {/* Selected vehicle */}
+        {selectedVehicle && (
+          <div className="text-sm bg-secondary px-3 py-2 rounded-lg">
+            {selectedVehicle.year} {selectedVehicle.make} {selectedVehicle.model}
           </div>
         )}
 
-        {/* Thinking indicator */}
-        {isThinking && (
-          <div className="flex items-center justify-center gap-3 py-4">
-            <div className="flex gap-1">
-              <div className="w-2 h-2 rounded-full bg-primary thinking-pulse" style={{ animationDelay: "0s" }} />
-              <div className="w-2 h-2 rounded-full bg-primary thinking-pulse" style={{ animationDelay: "0.3s" }} />
-              <div className="w-2 h-2 rounded-full bg-primary thinking-pulse" style={{ animationDelay: "0.6s" }} />
-            </div>
-            <span className="text-sm text-muted-foreground">
-              {phase === "diagnosing" ? "Diagnosing…" : "Analyzing…"}
-            </span>
+        {/* Question */}
+        {currentQuestion && !loading && (
+          <p className="text-sm font-medium">{currentQuestion}</p>
+        )}
+
+        {/* Loading */}
+        {loading && (
+          <div className="flex justify-center">
+            <Loader2 className="animate-spin" />
           </div>
         )}
 
-        {/* Error / validation rejection */}
-        {error && (
-          <div className="text-red-600 rounded-xl px-4 py-3">
-            <p className="text-sm">{error}</p>
-          </div>
+        {/* Error */}
+        {error && <p className="text-sm text-red-500">{error}</p>}
+
+        {/* Garage fetch error */}
+        {garageFetchError && (
+          <p className="text-xs text-amber-500 text-center">{garageFetchError}</p>
         )}
 
         {/* Input */}
         <div className="relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" />
+
           <input
-            type="text"
-            value={currentInput}
-            onChange={(e) => setCurrentInput(e.target.value)}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-            placeholder={placeholder}
-            className="w-full bg-input border border-border rounded-xl pl-12 pr-14 py-4 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring text-base"
-            disabled={isThinking}
+            disabled={loading}
+            placeholder={
+              phase === "initial"
+                ? "e.g. grinding noise when braking"
+                : "Your answer"
+            }
+            className="w-full pl-10 pr-12 py-3 border rounded-lg"
           />
+
           <button
             onClick={handleSubmit}
-            disabled={!currentInput.trim() || isThinking}
-            className="absolute right-2 top-1/2 -translate-y-1/2 bg-primary text-primary-foreground p-2.5 rounded-lg disabled:opacity-30 transition-opacity"
+            disabled={!input.trim() || loading}
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-2"
           >
-            {isThinking ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : (
-              <ArrowRight className="h-5 w-5" />
-            )}
+            {loading ? <Loader2 className="animate-spin" /> : <ArrowRight />}
           </button>
         </div>
 
-        {/* Q&A history recap */}
-        {qaHistory.length > 0 && (
-          <div className="space-y-2">
-            {qaHistory.map((qa, i) => (
-              <div key={i} className="text-xs text-muted-foreground">
-                <span className="text-accent-foreground">{qa.question}</span>
+        {/* Garage */}
+        <div className="flex justify-center">
+          <button
+            onClick={() => setIsGarageOpen(true)}
+            className="flex items-center gap-2 text-sm"
+          >
+            <Logs className="h-4 w-4" />
+            Browse Garage
+          </button>
+        </div>
+
+        <GarageModal
+          isOpen={isGarageOpen}
+          onClose={() => setIsGarageOpen(false)}
+          cars={garageVehicles}
+          onSelect={(car) => setSelectedVehicle(car)}
+        />
+
+        {/* History */}
+        {history.length > 0 && (
+          <div className="text-xs space-y-1">
+            {history.map((q, i) => (
+              <div key={i}>
+                <strong>{q.question}</strong>
                 <br />
-                <span className="font-mono">{qa.answer}</span>
+                {q.answer}
               </div>
             ))}
           </div>

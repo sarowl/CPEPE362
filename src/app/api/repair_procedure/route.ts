@@ -38,6 +38,10 @@ export async function POST(req: Request) {
       - Be specific to the diagnosed issue — do not give generic advice.
       - Use plain language that a DIY mechanic can understand.
       - Generate steps depending on the complexity of the diagnosis make it clear and actionable.
+
+      Also generate:
+      - postRepairNote: A 2–4 sentence post-repair checklist specific to this diagnosis. Tell the mechanic exactly what to verify, test, or inspect after completing the repair before returning the vehicle to normal use.
+      - nextMaintenance: The single most relevant follow-up maintenance item for this repair. Include a short label (e.g. "Brake fluid flush") and a realistic service interval (e.g. "30,000 mi" or "12 months").
     `;
 
     const result = await model.generateContent({
@@ -60,14 +64,29 @@ export async function POST(req: Request) {
                 required: ["id", "title", "instruction"],
               },
             },
+            postRepairNote: {
+              type: SchemaType.STRING,
+            },
+            nextMaintenance: {
+              type: SchemaType.OBJECT,
+              properties: {
+                label:    { type: SchemaType.STRING },
+                interval: { type: SchemaType.STRING },
+              },
+              required: ["label", "interval"],
+            },
           },
-          required: ["steps"],
+          required: ["steps", "postRepairNote", "nextMaintenance"],
         },
       },
     });
 
     const response = JSON.parse(result.response.text());
-    return NextResponse.json({ steps: response.steps });
+    return NextResponse.json({
+      steps:            response.steps,
+      postRepairNote:   response.postRepairNote,
+      nextMaintenance:  response.nextMaintenance,
+    });
 
   } catch (error: any) {
     console.error("Repair procedure API error:", error);

@@ -1,9 +1,8 @@
+// src/components/AIRepairFlow/Screens/RepairModeScreen.tsx
 import { useState, useEffect } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
-  Volume2,
-  VolumeX,
   ChevronLeft,
   WrenchIcon,
   ArrowLeft,
@@ -18,10 +17,20 @@ interface RepairStep {
   instruction: string;
 }
 
+export interface NextMaintenance {
+  label: string;
+  interval: string;
+}
+
+export interface RepairResult {
+  postRepairNote: string;
+  nextMaintenance: NextMaintenance;
+}
+
 interface RepairModeScreenProps {
   diagnosis: Diagnosis | null;
   problemContext?: string;
-  onComplete: () => void;
+  onComplete: (result: RepairResult) => void;
   onEscalate: () => void;
   onBack: () => void;
 }
@@ -52,7 +61,7 @@ function injectSnakeStyle() {
       stroke: currentColor;
       stroke-width: 4;
       stroke-linecap: round;
-      stroke-dasharray: 150; /* Length of the snake body */
+      stroke-dasharray: 150;
       animation: dash-snake 1.5s ease-in-out infinite;
     }
   `;
@@ -69,8 +78,8 @@ const RepairModeScreen = ({
   onBack,
 }: RepairModeScreenProps) => {
   const [steps, setSteps] = useState<RepairStep[]>([]);
+  const [repairResult, setRepairResult] = useState<RepairResult | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
-  const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -103,7 +112,12 @@ const RepairModeScreen = ({
         if (!Array.isArray(data.steps) || data.steps.length === 0) {
           throw new Error("No repair steps were returned.");
         }
+
         setSteps(data.steps);
+        setRepairResult({
+          postRepairNote: data.postRepairNote ?? "",
+          nextMaintenance: data.nextMaintenance ?? { label: "General inspection", interval: "12 months" },
+        });
       } catch (err: any) {
         setError(err.message ?? "Failed to load repair procedure.");
       } finally {
@@ -122,7 +136,7 @@ const RepairModeScreen = ({
     if (!step) return;
     setCompletedSteps(new Set([...completedSteps, step.id]));
     if (isLastStep) {
-      onComplete();
+      onComplete(repairResult!);
     } else {
       setCurrentStep(currentStep + 1);
     }
@@ -133,7 +147,7 @@ const RepairModeScreen = ({
     setCurrentStep((prev) => prev - 1);
   };
 
-  // ── Loading state (The Snake Implementation) ───────────────────────────────
+  // ── Loading state ───────────────────────────────────────────────────────────
   if (loading) {
     return (
       <div className="px-4 py-6 max-w-lg mx-auto flex flex-col items-center justify-center min-h-[60vh] gap-6 text-center">
@@ -149,8 +163,6 @@ const RepairModeScreen = ({
 
         <div className="flex flex-col items-center gap-4 mt-8">
           <div className="relative flex items-center justify-center w-32 h-32">
-            
-            {/* The SVG Snake */}
             <svg
               viewBox="0 0 100 100"
               className="absolute inset-0 w-full h-full snake-container"
@@ -162,8 +174,6 @@ const RepairModeScreen = ({
                 className="snake-path text-primary"
               />
             </svg>
-
-            {/* Centered Wrench */}
             <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center relative z-10 shadow-sm">
               <WrenchIcon className="h-8 w-8 text-primary" />
             </div>
@@ -213,17 +223,6 @@ const RepairModeScreen = ({
   // ── Main repair UI ──────────────────────────────────────────────────────────
   return (
     <div className="px-4 py-6 max-w-lg mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <button onClick={onBack} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
-          <ChevronLeft className="h-4 w-4" />
-          Back to Diagnoses
-        </button>
-        <button onClick={() => setVoiceEnabled(!voiceEnabled)} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
-          {voiceEnabled ? <Volume2 className="h-4 w-4 text-primary" /> : <VolumeX className="h-4 w-4" />}
-          Voice {voiceEnabled ? "On" : "Off"}
-        </button>
-      </div>
-
       {diagnosis && (
         <p className="text-xs font-mono text-muted-foreground uppercase tracking-wider truncate">
           {diagnosis.title}

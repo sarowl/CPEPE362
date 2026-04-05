@@ -2,16 +2,16 @@
 import { useState } from "react";
 import ProgressIndicator from "./AIRepairFlow/ProgressIndicator";
 import ProblemEntryScreen from "./AIRepairFlow/Screens/ProblemEntryScreen";
-import DiagnosisScreen from "./AIRepairFlow/Screens/DiagnosisScreen";
-import RepairModeScreen from "./AIRepairFlow/Screens/RepairModeScreen";
+import DiagnosisScreen, { Diagnosis } from "./AIRepairFlow/Screens/DiagnosisScreen";
+import RepairModeScreen, { RepairResult } from "./AIRepairFlow/Screens/RepairModeScreen";
 import EscalationScreen from "./AIRepairFlow/Screens/EscalationScreen";
 import PostRepairScreen from "./AIRepairFlow/Screens/PostRepairScreen";
-import { Diagnosis } from "./AIRepairFlow/Screens/DiagnosisScreen";
 
-// 1. Removed 'visual' from the type definition
-type FlowStep = "problem" | "diagnosis" | "repair" | "escalation" | "complete";
+type Step = "problem" | "diagnosis" | "repair" | "escalation" | "complete";
 
-const stepLabels: Record<FlowStep, string> = {
+const steps: Step[] = ["problem", "diagnosis", "repair", "complete"];
+
+const labels: Record<Step, string> = {
   problem: "Describe Problem",
   diagnosis: "Diagnosis",
   repair: "Repair",
@@ -19,80 +19,84 @@ const stepLabels: Record<FlowStep, string> = {
   complete: "Complete",
 };
 
-// 2. Removed 'visual' from the step order array
-const stepOrder: FlowStep[] = ["problem", "diagnosis", "repair", "complete"];
-
 const RepairFlow = () => {
-  const [currentStep, setCurrentStep] = useState<FlowStep>("problem");
+  const [step, setStep] = useState<Step>("problem");
   const [diagnoses, setDiagnoses] = useState<Diagnosis[]>([]);
-  const [selectedDiagnosis, setSelectedDiagnosis] = useState<Diagnosis | null>(null);
-  const [showVehicle, setShowVehicle] = useState(false);
+  const [selected, setSelected] = useState<Diagnosis | null>(null);
+  const [result, setResult] = useState<RepairResult | null>(null);
 
-  const currentIndex = stepOrder.indexOf(currentStep) + 1;
+  const index = steps.indexOf(step) + 1;
 
-  const restart = () => {
-    setCurrentStep("problem");
+  const reset = () => {
+    setStep("problem");
     setDiagnoses([]);
-    setSelectedDiagnosis(null);
-    setShowVehicle(false);
+    setSelected(null);
+    setResult(null);
   };
 
+  const showProgress =
+    step !== "problem" && step !== "complete" && step !== "escalation";
+
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {showVehicle && currentStep !== "complete" && currentStep !== "escalation" && (
-        <div className="flex items-center justify-between px-4 py-2 border-b border-border">
-          <div className="flex-1">
-            <ProgressIndicator
-              currentStep={currentIndex}
-              totalSteps={stepOrder.length}
-              label={stepLabels[currentStep]}
-            />
-          </div>
+    <div className="min-h-screen flex flex-col bg-background">
+      
+      {/* Progress */}
+      {showProgress && (
+        <div className="px-4 py-2 border-b">
+          <ProgressIndicator
+            currentStep={index}
+            totalSteps={steps.length}
+            label={labels[step]}
+          />
         </div>
       )}
 
       <div className="flex-1">
-        {currentStep === "problem" && (
+        {step === "problem" && (
           <ProblemEntryScreen
-            onSubmit={(problem, incomingDiagnoses) => {
-              setDiagnoses(incomingDiagnoses);
-              setShowVehicle(true);
-              setCurrentStep("diagnosis");
+            onSubmit={(_, incoming) => {
+              setDiagnoses(incoming);
+              setStep("diagnosis");
             }}
           />
         )}
 
-        {currentStep === "diagnosis" && (
+        {step === "diagnosis" && (
           <DiagnosisScreen
             diagnoses={diagnoses}
-            onSelect={(diagnosis) => {
-              setSelectedDiagnosis(diagnosis);
-              setCurrentStep("repair");
+            onSelect={(d) => {
+              setSelected(d);
+              setStep("repair");
             }}
           />
         )}
 
-        {currentStep === "repair" && (
+        {step === "repair" && selected && (
           <RepairModeScreen
-            diagnosis={selectedDiagnosis}
-            // 3. Updated onComplete to jump directly to 'complete'
-            onComplete={() => setCurrentStep("complete")}
-            onEscalate={() => setCurrentStep("escalation")}
+            diagnosis={selected}
+            onComplete={(r) => {
+              setResult(r);
+              setStep("complete");
+            }}
+            onEscalate={() => setStep("escalation")}
             onBack={() => {
-              setSelectedDiagnosis(null);
-              setCurrentStep("diagnosis");
+              setSelected(null);
+              setStep("diagnosis");
             }}
           />
         )}
 
-        {currentStep === "escalation" && (
-          <EscalationScreen
-            onBack={() => setCurrentStep("repair")}
-          />
+        {step === "escalation" && (
+          <EscalationScreen onBack={() => setStep("repair")} />
         )}
 
-        {currentStep === "complete" && (
-          <PostRepairScreen onRestart={restart} />
+        {step === "complete" && selected && result && (
+          <PostRepairScreen
+            diagnosis={selected}
+            postRepairNote={result.postRepairNote}
+            nextMaintenance={result.nextMaintenance}
+            onRestart={reset}
+          />
         )}
       </div>
     </div>
