@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import CarModelCard from "@/components/CarModelCard";
-import { ChevronRight, ArrowLeft, Plus } from "lucide-react";
+import { ChevronRight, ArrowLeft } from "lucide-react";
 
 interface CarModel {
   id: string;
@@ -151,14 +151,9 @@ export default function BrandModelsPage() {
                 <ArrowLeft size={12} />
                 Back to Directory
               </Link>
-
-              {/* ✅ FIX: pre-selects this brand in the create guide form */}
-              <Link
-                href={`/guides/create?brand=${brandId}`}
-                className="flex items-center gap-2 bg-orange-500 text-white px-6 py-2 font-mono text-xs font-bold uppercase tracking-widest hover:brightness-110 transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
-              >
-                <Plus size={13} /> Create a Guide
-              </Link>
+              <button className="bg-orange-500 text-white px-6 py-2 font-mono text-xs font-bold uppercase tracking-widest hover:brightness-110 transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                + Create a Guide
+              </button>
             </div>
           </div>
         </section>
@@ -209,7 +204,7 @@ export default function BrandModelsPage() {
             <CarModelCard
               key={model.slug}
               model={{
-                id: model.id,
+                id: model.slug,
                 name: model.name,
                 years: model.years,
                 category: model.category,
