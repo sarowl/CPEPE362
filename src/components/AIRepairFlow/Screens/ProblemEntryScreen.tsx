@@ -1,13 +1,7 @@
-// src/components/AIRepairFlow/Screens/ProblemEntryScreen.tsx
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Search, ArrowRight, Loader2, Logs } from "lucide-react";
 import GarageModal, { Vehicle } from "@/components/GarageModal";
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { supabase } from "@/lib/supabase";
 
 interface QA {
   question: string;
@@ -20,7 +14,7 @@ type GeminiResult =
   | { type: "validation"; isValid: boolean };
 
 interface Props {
-  onSubmit: (problem: string, diagnoses: any[]) => void;
+  onSubmit: (problem: string, diagnoses: any[], vehicle: Vehicle | null) => void; // ← vehicle added
 }
 
 async function getNextStep(
@@ -50,59 +44,64 @@ const ProblemEntryScreen = ({ onSubmit }: Props) => {
 
   const [isGarageOpen, setIsGarageOpen] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
-
   const [garageVehicles, setGarageVehicles] = useState<Vehicle[]>([]);
+  const [garageLoading, setGarageLoading] = useState(false);
   const [garageFetchError, setGarageFetchError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchGarage = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const token = session?.access_token;
-        if (!token) return;
+  const handleOpenGarage = async () => {
+    setIsGarageOpen(true);
+    if (garageVehicles.length > 0) return;
 
-        const res = await fetch("/api/mygarage/fetch", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+    setGarageLoading(true);
+    setGarageFetchError(null);
 
-        if (!res.ok) {
-          setGarageFetchError("Could not load your garage.");
-          return;
-        }
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
 
-        const data = await res.json();
-        console.log("garage raw:", data.vehicles?.[0]);
-        const mapped: Vehicle[] = (data.vehicles ?? []).map((v: any) => ({
-          img: v.image_path ?? undefined,
-          model: v.model ?? "",
-          year: v.year ?? "",
-        }));
-        
-        setGarageVehicles(mapped);
-      } catch {
-        setGarageFetchError("Could not load your garage.");
+      if (!user) {
+        setGarageFetchError("You must be logged in to view your garage.");
+        return;
       }
-    };
 
-    fetchGarage();
-  }, []);
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      if (!token) {
+        setGarageFetchError("Session expired. Please log in again.");
+        return;
+      }
+
+      const res = await fetch("/api/mygarge/fetch", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        setGarageFetchError("Could not load your garage.");
+        return;
+      }
+
+      const data = await res.json();
+
+      const mapped: Vehicle[] = (data.vehicles ?? []).map((v: any) => ({
+        id: v.id,                          // ← now included
+        model: v.model ?? "Unknown model",
+        year: v.year ?? "Unknown year",
+      }));
+
+      setGarageVehicles(mapped);
+    } catch {
+      setGarageFetchError("Could not load your garage.");
+    } finally {
+      setGarageLoading(false);
+    }
+  };
 
   const buildContext = (qa: QA[]) => {
-    const lines = [];
-
-    if (selectedVehicle) {
-      lines.push(
-        `Vehicle: ${selectedVehicle.year} ${selectedVehicle.make} ${selectedVehicle.model}`
-      );
-    }
-
-    lines.push(`Problem: ${initialProblem}`);
-
+    const lines = [`Problem: ${initialProblem}`];
     qa.forEach((q) => {
       lines.push(`Q: ${q.question}`);
       lines.push(`A: ${q.answer}`);
     });
-
     return lines.join("\n");
   };
 
@@ -112,7 +111,6 @@ const ProblemEntryScreen = ({ onSubmit }: Props) => {
 
     setError(null);
 
-    // INITIAL
     if (phase === "initial") {
       setInput("");
       setLoading(true);
@@ -125,16 +123,16 @@ const ProblemEntryScreen = ({ onSubmit }: Props) => {
           return;
         }
 
-        setInitialProblem(text);
+        const enrichedProblem = selectedVehicle
+          ? `Vehicle: ${selectedVehicle.year} ${selectedVehicle.model}\nProblem: ${text}`
+          : text;
 
-        const result = await getNextStep("get-questions", text, []);
+        setInitialProblem(enrichedProblem);
+
+        const result = await getNextStep("get-questions", enrichedProblem, []);
 
         if (result.type === "diagnosis") {
-          const context = selectedVehicle
-            ? `Vehicle: ${selectedVehicle.year} ${selectedVehicle.make} ${selectedVehicle.model}\nProblem: ${text}`
-            : `Problem: ${text}`;
-
-          onSubmit(context, result.diagnoses);
+          onSubmit(enrichedProblem, result.diagnoses, selectedVehicle); // ← pass vehicle
         }
 
         if (result.type === "questions") {
@@ -151,7 +149,6 @@ const ProblemEntryScreen = ({ onSubmit }: Props) => {
       return;
     }
 
-    // FOLLOWUP
     if (phase === "followup") {
       const updated = [
         ...history,
@@ -173,7 +170,7 @@ const ProblemEntryScreen = ({ onSubmit }: Props) => {
         const result = await getNextStep("get-diagnosis", initialProblem, updated);
 
         if (result.type === "diagnosis") {
-          onSubmit(buildContext(updated), result.diagnoses);
+          onSubmit(buildContext(updated), result.diagnoses, selectedVehicle); // ← pass vehicle
         } else {
           setError("Unexpected response.");
           setPhase("followup");
@@ -187,14 +184,12 @@ const ProblemEntryScreen = ({ onSubmit }: Props) => {
     }
   };
 
-  const currentQuestion =
-    phase === "followup" ? questions[index] : null;
+  const currentQuestion = phase === "followup" ? questions[index] : null;
 
   return (
     <div className="flex items-center justify-center min-h-[60vh] px-4">
       <div className="w-full max-w-lg space-y-6">
 
-        {/* Header */}
         <div className="text-center">
           <h1 className="text-xl font-bold">
             {phase === "initial" ? "What's the problem?" : "Follow-up"}
@@ -206,37 +201,30 @@ const ProblemEntryScreen = ({ onSubmit }: Props) => {
           </p>
         </div>
 
-        {/* Selected vehicle */}
         {selectedVehicle && (
           <div className="text-sm bg-secondary px-3 py-2 rounded-lg">
-            {selectedVehicle.year} {selectedVehicle.make} {selectedVehicle.model}
+            {selectedVehicle.year} {selectedVehicle.model}
           </div>
         )}
 
-        {/* Question */}
         {currentQuestion && !loading && (
           <p className="text-sm font-medium">{currentQuestion}</p>
         )}
 
-        {/* Loading */}
         {loading && (
           <div className="flex justify-center">
             <Loader2 className="animate-spin" />
           </div>
         )}
 
-        {/* Error */}
         {error && <p className="text-sm text-red-500">{error}</p>}
 
-        {/* Garage fetch error */}
         {garageFetchError && (
           <p className="text-xs text-amber-500 text-center">{garageFetchError}</p>
         )}
 
-        {/* Input */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" />
-
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -249,7 +237,6 @@ const ProblemEntryScreen = ({ onSubmit }: Props) => {
             }
             className="w-full pl-10 pr-12 py-3 border rounded-lg"
           />
-
           <button
             onClick={handleSubmit}
             disabled={!input.trim() || loading}
@@ -259,13 +246,15 @@ const ProblemEntryScreen = ({ onSubmit }: Props) => {
           </button>
         </div>
 
-        {/* Garage */}
         <div className="flex justify-center">
           <button
-            onClick={() => setIsGarageOpen(true)}
+            onClick={handleOpenGarage}
             className="flex items-center gap-2 text-sm"
           >
-            <Logs className="h-4 w-4" />
+            {garageLoading
+              ? <Loader2 className="h-4 w-4 animate-spin" />
+              : <Logs className="h-4 w-4" />
+            }
             Browse Garage
           </button>
         </div>
@@ -275,9 +264,9 @@ const ProblemEntryScreen = ({ onSubmit }: Props) => {
           onClose={() => setIsGarageOpen(false)}
           cars={garageVehicles}
           onSelect={(car) => setSelectedVehicle(car)}
+          isLoading={garageLoading}
         />
 
-        {/* History */}
         {history.length > 0 && (
           <div className="text-xs space-y-1">
             {history.map((q, i) => (
@@ -289,7 +278,6 @@ const ProblemEntryScreen = ({ onSubmit }: Props) => {
             ))}
           </div>
         )}
-
       </div>
     </div>
   );

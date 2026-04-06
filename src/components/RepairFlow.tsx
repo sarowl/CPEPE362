@@ -1,4 +1,3 @@
-// src/components/RepairFlow.tsx
 import { useState } from "react";
 import ProgressIndicator from "./AIRepairFlow/ProgressIndicator";
 import ProblemEntryScreen from "./AIRepairFlow/Screens/ProblemEntryScreen";
@@ -6,6 +5,7 @@ import DiagnosisScreen, { Diagnosis } from "./AIRepairFlow/Screens/DiagnosisScre
 import RepairModeScreen, { RepairResult } from "./AIRepairFlow/Screens/RepairModeScreen";
 import EscalationScreen from "./AIRepairFlow/Screens/EscalationScreen";
 import PostRepairScreen from "./AIRepairFlow/Screens/PostRepairScreen";
+import { Vehicle } from "@/components/GarageModal";
 
 type Step = "problem" | "diagnosis" | "repair" | "escalation" | "complete";
 
@@ -24,6 +24,7 @@ const RepairFlow = () => {
   const [diagnoses, setDiagnoses] = useState<Diagnosis[]>([]);
   const [selected, setSelected] = useState<Diagnosis | null>(null);
   const [result, setResult] = useState<RepairResult | null>(null);
+  const [vehicle, setVehicle] = useState<Vehicle | null>(null); // ← added
 
   const index = steps.indexOf(step) + 1;
 
@@ -32,6 +33,7 @@ const RepairFlow = () => {
     setDiagnoses([]);
     setSelected(null);
     setResult(null);
+    setVehicle(null); // ← reset vehicle too
   };
 
   const showProgress =
@@ -39,8 +41,7 @@ const RepairFlow = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      
-      {/* Progress */}
+
       {showProgress && (
         <div className="px-4 py-2 border-b">
           <ProgressIndicator
@@ -54,8 +55,9 @@ const RepairFlow = () => {
       <div className="flex-1">
         {step === "problem" && (
           <ProblemEntryScreen
-            onSubmit={(_, incoming) => {
+            onSubmit={(_, incoming, v) => { // ← receive vehicle
               setDiagnoses(incoming);
+              setVehicle(v);               // ← store it
               setStep("diagnosis");
             }}
           />
@@ -95,6 +97,7 @@ const RepairFlow = () => {
             diagnosis={selected}
             postRepairNote={result.postRepairNote}
             nextMaintenance={result.nextMaintenance}
+            carId={vehicle?.id ?? null}    // ← pass car ID
             onRestart={reset}
           />
         )}
