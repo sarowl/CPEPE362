@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import Image from "next/image";
-
+import { findAdmin } from "@/lib/adminAccounts";
 // 2. Renamed the main logic to LoginForm
 const LoginForm = () => {
   const router = useRouter();
@@ -42,20 +42,36 @@ const LoginForm = () => {
     setError("");
     setLoading(true);
 
-    try {
+      try {
+      // ── ADMIN CHECK (runs BEFORE Supabase) ─────────────────
+      // If the entered credentials match a hardcoded admin account,
+      // store a lightweight admin flag in sessionStorage and
+      // redirect straight to the admin dashboard — no Supabase call needed.
+      const adminMatch = findAdmin(formData.email, formData.password);
+      if (adminMatch) {
+        sessionStorage.setItem(
+          "adminSession",
+          JSON.stringify({ email: adminMatch.email, name: adminMatch.name })
+        );
+        router.push("/admin");
+        return;
+      }
+      // ───────────────────────────────────────────────────────
+ 
+      // Normal Supabase login for regular users
       const { error } = await supabase.auth.signInWithPassword({
         email: formData.email,
         password: formData.password,
       });
-
+ 
       if (error) {
         setError(error.message);
         return;
       }
-
+ 
       router.push("/");
       router.refresh();
-    } catch (err) {
+    } catch {
       setError("Network error. Please try again.");
     } finally {
       setLoading(false);
@@ -140,8 +156,8 @@ const LoginForm = () => {
           Continue with Google
         </Button>
 
-        <p className="mt-6 text-center text-sm text-muted-foreground">
-          Don't have an account?{" "}
+           <p className="mt-6 text-center text-sm text-muted-foreground">
+          Don&apos;t have an account?{" "}
           <Link
             href="/signup"
             className="text-foreground underline-offset-4 hover:underline"
