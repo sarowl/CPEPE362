@@ -8,6 +8,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { Diagnosis } from "./DiagnosisScreen";
+import { Vehicle } from "@/components/GarageModal";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -30,6 +31,7 @@ export interface RepairResult {
 interface RepairModeScreenProps {
   diagnosis: Diagnosis | null;
   problemContext?: string;
+  vehicle?: Vehicle | null;
   onComplete: (result: RepairResult) => void;
   onEscalate: () => void;
   onBack: () => void;
@@ -73,6 +75,7 @@ function injectSnakeStyle() {
 const RepairModeScreen = ({
   diagnosis,
   problemContext,
+  vehicle,
   onComplete,
   onEscalate,
   onBack,
@@ -88,7 +91,6 @@ const RepairModeScreen = ({
     injectSnakeStyle();
   }, []);
 
-  // ── Fetch AI-generated repair steps ────────────────────────────────────────
   useEffect(() => {
     if (!diagnosis) return;
 
@@ -100,7 +102,7 @@ const RepairModeScreen = ({
         const res = await fetch("/api/repair_procedure", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ diagnosis, problemContext }),
+          body: JSON.stringify({ diagnosis, problemContext, vehicle }), 
         });
 
         if (!res.ok) {

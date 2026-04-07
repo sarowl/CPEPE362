@@ -76,6 +76,7 @@ const RepairFlow = () => {
         {step === "repair" && selected && (
           <RepairModeScreen
             diagnosis={selected}
+            vehicle={vehicle}
             onComplete={(r) => {
               setResult(r);
               setStep("complete");

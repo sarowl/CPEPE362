@@ -3,14 +3,13 @@ import { NextResponse } from "next/server";
 
 const GEOAPIFY_API_KEY = process.env.GEOAPIFY_API_KEY || "";
 
-// Tiered categories: specific first, then broader fallback
 const CATEGORY_TIERS = [
   "service.vehicle.repair.car,service.vehicle.repair.motorcycle",
   "service.vehicle.repair",
   "service.vehicle",
 ];
 
-const SEARCH_RADII = [3000, 6000, 10000]; // meters per tier
+const SEARCH_RADII = [3000, 6000, 10000]; 
 
 export async function POST(req: Request) {
   try {
@@ -33,7 +32,6 @@ export async function POST(req: Request) {
 
     let features: any[] = [];
 
-    // Try each tier until we get at least 3 results
     for (let i = 0; i < CATEGORY_TIERS.length; i++) {
       const categories = CATEGORY_TIERS[i];
       const radius = SEARCH_RADII[i];
@@ -41,7 +39,7 @@ export async function POST(req: Request) {
       const url = new URL("https://api.geoapify.com/v2/places");
       url.searchParams.set("categories", categories);
       url.searchParams.set("filter", `circle:${lng},${lat},${radius}`);
-      url.searchParams.set("bias", `proximity:${lng},${lat}`); // sort by distance
+      url.searchParams.set("bias", `proximity:${lng},${lat}`); 
       url.searchParams.set("limit", "10");
       url.searchParams.set("apiKey", GEOAPIFY_API_KEY);
 
@@ -55,10 +53,9 @@ export async function POST(req: Request) {
       const data = await res.json();
       features = data.features ?? [];
 
-      if (features.length >= 3) break; // enough results, stop tiering
+      if (features.length >= 3) break; 
     }
 
-    // Map Geoapify features → your Mechanic shape
     const mechanics = features.map((f: any) => {
       const p = f.properties;
       return {
@@ -96,14 +93,7 @@ export async function POST(req: Request) {
   }
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/**
- * Geoapify returns opening_hours as an OSM string like:
- * "Mo-Fr 08:00-17:00; Sa 08:00-13:00"
- * This does a basic check against the current day + time.
- * For production you'd use the `opening_hours` npm package.
- */
 function isOpenNow(ohString: string): boolean {
   try {
     const now = new Date();
@@ -113,7 +103,6 @@ function isOpenNow(ohString: string): boolean {
     const rules = ohString.split(";").map(r => r.trim());
 
     for (const rule of rules) {
-      // Match patterns like "Mo-Fr 08:00-17:00" or "Sa 09:00-14:00"
       const match = rule.match(/^([A-Za-z,\-]+)\s+(\d{2}:\d{2})-(\d{2}:\d{2})$/);
       if (!match) continue;
 
@@ -140,7 +129,6 @@ function timeToMins(t: string): number {
 const DAY_ORDER = ["Mo","Tu","We","Th","Fr","Sa","Su"];
 
 function isDayMatch(day: string, daysPart: string): boolean {
-  // Handle "Mo-Fr", "Sa", "Mo,We,Fr" etc.
   if (daysPart.includes("-")) {
     const [start, end] = daysPart.split("-");
     const si = DAY_ORDER.indexOf(start);

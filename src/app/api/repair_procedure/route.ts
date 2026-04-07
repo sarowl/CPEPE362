@@ -7,7 +7,10 @@ const genAI = new GoogleGenerativeAI(process.env.REPAIR_MODE_API_KEY || "");
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { problemContext, diagnosis } = body;
+    const { problemContext, diagnosis, vehicle } = body;
+    const vehicleInfo = vehicle
+  ? `Vehicle: ${vehicle.year} ${vehicle.model}`
+  : "Vehicle: Unknown";
 
     if (!diagnosis) {
       return NextResponse.json({ error: "Missing diagnosis" }, { status: 400 });
@@ -19,6 +22,7 @@ export async function POST(req: Request) {
 
     const prompt = `
       You are "Autobot", an expert automotive repair assistant.
+      ${vehicleInfo}
 
       A vehicle has been diagnosed with the following issue:
       - Diagnosis: ${diagnosis.title}
@@ -28,7 +32,8 @@ export async function POST(req: Request) {
       Additional context from the user:
       ${problemContext ?? "No additional context provided."}
 
-      Generate a clear, ordered step-by-step repair procedure for this specific diagnosis.
+      Generate a clear, ordered step-by-step repair procedure specific to the
+      ${vehicle ? `${vehicle.year} ${vehicle.model}` : "vehicle"} and this diagnosis.
 
       Rules:
       - Each step must have a short title (3–6 words) and a clear instruction (1–3 sentences).
