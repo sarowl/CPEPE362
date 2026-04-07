@@ -18,10 +18,11 @@ interface Mechanic {
   place_id: string;
   name: string;
   vicinity: string;
-  rating?: number;
-  user_ratings_total?: number;
-  opening_hours?: { open_now: boolean };
-  formatted_phone_number?: string;
+  rating?: number | null;
+  user_ratings_total?: number | null;
+  opening_hours?: { open_now: boolean } | null;
+  formatted_phone_number?: string | null;
+  distance_meters?: number | null;          // ← new
   geometry: {
     location: { lat: number; lng: number };
   };
@@ -256,6 +257,18 @@ const EscalationScreen = ({ onBack }: EscalationScreenProps) => {
               <MapPin className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
               <span>{m.vicinity}</span>
             </div>
+
+            {/* Distance */}
+            {m.distance_meters != null && (
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Navigation className="h-3.5 w-3.5 flex-shrink-0" />
+                <span>
+                  {m.distance_meters < 1000
+                    ? `${Math.round(m.distance_meters)}m away`
+                    : `${(m.distance_meters / 1000).toFixed(1)}km away`}
+                </span>
+              </div>
+            )}
 
             {/* Action buttons */}
             <div className="flex gap-2 pt-1">

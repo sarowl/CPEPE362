@@ -1,8 +1,16 @@
 // src/app/api/find_mechanics/route.ts
 import { NextResponse } from "next/server";
-import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 
-const genAI = new GoogleGenerativeAI(process.env.REPAIR_MODE_API_KEY || "");
+const GEOAPIFY_API_KEY = process.env.GEOAPIFY_API_KEY || "";
+
+// Tiered categories: specific first, then broader fallback
+const CATEGORY_TIERS = [
+  "service.vehicle.repair.car,service.vehicle.repair.motorcycle",
+  "service.vehicle.repair",
+  "service.vehicle",
+];
+
+const SEARCH_RADII = [3000, 6000, 10000]; // meters per tier
 
 export async function POST(req: Request) {
   try {
@@ -16,93 +24,129 @@ export async function POST(req: Request) {
       );
     }
 
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
-    });
+    if (!GEOAPIFY_API_KEY) {
+      return NextResponse.json(
+        { error: "Geoapify API key is not configured." },
+        { status: 500 }
+      );
+    }
 
-    const prompt = `
-      You are "Autobot", an expert automotive repair assistant.
+    let features: any[] = [];
 
-      A user needs to find a nearby auto repair shop or mechanic.
-      Their current GPS coordinates are: latitude ${lat}, longitude ${lng}.
+    // Try each tier until we get at least 3 results
+    for (let i = 0; i < CATEGORY_TIERS.length; i++) {
+      const categories = CATEGORY_TIERS[i];
+      const radius = SEARCH_RADII[i];
 
-      Use the coordinates to infer the city, region, and country.
-      Generate a list of exactly 5 realistic, plausible auto repair shops or mechanics
-      that could exist near that location.
+      const url = new URL("https://api.geoapify.com/v2/places");
+      url.searchParams.set("categories", categories);
+      url.searchParams.set("filter", `circle:${lng},${lat},${radius}`);
+      url.searchParams.set("bias", `proximity:${lng},${lat}`); // sort by distance
+      url.searchParams.set("limit", "10");
+      url.searchParams.set("apiKey", GEOAPIFY_API_KEY);
 
-      Rules:
-      - Shop names, addresses, and phone numbers must be culturally appropriate for the inferred region.
-      - Each shop's coordinates must be within ~2 km of the input coordinates.
-      - Ratings must be between 3.5 and 5.0.
-      - Vary open_now across the results — not all should be open or closed.
-      - place_id must be unique (e.g. "ai_place_1", "ai_place_2", etc).
-      - Phone numbers must follow the local format for the inferred country.
-    `;
+      const res = await fetch(url.toString());
 
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.4,
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: SchemaType.OBJECT,
-          properties: {
-            mechanics: {
-              type: SchemaType.ARRAY,
-              items: {
-                type: SchemaType.OBJECT,
-                properties: {
-                  place_id:               { type: SchemaType.STRING },
-                  name:                   { type: SchemaType.STRING },
-                  vicinity:               { type: SchemaType.STRING },
-                  rating:                 { type: SchemaType.NUMBER },
-                  user_ratings_total:     { type: SchemaType.NUMBER },
-                  formatted_phone_number: { type: SchemaType.STRING },
-                  opening_hours: {
-                    type: SchemaType.OBJECT,
-                    properties: {
-                      open_now: { type: SchemaType.BOOLEAN },
-                    },
-                    required: ["open_now"],
-                  },
-                  geometry: {
-                    type: SchemaType.OBJECT,
-                    properties: {
-                      location: {
-                        type: SchemaType.OBJECT,
-                        properties: {
-                          lat: { type: SchemaType.NUMBER },
-                          lng: { type: SchemaType.NUMBER },
-                        },
-                        required: ["lat", "lng"],
-                      },
-                    },
-                    required: ["location"],
-                  },
-                },
-                required: [
-                  "place_id",
-                  "name",
-                  "vicinity",
-                  "rating",
-                  "user_ratings_total",
-                  "formatted_phone_number",
-                  "opening_hours",
-                  "geometry",
-                ],
-              },
-            },
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err?.message ?? `Geoapify error ${res.status}`);
+      }
+
+      const data = await res.json();
+      features = data.features ?? [];
+
+      if (features.length >= 3) break; // enough results, stop tiering
+    }
+
+    // Map Geoapify features → your Mechanic shape
+    const mechanics = features.map((f: any) => {
+      const p = f.properties;
+      return {
+        place_id:               p.place_id,
+        name:                   p.name ?? "Auto Repair Shop",
+        vicinity:               p.formatted ?? p.address_line2 ?? p.address_line1 ?? "Address unavailable",
+        rating:                 p.datasource?.raw?.["rating"] ?? null,
+        user_ratings_total:     p.datasource?.raw?.["user_ratings_total"] ?? null,
+        formatted_phone_number: p.contact?.phone ?? p.datasource?.raw?.["phone"] ?? null,
+        opening_hours:          p.opening_hours
+                                  ? { open_now: isOpenNow(p.opening_hours) }
+                                  : null,
+        geometry: {
+          location: {
+            lat: f.geometry.coordinates[1],
+            lng: f.geometry.coordinates[0],
           },
-          required: ["mechanics"],
         },
-      },
+        distance_meters: p.distance ?? null,
+      };
     });
 
-    const response = JSON.parse(result.response.text());
-    return NextResponse.json({ mechanics: response.mechanics });
+    if (mechanics.length === 0) {
+      return NextResponse.json(
+        { error: "No mechanics found near your location. Try expanding your search area." },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({ mechanics });
 
   } catch (error: any) {
     console.error("Find mechanics API error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Geoapify returns opening_hours as an OSM string like:
+ * "Mo-Fr 08:00-17:00; Sa 08:00-13:00"
+ * This does a basic check against the current day + time.
+ * For production you'd use the `opening_hours` npm package.
+ */
+function isOpenNow(ohString: string): boolean {
+  try {
+    const now = new Date();
+    const day = ["Su","Mo","Tu","We","Th","Fr","Sa"][now.getDay()];
+    const currentMins = now.getHours() * 60 + now.getMinutes();
+
+    const rules = ohString.split(";").map(r => r.trim());
+
+    for (const rule of rules) {
+      // Match patterns like "Mo-Fr 08:00-17:00" or "Sa 09:00-14:00"
+      const match = rule.match(/^([A-Za-z,\-]+)\s+(\d{2}:\d{2})-(\d{2}:\d{2})$/);
+      if (!match) continue;
+
+      const [, daysPart, openTime, closeTime] = match;
+      if (!isDayMatch(day, daysPart)) continue;
+
+      const openMins  = timeToMins(openTime);
+      const closeMins = timeToMins(closeTime);
+
+      if (currentMins >= openMins && currentMins < closeMins) return true;
+    }
+
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+function timeToMins(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+}
+
+const DAY_ORDER = ["Mo","Tu","We","Th","Fr","Sa","Su"];
+
+function isDayMatch(day: string, daysPart: string): boolean {
+  // Handle "Mo-Fr", "Sa", "Mo,We,Fr" etc.
+  if (daysPart.includes("-")) {
+    const [start, end] = daysPart.split("-");
+    const si = DAY_ORDER.indexOf(start);
+    const ei = DAY_ORDER.indexOf(end);
+    const di = DAY_ORDER.indexOf(day);
+    return di >= si && di <= ei;
+  }
+  return daysPart.split(",").includes(day);
 }
