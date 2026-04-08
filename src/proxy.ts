@@ -1,3 +1,4 @@
+//src\proxy.ts
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, NextRequest } from "next/server";
 

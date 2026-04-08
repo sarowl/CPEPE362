@@ -74,7 +74,7 @@ export default function Navbar() {
             />
             <div className="w-[1px] bg-white/10 self-stretch" /> 
             <HorizontalDropdownItem 
-              href="/ai-assistant" 
+              href="/ai-repair" 
               icon={<Cpu size={20}/>} 
               title="Autobot AI" 
               subtitle="Smart diagnostic helper" 
