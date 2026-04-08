@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Car, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import GarageModal, { type NewVehicleInput } from "./garagemodel";
 import GarageViewModal from "./garageviewmodal";
 import GarageEditModal from "./garageeditmodal";
@@ -743,8 +743,23 @@ const saveMaintenanceToDB = async () => {
                         className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                       />
                     ) : (
-                      <div className="absolute inset-0 flex items-center justify-center bg-linear-to-br from-[#2a2a2a] via-[#404040] to-[#6b6b6b]">
-                        <Car className="h-16 w-16 text-white/80" />
+                      <div className="absolute inset-0 overflow-hidden bg-linear-to-br from-[#242833] via-[#313a47] to-[#181c24]">
+                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(255,255,255,0.10),transparent_48%),radial-gradient(circle_at_82%_82%,rgba(242,106,46,0.12),transparent_42%)]" />
+                        <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.07)_0%,rgba(255,255,255,0)_32%),repeating-linear-gradient(135deg,rgba(255,255,255,0.045),rgba(255,255,255,0.045)_1px,transparent_1px,transparent_18px)] opacity-75" />
+                        <div className="absolute left-0 top-0 h-full w-1/2 bg-[linear-gradient(90deg,rgba(242,106,46,0.18),transparent)] opacity-60" />
+
+                        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 px-6 text-center">
+                          <div className="rounded-2xl border border-white/18 bg-black/25 p-3 shadow-[0_10px_30px_rgba(0,0,0,0.22)] backdrop-blur-[1px] transition-transform duration-500 group-hover:scale-105">
+                            <img
+                              src="/car.png"
+                              alt="Default vehicle"
+                              className="h-18 w-18 object-contain"
+                            />
+                          </div>
+                          <p className="font-mono text-[11px] uppercase tracking-[0.26em] text-white/72">
+                            No Photo Yet
+                          </p>
+                        </div>
                       </div>
                     )}
 
