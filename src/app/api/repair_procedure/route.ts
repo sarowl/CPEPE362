@@ -8,9 +8,6 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { problemContext, diagnosis, vehicle } = body;
-    const vehicleInfo = vehicle
-  ? `Vehicle: ${vehicle.year} ${vehicle.model}`
-  : "Vehicle: Unknown";
 
     if (!diagnosis) {
       return NextResponse.json({ error: "Missing diagnosis" }, { status: 400 });
@@ -20,8 +17,13 @@ export async function POST(req: Request) {
       model: "gemini-3.1-flash-lite-preview",
     });
 
+    const vehicleInfo = vehicle
+      ? `Vehicle: ${vehicle.year} ${vehicle.model}`
+      : "Vehicle: Unknown";
+
     const prompt = `
       You are "Autobot", an expert automotive repair assistant.
+
       ${vehicleInfo}
 
       A vehicle has been diagnosed with the following issue:
@@ -36,6 +38,8 @@ export async function POST(req: Request) {
       ${vehicle ? `${vehicle.year} ${vehicle.model}` : "vehicle"} and this diagnosis.
 
       Rules:
+      - Tailor steps to the specific make, model, and year where procedures differ
+        (e.g. access panels, torque specs, part numbers, known quirks for that vehicle).
       - Each step must have a short title (3–6 words) and a clear instruction (1–3 sentences).
       - Steps must be in the correct order a mechanic would follow.
       - Include safety warnings inside the instruction text where relevant (e.g. "Ensure the engine is cool before proceeding.").
@@ -45,6 +49,8 @@ export async function POST(req: Request) {
       - Generate steps depending on the complexity of the diagnosis make it clear and actionable.
 
       Also generate:
+      - tools: A list of specific tools required for this repair on this vehicle (e.g. "10mm socket wrench", "brake caliper wind-back tool"). Only list tools that are genuinely required beyond common hand tools. Tailor to the vehicle where relevant (e.g. special sockets or trim removal tools specific to the make/model).
+      - parts: A list of replacement parts or consumables needed (e.g. "Front brake pads (check OEM spec for ${vehicle?.model ?? "this vehicle"})", "Brake fluid DOT 4 — 500ml"). Include specs, sizes, or OEM references where relevant to the specific vehicle.
       - postRepairNote: A 2–4 sentence post-repair checklist specific to this diagnosis. Tell the mechanic exactly what to verify, test, or inspect after completing the repair before returning the vehicle to normal use.
       - nextMaintenance: The single most relevant follow-up maintenance item for this repair. Include a short label (e.g. "Brake fluid flush") and a realistic service interval (e.g. "30,000 mi" or "12 months").
     `;
@@ -57,6 +63,14 @@ export async function POST(req: Request) {
         responseSchema: {
           type: SchemaType.OBJECT,
           properties: {
+            tools: {
+              type: SchemaType.ARRAY,
+              items: { type: SchemaType.STRING },
+            },
+            parts: {
+              type: SchemaType.ARRAY,
+              items: { type: SchemaType.STRING },
+            },
             steps: {
               type: SchemaType.ARRAY,
               items: {
@@ -81,16 +95,18 @@ export async function POST(req: Request) {
               required: ["label", "interval"],
             },
           },
-          required: ["steps", "postRepairNote", "nextMaintenance"],
+          required: ["tools", "parts", "steps", "postRepairNote", "nextMaintenance"],
         },
       },
     });
 
     const response = JSON.parse(result.response.text());
     return NextResponse.json({
-      steps:            response.steps,
-      postRepairNote:   response.postRepairNote,
-      nextMaintenance:  response.nextMaintenance,
+      tools:           response.tools,
+      parts:           response.parts,
+      steps:           response.steps,
+      postRepairNote:  response.postRepairNote,
+      nextMaintenance: response.nextMaintenance,
     });
 
   } catch (error: any) {

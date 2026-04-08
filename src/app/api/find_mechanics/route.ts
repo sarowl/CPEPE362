@@ -40,7 +40,7 @@ export async function POST(req: Request) {
       url.searchParams.set("categories", categories);
       url.searchParams.set("filter", `circle:${lng},${lat},${radius}`);
       url.searchParams.set("bias", `proximity:${lng},${lat}`); 
-      url.searchParams.set("limit", "10");
+      url.searchParams.set("limit", "12");
       url.searchParams.set("apiKey", GEOAPIFY_API_KEY);
 
       const res = await fetch(url.toString());
