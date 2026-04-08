@@ -761,10 +761,7 @@ const saveMaintenanceToDB = async () => {
                               />
                             </div>
                             <div className="text-center">
-                              <p className="font-mono text-[10px] uppercase tracking-[0.34em] text-slate-500">
-                                Brand Logo
-                              </p>
-                              <p className="mt-1 font-mono text-xs font-semibold uppercase tracking-[0.18em] text-slate-700">
+                              <p className="font-mono text-xs font-semibold uppercase tracking-[0.18em] text-slate-700">
                                 {vehicle.make}
                               </p>
                             </div>
