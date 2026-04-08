@@ -558,7 +558,7 @@ const saveMaintenanceToDB = async () => {
 
   return (
     <div className="min-h-[calc(100vh-3.5rem)] bg-[#efefef] px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mx-auto w-full max-w-[980px]">
+      <div className="mx-auto w-full max-w-245">
         
         {/* HEADER */}
         <div className="px-0 py-4">
@@ -587,7 +587,7 @@ const saveMaintenanceToDB = async () => {
           ) : null}
 
           {isLoading ? (
-            <div className="mt-3 border border-[#d7d7d7] bg-[#f9f9f9] px-5 py-7 text-center font-mono text-sm uppercase tracking-[0.1em] text-[#5f5f5f]">
+            <div className="mt-3 border border-[#d7d7d7] bg-[#f9f9f9] px-5 py-7 text-center font-mono text-sm uppercase tracking-widest text-[#5f5f5f]">
               Loading garage...
             </div>
           ) : !isAuthenticated ? (
@@ -611,74 +611,76 @@ const saveMaintenanceToDB = async () => {
                         setActiveVehicleId(vehicle.id);
                       }
                     }}
-                    className={`min-h-[180px] border-2 border-dashed px-5 py-6 ${
+                    className={`group relative min-h-70 overflow-hidden border-2 border-dashed transition-transform duration-300 ${
                       selected
                         ? "border-[#242424] bg-[#ececec]"
                         : "border-[#c9c9c9] bg-[#f2f2f2]"
-                    } cursor-pointer`}
+                    } cursor-pointer hover:-translate-y-0.5 hover:shadow-xl`}
                   >
-                    <div className="mb-3 flex justify-center">
-                      {vehicle.photoUrl ? (
-                        <img
-                          src={vehicle.photoUrl}
-                          alt={`${vehicle.make} ${vehicle.model}`}
-                          className="h-20 w-full rounded-md border border-[#d5d5d5] object-cover"
-                        />
-                      ) : (
-                        <span className="inline-flex h-11 w-11 items-center justify-center text-[#7a7a7a]">
-                          <Car className="h-7 w-7" />
-                        </span>
-                      )}
-                    </div>
+                    {vehicle.photoUrl ? (
+                      <img
+                        src={vehicle.photoUrl}
+                        alt={`${vehicle.make} ${vehicle.model}`}
+                        className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      />
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center bg-linear-to-br from-[#2a2a2a] via-[#404040] to-[#6b6b6b]">
+                        <Car className="h-16 w-16 text-white/80" />
+                      </div>
+                    )}
 
-                    <button
-                      type="button"
-                      onClick={() => setActiveVehicleId(vehicle.id)}
-                      className="w-full cursor-pointer text-center"
-                    >
-                      <p className="font-mono text-[30px] font-semibold leading-tight">
-                        {vehicle.make} {vehicle.model}
-                      </p>
+                    <div className="absolute inset-0 bg-linear-to-t from-black/85 via-black/40 to-black/5 opacity-0 transition-opacity duration-300 group-hover:opacity-100 group-focus-within:opacity-100" />
 
-                      <p className="mt-2 font-mono text-base text-[#6f6f6f]">
-                        {vehicle.year} · {getPlate(vehicle)} ·
-                        <span className="ml-2 align-middle">{vehicle.colorName}</span>
-                      </p>
-                    </button>
-
-                    <div className="mt-5 flex items-center justify-center gap-2">
+                    <div className="absolute inset-x-0 bottom-0 z-10 flex h-full flex-col justify-end p-5 text-white opacity-0 transition-opacity duration-300 group-hover:opacity-100 group-focus-within:opacity-100">
                       <button
                         type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setActiveVehicleId(vehicle.id);
-                          setViewOpen(true);
-                        }}
-                        className="cursor-pointer border border-[#c9c9c9] px-3 py-1.5 font-mono text-xs uppercase tracking-[0.12em] text-[#1f1f1f] transition-colors hover:border-[#f26a2e] hover:bg-[#f26a2e] hover:text-white"
+                        onClick={() => setActiveVehicleId(vehicle.id)}
+                        className="w-full cursor-pointer text-left"
                       >
-                        View
+                        <p className="font-mono text-2xl font-semibold leading-tight drop-shadow-sm sm:text-[30px]">
+                          {vehicle.make} {vehicle.model}
+                        </p>
+
+                        <p className="mt-2 font-mono text-sm text-white/85 drop-shadow-sm sm:text-base">
+                          {vehicle.year} · {getPlate(vehicle)} ·
+                          <span className="ml-2 align-middle">{vehicle.colorName}</span>
+                        </p>
                       </button>
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setActiveVehicleId(vehicle.id);
-                          setEditOpen(true);
-                        }}
-                        className="cursor-pointer border border-[#c9c9c9] px-3 py-1.5 font-mono text-xs uppercase tracking-[0.12em] text-[#1f1f1f] transition-colors hover:border-[#f26a2e] hover:bg-[#f26a2e] hover:text-white"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          deleteVehicleFromDB(vehicle.id);
-                        }}
-                        className="cursor-pointer border border-[#c9c9c9] px-3 py-1.5 font-mono text-xs uppercase tracking-[0.12em] text-[#1f1f1f] transition-colors hover:border-[#d94343] hover:bg-[#d94343] hover:text-white"
-                      >
-                        Delete
-                      </button>
+
+                      <div className="mt-5 flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setActiveVehicleId(vehicle.id);
+                            setViewOpen(true);
+                          }}
+                          className="cursor-pointer border border-white/70 bg-white/10 px-3 py-1.5 font-mono text-xs uppercase tracking-[0.12em] text-white backdrop-blur-sm transition-colors hover:border-[#f26a2e] hover:bg-[#f26a2e]"
+                        >
+                          View
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setActiveVehicleId(vehicle.id);
+                            setEditOpen(true);
+                          }}
+                          className="cursor-pointer border border-white/70 bg-white/10 px-3 py-1.5 font-mono text-xs uppercase tracking-[0.12em] text-white backdrop-blur-sm transition-colors hover:border-[#f26a2e] hover:bg-[#f26a2e]"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            deleteVehicleFromDB(vehicle.id);
+                          }}
+                          className="cursor-pointer border border-white/70 bg-white/10 px-3 py-1.5 font-mono text-xs uppercase tracking-[0.12em] text-white backdrop-blur-sm transition-colors hover:border-[#d94343] hover:bg-[#d94343]"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </div>
                   </article>
                 );
@@ -688,7 +690,7 @@ const saveMaintenanceToDB = async () => {
               <button
                 type="button"
                 onClick={() => setOpen(true)}
-                className="flex min-h-[180px] cursor-pointer flex-col items-center justify-center border-2 border-dashed border-[#c9c9c9] bg-[#f2f2f2]"
+                className="flex min-h-45 cursor-pointer flex-col items-center justify-center border-2 border-dashed border-[#c9c9c9] bg-[#f2f2f2]"
               >
                 <Plus className="h-7 w-7" />
                 <span className="mt-3 font-mono text-base font-semibold uppercase tracking-[0.2em] text-[#6f6f6f]">
@@ -725,7 +727,7 @@ const saveMaintenanceToDB = async () => {
             </div>
 
             <div className="overflow-x-auto border border-[#cfcfcf] bg-[#f4f4f4]">
-              <table className="w-full min-w-[760px] border-collapse font-mono text-sm text-[#1e1e1e]">
+              <table className="w-full min-w-190 border-collapse font-mono text-sm text-[#1e1e1e]">
                 <thead>
                   <tr className="border-b border-[#cfcfcf] bg-[#e7e7e7] text-left text-xs uppercase tracking-[0.14em] text-[#555]">
                     <th className="px-4 py-3 font-semibold">Activity</th>
