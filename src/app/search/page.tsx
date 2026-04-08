@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, Suspense } from "react";
+import Navbar from "@/components/Navbar";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -193,7 +194,9 @@ function SearchPageComponent() {
   };
 
   return (
-    <main className="bg-secondary/40 min-h-[calc(100vh-56px)] px-4 py-8 md:px-8">
+    <>
+      <Navbar />
+      <main className="bg-secondary/40 min-h-[calc(100vh-56px)] px-4 py-8 md:px-8">
       <section className="mx-auto w-full max-w-6xl rounded-2xl border border-border bg-background p-5 shadow-sm md:p-8">
         <h1 className="text-3xl font-extrabold tracking-tight">Search</h1>
 
@@ -308,6 +311,7 @@ function SearchPageComponent() {
         </section>
       </section>
     </main>
+    </>
   );
 }
 
