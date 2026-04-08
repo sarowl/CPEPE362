@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
 export async function PUT(req: NextRequest) {
 	try {
 		const body = await req.json();
@@ -9,6 +11,13 @@ export async function PUT(req: NextRequest) {
 		if (!id || !activity || !date) {
 			return NextResponse.json(
 				{ message: "Missing required fields" },
+				{ status: 400 }
+			);
+		}
+
+		if (typeof reminder === "string" && reminder.trim() && !DATE_ONLY_REGEX.test(reminder.trim())) {
+			return NextResponse.json(
+				{ message: "Reminder must be a date in YYYY-MM-DD format" },
 				{ status: 400 }
 			);
 		}
@@ -47,7 +56,7 @@ export async function PUT(req: NextRequest) {
 				activity,
 				date,
 				notes: notes || "",
-				reminder: reminder || "",
+				reminder: typeof reminder === "string" ? reminder.trim() : "",
 			})
 			.eq("id", id)
 			.eq("user_id", user.id)

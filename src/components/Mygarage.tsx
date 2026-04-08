@@ -25,6 +25,26 @@ type MaintenanceEntry = {
   createdAt: string;
 };
 
+const toDateOnly = (value: unknown): string => {
+  if (typeof value !== "string") return "";
+
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  const parsed = Date.parse(trimmed);
+  if (Number.isNaN(parsed)) {
+    return "";
+  }
+
+  return new Date(parsed).toISOString().slice(0, 10);
+};
+
+const MS_IN_DAY = 24 * 60 * 60 * 1000;
+
 export default function Mygarage() {
   const GARAGE_BUCKET = "Autobot_Storage";
   const GARAGE_FOLDER = "Mygarage";
@@ -143,7 +163,7 @@ export default function Mygarage() {
       activity: safeText(row?.activity) || "N/A",
       date: safeText(row?.date) || "N/A",
       notes: safeText(row?.notes),
-      reminder: safeText(row?.reminder) || "N/A",
+      reminder: toDateOnly(row?.reminder) || "N/A",
       createdAt: safeText(row?.created_at),
     };
   };
@@ -155,6 +175,102 @@ export default function Mygarage() {
     setMaintenanceReminder("");
     setMaintenanceEditingId(null);
     setMaintenanceFormError(null);
+  };
+
+  const saveNotification = async (token: string, title: string, message: string) => {
+    try {
+      const res = await fetch("/api/notification/save", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ title, message }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        console.error(`Notification save failed (${res.status}):`, errorData);
+        return;
+      }
+
+      const data = await res.json();
+      console.log("Notification saved:", data);
+    } catch (error) {
+      console.error("Failed to save reminder notification", error);
+    }
+  };
+
+  const notifyMaintenanceReminders = async (
+    rows: MaintenanceEntry[],
+    vehicleRows: GarageVehicle[],
+    token: string
+  ) => {
+    if (!rows.length) return;
+
+    console.log("[DEBUG] Checking maintenance reminders for", rows.length, "rows");
+
+    const vehicleLabelById = new Map(
+      vehicleRows.map((vehicle) => [vehicle.id, `${vehicle.make} ${vehicle.model}`])
+    );
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const tasks: Promise<void>[] = [];
+
+    for (const row of rows) {
+      const reminderDateOnly = toDateOnly(row.reminder);
+      console.log(`[DEBUG] Row activity="${row.activity}" reminder="${row.reminder}" → parsed="${reminderDateOnly}"`);
+      if (!reminderDateOnly) continue;
+
+      const reminderDate = new Date(`${reminderDateOnly}T00:00:00`);
+      if (Number.isNaN(reminderDate.getTime())) continue;
+
+      const daysUntil = Math.round((reminderDate.getTime() - today.getTime()) / MS_IN_DAY);
+      console.log(`[DEBUG] Reminder date=${reminderDateOnly} daysUntil=${daysUntil}`);
+      const vehicleLabel = vehicleLabelById.get(row.carId) ?? "your vehicle";
+      const activityLabel = row.activity === "N/A" ? "Maintenance task" : row.activity;
+
+      if ([3, 2, 1].includes(daysUntil)) {
+        console.log(`[DEBUG] Creating ${daysUntil}-day reminder notification`);
+        tasks.push(
+          saveNotification(
+            token,
+            "Maintenance Reminder",
+            `${activityLabel} for ${vehicleLabel} is due in ${daysUntil} day${daysUntil === 1 ? "" : "s"} (${reminderDateOnly}).`
+          )
+        );
+        continue;
+      }
+
+      if (daysUntil === 0) {
+        console.log(`[DEBUG] Creating today reminder notification`);
+        tasks.push(
+          saveNotification(
+            token,
+            "Maintenance Reminder",
+            `${activityLabel} for ${vehicleLabel} is due today (${reminderDateOnly}).`
+          )
+        );
+        continue;
+      }
+
+      if (daysUntil < 0) {
+        console.log(`[DEBUG] Creating overdue notification (${daysUntil} days overdue)`);
+        tasks.push(
+          saveNotification(
+            token,
+            "Maintenance Reminder Missed",
+            `${activityLabel} for ${vehicleLabel} was due on ${reminderDateOnly} and is overdue.`
+          )
+        );
+      }
+    }
+
+    console.log(`[DEBUG] Created ${tasks.length} notification tasks`);
+    if (!tasks.length) return;
+    await Promise.all(tasks);
   };
 
 
@@ -259,6 +375,9 @@ const updateVehicleInDB = async (vehicle: GarageVehicle) => {
 
       setVehicles(formatted);
       setMaintenanceRows(formattedMaintenance);
+
+      console.log("[DEBUG] Calling notifyMaintenanceReminders with", formattedMaintenance.length, "maintenance entries");
+      await notifyMaintenanceReminders(formattedMaintenance, formatted, token);
 
       if (formatted.length > 0) {
         setActiveVehicleId(formatted[0].id);
@@ -519,14 +638,14 @@ const saveMaintenanceToDB = async () => {
           activity: maintenanceActivity.trim(),
           date: maintenanceDate.trim(),
           notes: maintenanceNotes.trim(),
-          reminder: maintenanceReminder.trim(),
+          reminder: toDateOnly(maintenanceReminder),
         }
       : {
           car_id: activeVehicleId,
           activity: maintenanceActivity.trim(),
           date: maintenanceDate.trim(),
           notes: maintenanceNotes.trim(),
-          reminder: maintenanceReminder.trim(),
+          reminder: toDateOnly(maintenanceReminder),
         };
 
     const res = await fetch(endpoint, {
@@ -847,10 +966,9 @@ const saveMaintenanceToDB = async () => {
                   Reminder
                 </label>
                 <input
-                  type="text"
+                  type="date"
                   value={maintenanceReminder}
                   onChange={(event) => setMaintenanceReminder(event.target.value)}
-                  placeholder="e.g. Every 6 months"
                   className="h-10 w-full border border-[#cfcfcf] bg-[#f7f7f7] px-3 font-mono text-sm text-[#1e1e1e] outline-none transition focus:border-[#2d67e3]"
                 />
               </div>

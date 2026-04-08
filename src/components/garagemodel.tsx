@@ -40,7 +40,20 @@ type ValidationErrors = Partial<{
   owner: string;
 }>;
 
-const MAKES = ["Toyota", "Honda", "Ford", "Chevrolet", "BMW", "Nissan", "Subaru", "Jeep"];
+const MAKER_REFERENCES = [
+  { name: "BYD", slug: "byd" },
+  { name: "Ford", slug: "ford" },
+  { name: "Geely", slug: "geely" },
+  { name: "Honda", slug: "honda" },
+  { name: "Hyundai", slug: "hyundai" },
+  { name: "Isuzu", slug: "isuzu" },
+  { name: "Kia", slug: "kia" },
+  { name: "MG", slug: "mg" },
+  { name: "Mitsubishi", slug: "mitsubishi" },
+  { name: "Nissan", slug: "nissan" },
+  { name: "Suzuki", slug: "suzuki" },
+  { name: "Toyota", slug: "toyota" },
+] as const;
 const PLATENUM_PATTERN = /^[A-Z]{3}-?\d{3,4}$|^\d{3}[A-Z]{3}$/;
 const VIN_PATTERN = /^[A-HJ-NPR-Z0-9]{17}$/;
 const CHASSIS_PATTERN = /^[A-Z0-9-]{6,20}$/;
@@ -243,21 +256,26 @@ export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
               <p className="mb-2.5 text-sm text-slate-500">Choose a make, then enter your model.</p>
 
               <div className="mb-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                {MAKES.map((make) => {
-                  const selected = selectedMake === make;
+                {MAKER_REFERENCES.map((maker) => {
+                  const selected = selectedMake === maker.name;
 
                   return (
                     <button
-                      key={make}
+                      key={maker.slug}
                       type="button"
-                      onClick={() => chooseMake(make)}
-                      className={`h-10 rounded-lg px-3.5 text-left text-base font-medium transition ${
+                      onClick={() => chooseMake(maker.name)}
+                      className={`flex h-12 items-center gap-3 rounded-lg px-3.5 text-left text-base font-medium transition ${
                         selected
                           ? "border border-[#f26a2e] bg-[#ffe9df] text-[#d85720]"
                           : "bg-slate-100 text-slate-900 hover:bg-slate-200"
                       }`}
                     >
-                      {make}
+                      <img
+                        src={`/car-makers/${maker.slug}.png`}
+                        alt={`${maker.name} logo`}
+                        className="h-6 w-6 rounded-sm object-contain"
+                      />
+                      <span>{maker.name}</span>
                     </button>
                   );
                 })}
