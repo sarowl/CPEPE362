@@ -45,6 +45,11 @@ const toDateOnly = (value: unknown): string => {
 
 const MS_IN_DAY = 24 * 60 * 60 * 1000;
 
+const getBrandLogoPath = (make?: string) => {
+  const slug = make?.trim().toLowerCase().replace(/[^a-z0-9]+/g, "") ?? "";
+  return slug ? `/car-makers/${slug}.png` : "";
+};
+
 export default function Mygarage() {
   const GARAGE_BUCKET = "Autobot_Storage";
   const GARAGE_FOLDER = "Mygarage";
@@ -743,22 +748,27 @@ const saveMaintenanceToDB = async () => {
                         className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                       />
                     ) : (
-                      <div className="absolute inset-0 overflow-hidden bg-linear-to-br from-[#242833] via-[#313a47] to-[#181c24]">
-                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(255,255,255,0.10),transparent_48%),radial-gradient(circle_at_82%_82%,rgba(242,106,46,0.12),transparent_42%)]" />
-                        <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.07)_0%,rgba(255,255,255,0)_32%),repeating-linear-gradient(135deg,rgba(255,255,255,0.045),rgba(255,255,255,0.045)_1px,transparent_1px,transparent_18px)] opacity-75" />
-                        <div className="absolute left-0 top-0 h-full w-1/2 bg-[linear-gradient(90deg,rgba(242,106,46,0.18),transparent)] opacity-60" />
-
-                        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 px-6 text-center">
-                          <div className="rounded-2xl border border-white/18 bg-black/25 p-3 shadow-[0_10px_30px_rgba(0,0,0,0.22)] backdrop-blur-[1px] transition-transform duration-500 group-hover:scale-105">
-                            <img
-                              src="/car.png"
-                              alt="Default vehicle"
-                              className="h-18 w-18 object-contain"
-                            />
+                      <div className="absolute inset-0 overflow-hidden bg-linear-to-br from-[#f4f6f8] via-[#e7edf2] to-[#d9e1e8]">
+                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_18%,rgba(255,255,255,0.95),transparent_34%),radial-gradient(circle_at_80%_78%,rgba(255,255,255,0.75),transparent_32%)]" />
+                        <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(24,24,24,0.04)_0%,rgba(24,24,24,0)_32%),repeating-linear-gradient(135deg,rgba(24,24,24,0.06),rgba(24,24,24,0.06)_1px,transparent_1px,transparent_18px)] opacity-70" />
+                        <div className="absolute inset-0 flex items-center justify-center px-6">
+                          <div className="flex flex-col items-center gap-3 rounded-[1.75rem] border border-white/70 bg-white/45 px-8 py-7 shadow-[0_18px_40px_rgba(20,30,40,0.12)] backdrop-blur-sm transition-transform duration-500 group-hover:scale-[1.02]">
+                            <div className="flex h-22 w-22 items-center justify-center rounded-full border border-slate-200 bg-white shadow-inner">
+                              <img
+                                src={getBrandLogoPath(vehicle.make) || "/car-makers/toyota.png"}
+                                alt={`${vehicle.make} logo`}
+                                className="h-14 w-14 object-contain"
+                              />
+                            </div>
+                            <div className="text-center">
+                              <p className="font-mono text-[10px] uppercase tracking-[0.34em] text-slate-500">
+                                Brand Logo
+                              </p>
+                              <p className="mt-1 font-mono text-xs font-semibold uppercase tracking-[0.18em] text-slate-700">
+                                {vehicle.make}
+                              </p>
+                            </div>
                           </div>
-                          <p className="font-mono text-[11px] uppercase tracking-[0.26em] text-white/72">
-                            No Photo Yet
-                          </p>
                         </div>
                       </div>
                     )}
