@@ -9,6 +9,10 @@
 //  - Total likes and dislikes across all their approved guides
 //
 // Anyone (logged in or not) can view this.
+//
+// UPDATED: Profile image is now fetched directly from Supabase
+// storage (Autobot_Storage/ProfilePics/{user_id}/) and returned
+// as a signed URL so other-user profile pages display it correctly.
 // ================================================================
 
 import { NextResponse } from "next/server";
@@ -33,6 +37,47 @@ export async function GET(_req: Request, { params }: Params) {
 
     if (userErr) return NextResponse.json({ error: userErr.message }, { status: 500 });
     if (!user)   return NextResponse.json({ error: "User not found." }, { status: 404 });
+
+    // ── Profile image: resolve to a usable signed URL ──────────
+    // The DB column (Profilepic) stores the storage path, not a URL.
+    // Build a signed URL from the canonical path so the browser can
+    // load it directly.  Falls back to listing the folder when the
+    // stored path is missing so newly uploaded pictures still appear.
+    let profilePicUrl: string | null = null;
+
+    // Helper: create a 7-day signed URL for a given storage path
+    const signPath = async (path: string): Promise<string | null> => {
+      const { data, error } = await supabase.storage
+        .from("Autobot_Storage")
+        .createSignedUrl(path, 60 * 60 * 24 * 7);
+      return error ? null : (data?.signedUrl ?? null);
+    };
+
+    if (user.Profilepic) {
+      // The stored value may already be a full URL (legacy) or a path.
+      if (user.Profilepic.startsWith("http")) {
+        profilePicUrl = user.Profilepic;
+      } else {
+        profilePicUrl = await signPath(user.Profilepic);
+      }
+    }
+
+    // Fallback: if nothing is stored in the DB, list the folder and
+    // pick the latest file so freshly uploaded pictures still show.
+    if (!profilePicUrl) {
+      const folderPath = `ProfilePics/${userId}`;
+      const { data: listData } = await supabase.storage
+        .from("Autobot_Storage")
+        .list(folderPath, { limit: 20, sortBy: { column: "created_at", order: "desc" } });
+
+      if (listData && listData.length > 0) {
+        // Pick the most-recently uploaded file
+        const latest = listData[0];
+        const fullPath = `${folderPath}/${latest.name}`;
+        profilePicUrl = await signPath(fullPath);
+      }
+    }
+    // ───────────────────────────────────────────────────────────
 
     // Fetch approved guides for this user
     const { data: guides, error: guidesErr } = await supabase
@@ -67,7 +112,7 @@ export async function GET(_req: Request, { params }: Params) {
         name:        user.name,
         about:       user.about,
         occupation:  user.occupation,
-        profile_pic: user.Profilepic,
+        profile_pic: profilePicUrl,   // resolved signed URL (or null)
         created_at:  user.created_at,
       },
       approvedGuides,

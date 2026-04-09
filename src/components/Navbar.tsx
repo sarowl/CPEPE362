@@ -1,49 +1,56 @@
 "use client";
 
+// ================================================================
+// FILE: src/components/Navbar.tsx
+//
+// UPDATED (Spec 2):
+// - SECTION 1: Auto Hub icon now has DEFAULT state (autohub-icon-default.png)
+//   and HOVER state (autohub-icon-hover.png) with smooth fade transition.
+//   State is controlled by React hover state on the dropdown item.
+// - SECTION 2.1: Header bookmark icon updated to bookmark-icon.png
+//   with glow effect on hover (drop-shadow filter).
+// - SECTION 3: Clicking the bookmark icon navigates to /bookmarks
+//   (the bookmarks page shows all bookmarked guides - same layout
+//    as Profile → Bookmarks tab).
+// ================================================================
+
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { Search, ChevronDown, Bookmark, User, Settings, LogOut, Car, FileText, Cpu, Users, MessageSquare } from "lucide-react";
-import { supabase } from "@/lib/supabase"; 
+import Image from "next/image";
+import { Search, ChevronDown, User, Settings, LogOut, Car, Cpu, Users, MessageSquare, BookOpen } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 
 export default function Navbar() {
   const router = useRouter();
   const pathname = usePathname();
   const [user, setUser] = useState<SupabaseUser | null>(null);
-  const [searchOpen, setSearchOpen] = useState(false);
   const [profilePicture, setProfilePicture] = useState<string | null>(null);
+  // SECTION 1: Track hover state on Auto Hub item for icon swap
+  const [autoHubHovered, setAutoHubHovered] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
     });
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
     });
-
     return () => subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
     const fetchProfilePicture = async () => {
-      if (!user) {
-        setProfilePicture(null);
-        return;
-      }
-
+      if (!user) { setProfilePicture(null); return; }
       try {
         const res = await fetch("/api/profile_fetch");
         const data = await res.json();
         if (res.ok && data.user?.profile_picture) {
           setProfilePicture(data.user.profile_picture);
         }
-      } catch (error) {
-        console.error("Error fetching profile picture:", error);
-      }
+      } catch {}
     };
-
     fetchProfilePicture();
   }, [user]);
 
@@ -59,57 +66,94 @@ export default function Navbar() {
       </Link>
 
       <div className="hidden md:flex items-center gap-2 h-full">
-        
+
+        {/* Fix It dropdown */}
         <div className="group relative h-full flex items-center">
-          <button className={`flex items-center gap-1 px-4 h-full font-mono text-sm transition-colors ${pathname.startsWith('/guides') ? 'text-primary' : 'text-primary-foreground/70 group-hover:text-primary-foreground'}`}>
+          <button className={`flex items-center gap-1 px-4 h-full font-mono text-sm transition-colors ${pathname.startsWith('/car-makers') || pathname.startsWith('/guides') ? 'text-primary' : 'text-primary-foreground/70 group-hover:text-primary-foreground'}`}>
             Fix it <ChevronDown size={14} className="group-hover:rotate-180 transition-transform" />
           </button>
-          
+
           <div className="absolute top-14 left-0 w-[500px] flex flex-row bg-ink border border-white/10 shadow-xl rounded-b-md transition-all duration-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible translate-y-2 group-hover:translate-y-0 overflow-hidden">
-            <HorizontalDropdownItem 
-              href="/car-makers" 
-              icon={<FileText size={20}/>} 
-              title="Repair Guides" 
-              subtitle="Step-by-step manuals" 
-            />
-            <div className="w-[1px] bg-white/10 self-stretch" /> 
-            <HorizontalDropdownItem 
-              href="/ai-assistant" 
-              icon={<Cpu size={20}/>} 
-              title="Autobot AI" 
-              subtitle="Smart diagnostic helper" 
-              isPro 
+            {/* SECTION 1: Auto Hub with hover icon swap */}
+            <Link
+              href="/car-makers"
+              className="flex-1 flex flex-col items-center text-center p-6 hover:bg-white/5 transition-colors group/item"
+              onMouseEnter={() => setAutoHubHovered(true)}
+              onMouseLeave={() => setAutoHubHovered(false)}
+            >
+              <div className="mb-3 p-3 rounded-full bg-white/5 group-hover/item:bg-primary transition-all relative w-[50px] h-[50px] flex items-center justify-center">
+                {/* Default icon — fades out on hover */}
+                <Image
+                  src="/autohub-icon-default.png"
+                  alt="Auto Hub"
+                  width={28}
+                  height={28}
+                  className="object-contain absolute transition-opacity duration-200"
+                  style={{ opacity: autoHubHovered ? 0 : 1 }}
+                />
+                {/* Hover icon — fades in on hover */}
+                <Image
+                  src="/autohub-icon-hover.png"
+                  alt="Auto Hub"
+                  width={28}
+                  height={28}
+                  className="object-contain absolute transition-opacity duration-200"
+                  style={{ opacity: autoHubHovered ? 1 : 0 }}
+                />
+              </div>
+              <div className="flex flex-col items-center">
+                <span className="text-sm font-bold text-primary-foreground">Auto Hub</span>
+                <p className="text-[11px] text-primary-foreground/50 leading-tight mt-1 max-w-[120px]">All-in-one car hub</p>
+              </div>
+            </Link>
+
+            <div className="w-[1px] bg-white/10 self-stretch" />
+
+            <HorizontalDropdownItem
+              href="/ai-assistant"
+              icon={<Cpu size={20} />}
+              title="Autobot AI"
+              subtitle="Smart diagnostic helper"
+              isPro
             />
           </div>
         </div>
 
+        {/* Community dropdown */}
         <div className="group relative h-full flex items-center">
           <button className={`flex items-center gap-1 px-4 h-full font-mono text-sm transition-colors ${pathname.startsWith('/community') ? 'text-primary' : 'text-primary-foreground/70 group-hover:text-primary-foreground'}`}>
             Community <ChevronDown size={14} className="group-hover:rotate-180 transition-transform" />
           </button>
-          
-          <div className="absolute top-14 left-0 w-[500px] flex flex-row bg-ink border border-white/10 shadow-xl rounded-b-md transition-all duration-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible translate-y-2 group-hover:translate-y-0 overflow-hidden">
-            <HorizontalDropdownItem 
-              href="/community/contribute" 
-              icon={<Users size={20}/>}
-              title="Be Involved" 
-              subtitle="Contribute to the database" 
-            />
+          <div className="absolute top-14 left-0 w-[600px] flex flex-row bg-ink border border-white/10 shadow-xl rounded-b-md transition-all duration-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible translate-y-2 group-hover:translate-y-0 overflow-hidden">
+            <HorizontalDropdownItem href="/community/contribute" icon={<Users size={20} />} title="Be Involved" subtitle="Contribute to the database" />
             <div className="w-[1px] bg-white/10 self-stretch" />
-            <HorizontalDropdownItem 
-              href="/community/forum" 
-              icon={<MessageSquare size={20}/>}
-              title="Answer Forum" 
-              subtitle="Get help from the community" 
-            />
+            <HorizontalDropdownItem href="/community/forum" icon={<MessageSquare size={20} />} title="Forums" subtitle="Get help from the community" />
+            <div className="w-[1px] bg-white/10 self-stretch" />
+            <HorizontalDropdownItem href="/community/guides" icon={<BookOpen size={20} />} title="Guides" subtitle="Step-by-step manuals" />
           </div>
         </div>
       </div>
 
       <div className="ml-auto flex items-center gap-5">
+        {/* Search */}
+        <button onClick={() => router.push("/search")} className="text-primary-foreground/70 hover:text-primary-foreground transition-colors" title="Search">
+          <Search size={20} />
+        </button>
+
+        {/* SECTION 2.1 + SECTION 3: Bookmark icon with glow on hover, links to /bookmarks */}
         {user && (
-          <Link href="/bookmarks" className="text-primary-foreground/70 hover:text-primary-foreground transition-colors" title="Bookmarked Guides">
-            <Bookmark size={20} />
+          <Link
+            href="/bookmarks"
+            className="text-primary-foreground/70 hover:text-primary-foreground transition-colors group/bm"
+            title="My Bookmarks"
+          >
+            <Image
+              src="/bookmark-icon.png"
+              alt="Bookmarks"
+              width={22}
+              height={22}
+              className="object-contain transition-all duration-200 group-hover/bm:drop-shadow-[0_0_6px_rgba(var(--primary-rgb,250,204,21),0.9)] group-hover/bm:opacity-100 opacity-70"
+            />
           </Link>
         )}
 
@@ -139,10 +183,10 @@ export default function Navbar() {
                 <p className="text-[10px] uppercase tracking-widest text-primary-foreground/40 font-mono">Account</p>
                 <p className="text-xs truncate font-medium text-primary-foreground/90">{user.email}</p>
               </div>
-              <ProfileLink href="/profile" icon={<User size={14}/>} label="My Profile" />
-              <ProfileLink href="/garage" icon={<Car size={14}/>} label="My Garage" />
-              <ProfileLink href="/settings" icon={<Settings size={14}/>} label="Settings" />
-              <button 
+              <ProfileLink href="/profile" icon={<User size={14} />} label="My Profile" />
+              <ProfileLink href="/garage" icon={<Car size={14} />} label="My Garage" />
+              <ProfileLink href="/settings" icon={<Settings size={14} />} label="Settings" />
+              <button
                 onClick={handleSignOut}
                 className="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-mono text-red-400 hover:bg-white/5 transition-colors"
               >
@@ -152,20 +196,14 @@ export default function Navbar() {
           </div>
         ) : (
           <>
-            <Link href="/login" className="font-mono text-xs bg-primary text-ink px-4 py-1.5 rounded hover:bg-primary/90 transition-colors">
-              Log In
-            </Link>
-            <Link href="/signup" className="font-mono text-xs border border-primary text-primary px-4 py-1.5 rounded hover:bg-primary hover:text-ink transition-colors">
-              Sign Up
-            </Link>
+            <Link href="/login" className="font-mono text-xs bg-primary text-ink px-4 py-1.5 rounded hover:bg-primary/90 transition-colors">Log In</Link>
+            <Link href="/signup" className="font-mono text-xs border border-primary text-primary px-4 py-1.5 rounded hover:bg-primary hover:text-ink transition-colors">Sign Up</Link>
           </>
         )}
       </div>
     </nav>
   );
 }
-
-/* --- HELPER COMPONENTS --- */
 
 function HorizontalDropdownItem({ href, title, subtitle, icon, isPro }: { href: string; title: string; subtitle: string; icon?: React.ReactNode; isPro?: boolean }) {
   return (
