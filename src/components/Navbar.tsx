@@ -90,7 +90,7 @@ export default function Navbar() {
           
           <div className="absolute top-14 left-0 w-[500px] flex flex-row bg-ink border border-white/10 shadow-xl rounded-b-md transition-all duration-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible translate-y-2 group-hover:translate-y-0 overflow-hidden">
             <HorizontalDropdownItem 
-              href="/community/contribute" 
+              href="/community/forum/create" 
               icon={<Users size={20}/>}
               title="Be Involved" 
               subtitle="Contribute to the database" 
