@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { Search, ChevronDown, Bookmark, User, Settings, LogOut, Car, FileText, Cpu, Users, MessageSquare } from "lucide-react";
+import { Search, ChevronDown, Bookmark, Bell, User, Settings, LogOut, Car, FileText, Cpu, Users, MessageSquare } from "lucide-react";
 import { supabase } from "@/lib/supabase"; 
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 
@@ -13,6 +13,9 @@ export default function Navbar() {
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [profilePicture, setProfilePicture] = useState<string | null>(null);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -51,6 +54,77 @@ export default function Navbar() {
     await supabase.auth.signOut();
     router.push("/");
   };
+
+  const fetchNotifications = async () => {
+    if (!user) return;
+
+    setNotificationsLoading(true);
+    try {
+      const session = await supabase.auth.getSession();
+      const token = session.data.session?.access_token;
+
+      if (!token) return;
+
+      const res = await fetch("/api/notification/fetch", {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setNotifications(data.notifications ?? []);
+      }
+    } catch (error) {
+      console.error("Error fetching notifications:", error);
+    } finally {
+      setNotificationsLoading(false);
+    }
+  };
+
+  const markNotificationsAsRead = async () => {
+    if (!user || notifications.length === 0) return;
+
+    try {
+      const session = await supabase.auth.getSession();
+      const token = session.data.session?.access_token;
+
+      if (!token) return;
+
+      const unreadIds = notifications
+        .filter((n: any) => !n.is_read)
+        .map((n: any) => n.id);
+
+      if (unreadIds.length === 0) return;
+
+      const res = await fetch("/api/notification/mark-read", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ ids: unreadIds }),
+      });
+
+      if (res.ok) {
+        // Update local state to reflect read status
+        setNotifications((prev: any[]) =>
+          prev.map((n: any) => ({ ...n, is_read: true }))
+        );
+      }
+    } catch (error) {
+      console.error("Error marking notifications as read:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (user) {
+      fetchNotifications();
+      const interval = setInterval(fetchNotifications, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [user]);
 
   return (
     <nav className="bg-ink flex items-center px-6 h-14 shrink-0 sticky top-0 z-50 border-b border-white/10">
@@ -108,9 +182,83 @@ export default function Navbar() {
 
       <div className="ml-auto flex items-center gap-5">
         {user && (
-          <Link href="/bookmarks" className="text-primary-foreground/70 hover:text-primary-foreground transition-colors" title="Bookmarked Guides">
-            <Bookmark size={20} />
-          </Link>
+          <>
+            <Link href="/bookmarks" className="text-primary-foreground/70 hover:text-primary-foreground transition-colors" title="Bookmarked Guides">
+              <Bookmark size={20} />
+            </Link>
+
+            <div 
+              className="relative"
+            >
+              <button 
+                onClick={async () => {
+                  setNotificationsOpen(!notificationsOpen);
+                  if (!notificationsOpen) {
+                    fetchNotifications();
+                    setTimeout(markNotificationsAsRead, 300);
+                  }
+                }}
+                className="flex items-center gap-1 text-primary-foreground/70 hover:text-primary-foreground transition-colors relative"
+                title="Notifications"
+              >
+                <Bell size={20} stroke="white" fill={notifications.filter((n: any) => !n.is_read).length > 0 ? "black" : "none"} />
+                {notifications.filter((n: any) => !n.is_read).length > 0 && (
+                  <span className="absolute -top-1 -right-2 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                    {notifications.filter((n: any) => !n.is_read).length > 9 ? "9+" : notifications.filter((n: any) => !n.is_read).length}
+                  </span>
+                )}
+              </button>
+
+              {notificationsOpen && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-40"
+                    onClick={() => setNotificationsOpen(false)}
+                  />
+                  <div className="absolute top-12 right-0 w-80 bg-ink border border-white/10 shadow-xl rounded-md overflow-hidden py-2 z-50">
+                    <div className="px-4 py-2 border-b border-white/5">
+                      <p className="text-[10px] uppercase tracking-widest text-primary-foreground/40 font-mono">Notifications</p>
+                    </div>
+                    
+                    {notificationsLoading ? (
+                      <div className="px-4 py-4 text-center text-xs text-primary-foreground/50">
+                        Loading...
+                      </div>
+                    ) : notifications.length === 0 ? (
+                      <div className="px-4 py-4 text-center text-xs text-primary-foreground/50">
+                        No notifications
+                      </div>
+                    ) : (
+                      <div className="max-h-96 overflow-y-auto">
+                        {notifications.map((notif: any, idx: number) => (
+                          <div 
+                            key={idx} 
+                            className={`px-4 py-3 border-b border-white/5 transition-colors last:border-b-0 ${
+                              !notif.is_read 
+                                ? "bg-primary/20 hover:bg-primary/30" 
+                                : "hover:bg-white/5"
+                            }`}
+                          >
+                            <p className="text-xs font-semibold text-primary-foreground mb-1">
+                              {notif.title}
+                            </p>
+                            <p className="text-[11px] text-primary-foreground/70 leading-tight">
+                              {notif.message}
+                            </p>
+                            {notif.created_at && (
+                              <p className="text-[9px] text-primary-foreground/40 mt-1">
+                                {new Date(notif.created_at).toLocaleDateString()}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          </>
         )}
 
         {user ? (
