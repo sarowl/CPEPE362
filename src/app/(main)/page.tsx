@@ -34,6 +34,7 @@ export default function HomePage() {
     return () => subscription.unsubscribe();
   }, []);
 
+  const router = require('next/navigation').useRouter();
   return (
     <div className="flex flex-col animate-fade-in">
       {/* HERO — full-width with bg image */}
@@ -55,7 +56,17 @@ export default function HomePage() {
           </p>
 
           {/* Search bar */}
-          <div className="w-full max-w-lg flex items-center bg-background rounded-sm overflow-hidden shadow-lg border border-border">
+          <form
+            className="w-full max-w-lg flex items-center bg-background rounded-sm overflow-hidden shadow-lg border border-border"
+            onSubmit={e => {
+              e.preventDefault();
+              if (search.trim()) {
+                router.push(`/search?q=${encodeURIComponent(search)}`);
+              } else {
+                router.push('/search');
+              }
+            }}
+          >
             <div className="pl-4 text-muted-foreground">
               <Search size={18} />
             </div>
@@ -65,13 +76,13 @@ export default function HomePage() {
               placeholder='Try "Toyota Corolla brake pads"'
               className="flex-1 h-12 bg-transparent font-mono text-sm px-3 text-foreground placeholder:text-muted-foreground focus:outline-none"
             />
-            <Link
-              href={`/guides?search=${search}`}
+            <button
+              type="submit"
               className="bg-primary text-primary-foreground font-mono text-xs font-bold px-5 h-12 flex items-center tracking-wide hover:opacity-90 transition-opacity"
             >
               SEARCH
-            </Link>
-          </div>
+            </button>
+          </form>
 
           <p className="font-mono text-xs text-primary-foreground/50">or</p>
 
