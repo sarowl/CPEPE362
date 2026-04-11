@@ -140,23 +140,6 @@ export default function Navbar() {
           <Search size={20} />
         </button>
 
-        {/* SECTION 2.1 + SECTION 3: Bookmark icon with glow on hover, links to /bookmarks */}
-        {user && (
-          <Link
-            href="/bookmarks"
-            className="text-primary-foreground/70 hover:text-primary-foreground transition-colors group/bm"
-            title="My Bookmarks"
-          >
-            <Image
-              src="/bookmark-icon.png"
-              alt="Bookmarks"
-              width={22}
-              height={22}
-              className="object-contain transition-all duration-200 group-hover/bm:drop-shadow-[0_0_6px_rgba(var(--primary-rgb,250,204,21),0.9)] group-hover/bm:opacity-100 opacity-70"
-            />
-          </Link>
-        )}
-
         {user ? (
           <div className="group relative h-full flex items-center">
             <button className="flex items-center gap-2 text-primary-foreground/70 group-hover:text-primary-foreground transition-colors">

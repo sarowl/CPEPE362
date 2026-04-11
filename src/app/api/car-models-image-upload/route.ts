@@ -1,9 +1,9 @@
 // ================================================================
-// Changes from V1:
-//  - Explicit upsert:true ensures re-uploads overwrite old files
-//  - Returns public URL stored in car_models.model_img
-//  - Folder path auto-created by Supabase Storage on first file upload
-//    (no manual folder creation needed in dashboard)
+// UPDATED (Spec 3):
+// - Storage path changed to Car_Models/{brand_id}/{model_id}/image.<ext>
+//   (uses model UUID id, not slug)
+// - upsert:true ensures re-uploads overwrite existing images
+// - Returns public URL stored in car_models.model_img
 // ================================================================
 
 import { NextResponse } from "next/server";
@@ -23,19 +23,19 @@ export async function POST(req: Request) {
     const file     = formData.get("file")     as File   | null;
     const brand_id = (formData.get("brand_id") as string | null)?.trim().toLowerCase();
     const model_id = (formData.get("model_id") as string | null)?.trim();
-    const slug     = (formData.get("slug")     as string | null)?.trim().toLowerCase().replace(/\s+/g, "_");
 
-    if (!file || !brand_id || !model_id || !slug) {
+    if (!file || !brand_id || !model_id) {
       return NextResponse.json(
-        { error: "file, brand_id, model_id, and slug are required." },
+        { error: "file, brand_id, and model_id are required." },
         { status: 400 }
       );
     }
 
     const ext = (file.name.split(".").pop() ?? "jpg").toLowerCase();
 
-    // Storage path: Car_Models/<brand_id>/<slug>/image.<ext>
-    const storagePath = `Car_Models/${brand_id}/${slug}/image.${ext}`;
+    // Storage path: Car_Models/<brand_id>/<model_id>/image.<ext>
+    // Using model UUID (id) as specified in Spec 3.1
+    const storagePath = `Car_Models/${brand_id}/${model_id}/image.${ext}`;
 
     const supabase = createAdminClient();
 
@@ -44,7 +44,7 @@ export async function POST(req: Request) {
       .from(BUCKET)
       .upload(storagePath, arrayBuffer, {
         contentType: file.type || "image/jpeg",
-        upsert: true, // overwrite if file already exists
+        upsert: true, // overwrite if file already exists (replace existing)
       });
 
     if (uploadError) {
