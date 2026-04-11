@@ -27,10 +27,35 @@ export default function ForumPostCreatePage() {
   const [brand, setBrand] = useState("");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Backend implementation to follow
+    setError(null);
+
+    try {
+      setSubmitting(true);
+      const res = await fetch("/api/forum_post_create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          brand_id: brand,
+          title,
+          content,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to create post");
+
+      router.push(`/community/forum/${brand}`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to create post";
+      setError(message);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -112,13 +137,19 @@ export default function ForumPostCreatePage() {
             />
           </div>
 
+          {/* Error */}
+          {error && (
+            <p className="font-mono text-xs text-red-500">{error}</p>
+          )}
+
           {/* Actions */}
           <div className="flex items-center gap-4 pt-2">
             <button
               type="submit"
-              className="bg-primary text-white px-8 py-3 font-mono text-xs font-bold uppercase tracking-widest hover:brightness-110 transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
+              disabled={submitting}
+              className="bg-primary text-white px-8 py-3 font-mono text-xs font-bold uppercase tracking-widest hover:brightness-110 transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Submit Post
+              {submitting ? "Submitting..." : "Submit Post"}
             </button>
             <Link
               href="/community/forum"

@@ -1,76 +1,103 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import { ChevronRight, ThumbsUp, ThumbsDown, MessageSquare, Plus } from "lucide-react";
 
-const FILLER_POSTS = [
-  {
-    id: "1",
-    title: "My brake pads wore out after only 20,000 km — is this normal?",
-    author: "JuanDela Cruz",
-    date: "Apr 1, 2026",
-    likes: 34,
-    dislikes: 2,
-    comments: 12,
-  },
-  {
-    id: "2",
-    title: "Strange knocking sound from the engine when idling",
-    author: "MariaClara",
-    date: "Apr 2, 2026",
-    likes: 21,
-    dislikes: 1,
-    comments: 8,
-  },
-  {
-    id: "3",
-    title: "Best oil brand for high mileage engines?",
-    author: "PedroP",
-    date: "Apr 2, 2026",
-    likes: 57,
-    dislikes: 4,
-    comments: 23,
-  },
-  {
-    id: "4",
-    title: "AC stops cooling after 30 minutes of driving",
-    author: "CarlosM",
-    date: "Apr 3, 2026",
-    likes: 18,
-    dislikes: 0,
-    comments: 6,
-  },
-  {
-    id: "5",
-    title: "How often should I change my transmission fluid?",
-    author: "LuisaR",
-    date: "Apr 3, 2026",
-    likes: 44,
-    dislikes: 3,
-    comments: 17,
-  },
-  {
-    id: "6",
-    title: "Check engine light keeps coming back after clearing codes",
-    author: "AntonioB",
-    date: "Apr 4, 2026",
-    likes: 29,
-    dislikes: 1,
-    comments: 14,
-  },
-];
+interface ForumPost {
+  forum_id: string;
+  brand_id: string;
+  title: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+  user_id: string;
+  Users: {
+    name: string;
+  };
+}
 
 export default function BrandForumPage() {
   const params = useParams();
   const brandId = params?.brandId as string;
-
   const brandName = brandId
     ? brandId.charAt(0).toUpperCase() + brandId.slice(1)
     : "";
 
+  const [posts, setPosts] = useState<ForumPost[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!brandId) return;
+
+    async function fetchPosts() {
+      try {
+        setLoading(true);
+        const res = await fetch(`/api/forum_fetch?brandId=${brandId}`);
+        const data = await res.json();
+
+        if (!res.ok) throw new Error(data.error || "Failed to fetch posts");
+
+        setPosts(data.posts);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : "Failed to fetch posts";
+        setError(message);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchPosts();
+  }, [brandId]);
+
+  // ── Loading ──────────────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-paper text-ink flex flex-col animate-fade-in">
+        <Navbar />
+        <main className="flex-1 w-full max-w-7xl mx-auto px-6 py-8 flex items-center justify-center">
+          <div className="text-center space-y-3">
+            <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground animate-pulse">
+              Loading Posts...
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="h-32 bg-border animate-pulse" />
+              ))}
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // ── Error ────────────────────────────────────────────────────────────────
+  if (error) {
+    return (
+      <div className="min-h-screen bg-paper text-ink flex flex-col animate-fade-in">
+        <Navbar />
+        <main className="flex-1 w-full max-w-7xl mx-auto px-6 py-8 flex items-center justify-center">
+          <div className="text-center">
+            <h1 className="text-4xl font-black uppercase tracking-tighter mb-4">
+              Something went wrong
+            </h1>
+            <p className="font-mono text-xs text-muted-foreground mb-4">{error}</p>
+            <Link
+              href="/community/forum"
+              className="text-primary font-mono text-xs uppercase tracking-widest hover:underline"
+            >
+              ← Back to Forums
+            </Link>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // ── Page ─────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-paper text-ink flex flex-col animate-fade-in">
       <Navbar />
@@ -107,7 +134,7 @@ export default function BrandForumPage() {
                 <div className="flex items-center gap-3">
                   <span className="h-px w-8 bg-orange-500" />
                   <p className="font-mono text-[11px] text-muted-foreground uppercase tracking-[0.2em] font-bold">
-                    {FILLER_POSTS.length} Posts
+                    {posts.length} Posts
                   </p>
                 </div>
               </div>
@@ -144,61 +171,66 @@ export default function BrandForumPage() {
             <div className="h-1 w-12 bg-orange-500 mt-1" />
           </div>
           <span className="font-mono text-[10px] text-muted-foreground font-bold uppercase tracking-widest">
-            {FILLER_POSTS.length} Posts
+            {posts.length} Posts
           </span>
         </div>
 
-        {/* POSTS GRID */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {FILLER_POSTS.map((post) => (
+        {/* EMPTY STATE */}
+        {posts.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-20 border border-border bg-background">
+            <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground mb-4">
+              No posts yet
+            </p>
             <Link
-              key={post.id}
-              href={`/community/forum/${brandId}/${post.id}`}
-              className="group relative flex flex-col bg-background border border-border transition-all duration-200 hover:border-orange-500 hover:-translate-y-1 hover:shadow-[8px_8px_0px_0px_#f97316] overflow-hidden"
+              href="/community/forum/create"
+              className="bg-orange-500 text-white px-6 py-2 font-mono text-xs font-bold uppercase tracking-widest hover:brightness-110 transition-all"
             >
-              {/* Post Title */}
-              <div className="p-5 flex-1">
-                <h3 className="text-sm font-black uppercase tracking-tight leading-snug group-hover:text-orange-600 transition-colors">
-                  {post.title}
-                </h3>
-              </div>
-
-              {/* Post Meta */}
-              <div className="px-5 pb-5 border-t border-border pt-3 flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-[10px] text-muted-foreground uppercase tracking-widest">
-                    {post.author}
-                  </span>
-                  <span className="font-mono text-[10px] text-muted-foreground uppercase tracking-widest">
-                    {post.date}
-                  </span>
-                </div>
-
-                {/* Votes and Comments */}
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-1 font-mono text-[10px] text-muted-foreground">
-                    <ThumbsUp size={11} />
-                    <span>{post.likes}</span>
-                  </div>
-                  <div className="flex items-center gap-1 font-mono text-[10px] text-muted-foreground">
-                    <ThumbsDown size={11} />
-                    <span>{post.dislikes}</span>
-                  </div>
-                  <div className="flex items-center gap-1 font-mono text-[10px] text-muted-foreground">
-                    <MessageSquare size={11} />
-                    <span>{post.comments}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Decorative corners */}
-              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <Plus size={10} className="text-orange-500" />
-              </div>
-              <div className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-border group-hover:border-orange-500 transition-colors" />
+              + Create the First Post
             </Link>
-          ))}
-        </div>
+          </div>
+        )}
+
+        {/* POSTS GRID */}
+        {posts.length > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {posts.map((post) => (
+              <Link
+                key={post.forum_id}
+                href={`/community/forum/${brandId}/${post.forum_id}`}
+                className="group relative flex flex-col bg-background border border-border transition-all duration-200 hover:border-orange-500 hover:-translate-y-1 hover:shadow-[8px_8px_0px_0px_#f97316] overflow-hidden"
+              >
+                {/* Post Title */}
+                <div className="p-5 flex-1">
+                  <h3 className="text-sm font-black uppercase tracking-tight leading-snug group-hover:text-orange-600 transition-colors">
+                    {post.title}
+                  </h3>
+                </div>
+
+                {/* Post Meta */}
+                <div className="px-5 pb-5 border-t border-border pt-3 flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-[10px] text-muted-foreground uppercase tracking-widest">
+                      {post.Users?.name || "Unknown"}
+                    </span>
+                    <span className="font-mono text-[10px] text-muted-foreground uppercase tracking-widest">
+                      {new Date(post.created_at).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Decorative corners */}
+                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Plus size={10} className="text-orange-500" />
+                </div>
+                <div className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-border group-hover:border-orange-500 transition-colors" />
+              </Link>
+            ))}
+          </div>
+        )}
 
         {/* FOOTER */}
         <footer className="mt-20 py-12 border-t border-border flex flex-col md:flex-row justify-between items-center gap-6">
