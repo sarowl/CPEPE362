@@ -17,9 +17,8 @@
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
-import { Search, ChevronDown, User, Settings, LogOut, Car, Cpu, Users, MessageSquare, BookOpen } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { Search, ChevronDown, Bookmark, Bell, User, Settings, LogOut, Car, FileText, Cpu, Users, MessageSquare } from "lucide-react";
+import { supabase } from "@/lib/supabase"; 
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 
 export default function Navbar() {
@@ -27,8 +26,9 @@ export default function Navbar() {
   const pathname = usePathname();
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [profilePicture, setProfilePicture] = useState<string | null>(null);
-  // SECTION 1: Track hover state on Auto Hub item for icon swap
-  const [autoHubHovered, setAutoHubHovered] = useState(false);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -59,6 +59,77 @@ export default function Navbar() {
     router.push("/");
   };
 
+  const fetchNotifications = async () => {
+    if (!user) return;
+
+    setNotificationsLoading(true);
+    try {
+      const session = await supabase.auth.getSession();
+      const token = session.data.session?.access_token;
+
+      if (!token) return;
+
+      const res = await fetch("/api/notification/fetch", {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setNotifications(data.notifications ?? []);
+      }
+    } catch (error) {
+      console.error("Error fetching notifications:", error);
+    } finally {
+      setNotificationsLoading(false);
+    }
+  };
+
+  const markNotificationsAsRead = async () => {
+    if (!user || notifications.length === 0) return;
+
+    try {
+      const session = await supabase.auth.getSession();
+      const token = session.data.session?.access_token;
+
+      if (!token) return;
+
+      const unreadIds = notifications
+        .filter((n: any) => !n.is_read)
+        .map((n: any) => n.id);
+
+      if (unreadIds.length === 0) return;
+
+      const res = await fetch("/api/notification/mark-read", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ ids: unreadIds }),
+      });
+
+      if (res.ok) {
+        // Update local state to reflect read status
+        setNotifications((prev: any[]) =>
+          prev.map((n: any) => ({ ...n, is_read: true }))
+        );
+      }
+    } catch (error) {
+      console.error("Error marking notifications as read:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (user) {
+      fetchNotifications();
+      const interval = setInterval(fetchNotifications, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [user]);
+
   return (
     <nav className="bg-ink flex items-center px-6 h-14 shrink-0 sticky top-0 z-50 border-b border-white/10">
       <Link href="/" className="font-display text-lg font-bold tracking-wide text-primary-foreground mr-8">
@@ -74,47 +145,19 @@ export default function Navbar() {
           </button>
 
           <div className="absolute top-14 left-0 w-[500px] flex flex-row bg-ink border border-white/10 shadow-xl rounded-b-md transition-all duration-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible translate-y-2 group-hover:translate-y-0 overflow-hidden">
-            {/* SECTION 1: Auto Hub with hover icon swap */}
-            <Link
-              href="/car-makers"
-              className="flex-1 flex flex-col items-center text-center p-6 hover:bg-white/5 transition-colors group/item"
-              onMouseEnter={() => setAutoHubHovered(true)}
-              onMouseLeave={() => setAutoHubHovered(false)}
-            >
-              <div className="mb-3 p-3 rounded-full bg-white/5 group-hover/item:bg-primary transition-all relative w-[50px] h-[50px] flex items-center justify-center">
-                {/* Default icon — fades out on hover */}
-                <Image
-                  src="/autohub-icon-default.png"
-                  alt="Auto Hub"
-                  width={28}
-                  height={28}
-                  className="object-contain absolute transition-opacity duration-200"
-                  style={{ opacity: autoHubHovered ? 0 : 1 }}
-                />
-                {/* Hover icon — fades in on hover */}
-                <Image
-                  src="/autohub-icon-hover.png"
-                  alt="Auto Hub"
-                  width={28}
-                  height={28}
-                  className="object-contain absolute transition-opacity duration-200"
-                  style={{ opacity: autoHubHovered ? 1 : 0 }}
-                />
-              </div>
-              <div className="flex flex-col items-center">
-                <span className="text-sm font-bold text-primary-foreground">Auto Hub</span>
-                <p className="text-[11px] text-primary-foreground/50 leading-tight mt-1 max-w-[120px]">All-in-one car hub</p>
-              </div>
-            </Link>
-
-            <div className="w-[1px] bg-white/10 self-stretch" />
-
-            <HorizontalDropdownItem
-              href="/ai-assistant"
-              icon={<Cpu size={20} />}
-              title="Autobot AI"
-              subtitle="Smart diagnostic helper"
-              isPro
+            <HorizontalDropdownItem 
+              href="/car-makers" 
+              icon={<FileText size={20}/>} 
+              title="Repair Guides" 
+              subtitle="Step-by-step manuals" 
+            />
+            <div className="w-[1px] bg-white/10 self-stretch" /> 
+            <HorizontalDropdownItem 
+              href="/ai-repair" 
+              icon={<Cpu size={20}/>} 
+              title="Autobot AI" 
+              subtitle="Smart diagnostic helper" 
+              isPro 
             />
           </div>
         </div>
@@ -142,19 +185,83 @@ export default function Navbar() {
 
         {/* SECTION 2.1 + SECTION 3: Bookmark icon with glow on hover, links to /bookmarks */}
         {user && (
-          <Link
-            href="/bookmarks"
-            className="text-primary-foreground/70 hover:text-primary-foreground transition-colors group/bm"
-            title="My Bookmarks"
-          >
-            <Image
-              src="/bookmark-icon.png"
-              alt="Bookmarks"
-              width={22}
-              height={22}
-              className="object-contain transition-all duration-200 group-hover/bm:drop-shadow-[0_0_6px_rgba(var(--primary-rgb,250,204,21),0.9)] group-hover/bm:opacity-100 opacity-70"
-            />
-          </Link>
+          <>
+            <Link href="/bookmarks" className="text-primary-foreground/70 hover:text-primary-foreground transition-colors" title="Bookmarked Guides">
+              <Bookmark size={20} />
+            </Link>
+
+            <div 
+              className="relative"
+            >
+              <button 
+                onClick={async () => {
+                  setNotificationsOpen(!notificationsOpen);
+                  if (!notificationsOpen) {
+                    fetchNotifications();
+                    setTimeout(markNotificationsAsRead, 300);
+                  }
+                }}
+                className="flex items-center gap-1 text-primary-foreground/70 hover:text-primary-foreground transition-colors relative"
+                title="Notifications"
+              >
+                <Bell size={20} stroke="white" fill={notifications.filter((n: any) => !n.is_read).length > 0 ? "black" : "none"} />
+                {notifications.filter((n: any) => !n.is_read).length > 0 && (
+                  <span className="absolute -top-1 -right-2 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                    {notifications.filter((n: any) => !n.is_read).length > 9 ? "9+" : notifications.filter((n: any) => !n.is_read).length}
+                  </span>
+                )}
+              </button>
+
+              {notificationsOpen && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-40"
+                    onClick={() => setNotificationsOpen(false)}
+                  />
+                  <div className="absolute top-12 right-0 w-80 bg-ink border border-white/10 shadow-xl rounded-md overflow-hidden py-2 z-50">
+                    <div className="px-4 py-2 border-b border-white/5">
+                      <p className="text-[10px] uppercase tracking-widest text-primary-foreground/40 font-mono">Notifications</p>
+                    </div>
+                    
+                    {notificationsLoading ? (
+                      <div className="px-4 py-4 text-center text-xs text-primary-foreground/50">
+                        Loading...
+                      </div>
+                    ) : notifications.length === 0 ? (
+                      <div className="px-4 py-4 text-center text-xs text-primary-foreground/50">
+                        No notifications
+                      </div>
+                    ) : (
+                      <div className="max-h-96 overflow-y-auto">
+                        {notifications.map((notif: any, idx: number) => (
+                          <div 
+                            key={idx} 
+                            className={`px-4 py-3 border-b border-white/5 transition-colors last:border-b-0 ${
+                              !notif.is_read 
+                                ? "bg-primary/20 hover:bg-primary/30" 
+                                : "hover:bg-white/5"
+                            }`}
+                          >
+                            <p className="text-xs font-semibold text-primary-foreground mb-1">
+                              {notif.title}
+                            </p>
+                            <p className="text-[11px] text-primary-foreground/70 leading-tight">
+                              {notif.message}
+                            </p>
+                            {notif.created_at && (
+                              <p className="text-[9px] text-primary-foreground/40 mt-1">
+                                {new Date(notif.created_at).toLocaleDateString()}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          </>
         )}
 
         {user ? (
