@@ -171,6 +171,7 @@ export default function EditGuidePage() {
   const [error,      setError]      = useState("");
   const [saved,      setSaved]      = useState(false);
   const [savedAction, setSavedAction] = useState<"submitted"|"draft"|null>(null);
+  const [showTurnToDraftModal, setShowTurnToDraftModal] = useState(false);
   const fileInputRefs = useRef<(HTMLInputElement|null)[][]>([]);
 
   useEffect(() => {
@@ -357,8 +358,6 @@ export default function EditGuidePage() {
     // Spec 6: Enforce storage structure and clean up stale/invalid files
     await fetch("/api/guides-storage-cleanup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ guide_id: guideId }) });
   };
-
-  const [showTurnToDraftModal, setShowTurnToDraftModal] = useState(false);
 
   // Spec 2.2: Turn to Draft — show modal with Leave Edit / Continue Editing
   const handleTurnToDraft = () => {
