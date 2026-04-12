@@ -1,20 +1,5 @@
 "use client";
 
-// ================================================================
-//  [1]  Guide Review Image Display — images now render with
-//            onError fallback so broken paths show nothing instead
-//            of a broken icon. Public storage URLs are used as-is.
-//
-//  [2]  Admin History tab — NEW "History" tab alongside
-//            "Pending Review". History shows all reviewed guides
-//            (approved + rejected). Delete = soft-delete only
-//            (admin_hidden_guides table); does NOT touch DB guide row.
-//            View/read guide button opens full guide reader.
-//
-//  [Prior]   Pending list filters status='pending' only.
-//            Bell badge count updates live.
-// ================================================================
-
 import { useState, useEffect, useCallback } from "react";
 import {
   CheckCircle, XCircle, ChevronRight, BookOpen,
@@ -37,10 +22,11 @@ interface FullGuide {
   guide_id: string; title: string; summary: string; introduction: string;
   difficulty: string; time_required: string; tools: string[];
   brand_id: string; model_name: string;
+  thumbnail_url?: string | null; // UPDATED 6.1
 }
 interface Step {
   step_id: string; step_number: number; title: string;
-  instructions: string; images: string[];
+  instructions: string; images: string[]; video_url?: string | null;
 }
 interface HistoryGuide {
   guide_id: string; title: string; summary: string;
@@ -52,6 +38,36 @@ interface HistoryGuide {
 }
 
 type AdminTab = "pending" | "history";
+
+// ── YouTube embed helper ─────────────────────────────────────
+function getYouTubeId(url: string): string | null {
+  try {
+    const u = new URL(url);
+    if (u.hostname.includes("youtube.com")) return u.searchParams.get("v");
+    if (u.hostname === "youtu.be") return u.pathname.slice(1);
+    if (u.pathname.includes("/shorts/")) return u.pathname.split("/shorts/")[1];
+  } catch {}
+  return null;
+}
+
+function VideoEmbed({ url }: { url: string }) {
+  const ytId = getYouTubeId(url);
+  if (ytId) {
+    return (
+      <div className="mt-3 aspect-video w-full overflow-hidden border border-border">
+        <iframe
+          src={`https://www.youtube.com/embed/${ytId}`}
+          title="Step video"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+          className="w-full h-full"
+        />
+      </div>
+    );
+  }
+  return null;
+}
+
 
 export default function AdminGuidesTab({
   adminEmail,
@@ -187,13 +203,24 @@ export default function AdminGuidesTab({
           {badge}
         </div>
         <p className="text-sm text-muted-foreground mb-4">{guide.summary}</p>
+        {/* UPDATED 6.1: Thumbnail immediately after title */}
+        <div className="mb-4 w-full overflow-hidden border border-border rounded" style={{ aspectRatio: "16/9" }}>
+          <img
+            src={guide.thumbnail_url || "/no-thumbnail.png"}
+            alt={guide.title}
+            className="w-full h-full object-cover"
+            loading="lazy"
+            onError={(e) => { (e.target as HTMLImageElement).src = "/no-thumbnail.png"; }}
+          />
+        </div>
         <div className="flex flex-wrap gap-4 text-xs text-muted-foreground mb-4">
           <span>Difficulty: <strong className="text-ink">{guide.difficulty}</strong></span>
           <span>Time: <strong className="text-ink">{guide.time_required}</strong></span>
           {guide.tools?.length > 0 && <span>Tools: <strong className="text-ink">{guide.tools.join(", ")}</strong></span>}
         </div>
         <div className="border-t border-border pt-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Introduction</p>
+          {/* UPDATED 4.3: label is now "Note" */}
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Note</p>
           <p className="text-sm leading-relaxed">{guide.introduction}</p>
         </div>
       </div>
@@ -207,20 +234,24 @@ export default function AdminGuidesTab({
               <span className="text-xs font-bold">{step.title || `Step ${step.step_number}`}</span>
             </div>
             <div className="p-4">
-              {/* FIX #2: render images directly from public URL; onError hides broken images */}
+              {/* UPDATED 5: Large clear images with correct aspect ratio for thorough admin review */}
               {step.images?.filter(Boolean).length > 0 && (
-                <div className="flex flex-wrap gap-2 mb-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
                   {step.images.filter(Boolean).map((url, i) => (
-                    <img
-                      key={i} src={url}
-                      alt={`Step ${step.step_number} image ${i + 1}`}
-                      className="h-24 w-36 object-cover border border-border"
-                      onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                    />
+                    <div key={i} className="w-full overflow-hidden border border-border rounded" style={{ aspectRatio: "16/9" }}>
+                      <img
+                        src={url}
+                        alt={`Step ${step.step_number} image ${i + 1}`}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                      />
+                    </div>
                   ))}
                 </div>
               )}
               <p className="text-sm leading-relaxed">{step.instructions}</p>
+              {step.video_url && <VideoEmbed url={step.video_url} />}
             </div>
           </div>
         ))}
