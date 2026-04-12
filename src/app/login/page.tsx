@@ -37,17 +37,33 @@ const Login = () => {
     setError("");
     setLoading(true);
 
-    try {
+      try {
+      // ── ADMIN CHECK (runs BEFORE Supabase) ─────────────────
+      // If the entered credentials match a hardcoded admin account,
+      // store a lightweight admin flag in sessionStorage and
+      // redirect straight to the admin dashboard — no Supabase call needed.
+      const adminMatch = findAdmin(formData.email, formData.password);
+      if (adminMatch) {
+        sessionStorage.setItem(
+          "adminSession",
+          JSON.stringify({ email: adminMatch.email, name: adminMatch.name })
+        );
+        router.push("/admin");
+        return;
+      }
+      // ───────────────────────────────────────────────────────
+ 
+      // Normal Supabase login for regular users
       const { error } = await supabase.auth.signInWithPassword({
         email: formData.email,
         password: formData.password,
       });
-
+ 
       if (error) {
         setError(error.message);
         return;
       }
-
+ 
       router.push("/");
       router.refresh(); // refresh server components to pick up new session
     } catch (err) {
@@ -121,4 +137,11 @@ const Login = () => {
   );
 };
 
-export default Login;
+// 3. Create the wrapped component for the export
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center">Loading...</div>}>
+      <LoginForm />
+    </Suspense>
+  );
+}

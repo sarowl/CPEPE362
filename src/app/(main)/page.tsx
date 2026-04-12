@@ -22,6 +22,7 @@ const Index = () => {
     }
   }, [issue]);
 
+  const router = require('next/navigation').useRouter();
   return (
     <main className="mx-auto max-w-[1100px] px-4 py-16">
       {/* Hero — Diagnosis Input */}
