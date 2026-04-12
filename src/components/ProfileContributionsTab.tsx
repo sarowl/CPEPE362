@@ -1,5 +1,17 @@
 "use client";
 
+// ================================================================
+//  [4] Preview / Read option for ALL guide statuses.
+//    - Eye icon on every guide card opens a full read-only modal.
+//    - Works for pending, draft, approved, and rejected guides.
+//    - Shows the guide exactly as it would appear to a reader.
+//    - Separate from the public "View" link (approved only).
+//
+//  [Req #4 prev]  Edit link → /guides/edit/[id]  (kept).
+//  [Req prev]     Delete works for all statuses   (kept).
+//  [Req prev]     Unread notification pulsing dot (kept).
+// ================================================================
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
@@ -36,7 +48,6 @@ interface FullGuide {
   guide_id: string; title: string; summary: string; introduction: string;
   difficulty: string; time_required: string; tools: string[];
   brand_id: string; model_name: string; status: string;
-  thumbnail_url?: string | null;
 }
 interface Step {
   step_id: string; step_number: number; title: string;
@@ -79,41 +90,6 @@ const DIFFICULTY_COLORS: Record<string, string> = {
 
 const STATUS_ORDER: Guide["status"][] = ["pending", "draft", "approved", "rejected"];
 
-// ── YouTube embed helper ─────────────────────────────────────
-function getYouTubeId(url: string): string | null {
-  try {
-    const u = new URL(url);
-    if (u.hostname.includes("youtube.com")) return u.searchParams.get("v");
-    if (u.hostname === "youtu.be") return u.pathname.slice(1);
-    if (u.pathname.includes("/shorts/")) return u.pathname.split("/shorts/")[1];
-  } catch {}
-  return null;
-}
-
-function VideoEmbed({ url }: { url: string }) {
-  const ytId = getYouTubeId(url);
-  if (ytId) {
-    return (
-      <div className="mt-3 aspect-video w-full overflow-hidden border border-border">
-        <iframe
-          src={`https://www.youtube.com/embed/${ytId}`}
-          title="Step video"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowFullScreen
-          className="w-full h-full"
-        />
-      </div>
-    );
-  }
-  return (
-    <a href={url} target="_blank" rel="noopener noreferrer"
-      className="mt-2 inline-flex items-center gap-1.5 text-xs text-primary font-bold hover:underline">
-      <Video size={11} /> Watch video
-    </a>
-  );
-}
-
-
 export default function ProfileContributionsTab() {
   const [guides,         setGuides]         = useState<Guide[]>([]);
   const [notifications,  setNotifications]  = useState<Notification[]>([]);
@@ -126,7 +102,7 @@ export default function ProfileContributionsTab() {
   useEffect(() => {
     const loadAll = async () => {
       const [guidesRes, notifRes] = await Promise.all([
-        fetch("/api/guides?mine=1"),
+        fetch("/api/guides"),
         fetch("/api/notifications"),
       ]);
       const guidesJson = await guidesRes.json();
@@ -223,7 +199,6 @@ export default function ProfileContributionsTab() {
                         guide={guide}
                         unreadNotif={unread ?? null}
                         rejectionReason={guide.status === "rejected" ? (rejectionNotif?.reason ?? null) : null}
-                        rejectionNote={guide.status === "rejected" ? (rejectionNotif?.note ?? null) : null}
                         onDelete={() => setConfirmDelete(guide.guide_id)}
                         onPreview={() => setPreviewGuideId(guide.guide_id)}
                         onMarkRead={unread ? () => markRead(unread.id) : undefined}
@@ -280,13 +255,12 @@ export default function ProfileContributionsTab() {
 
 // ── Guide Card ─────────────────────────────────────────────────
 function GuideCard({
-  guide, unreadNotif, rejectionReason, rejectionNote,
+  guide, unreadNotif, rejectionReason,
   onDelete, onPreview, onMarkRead, deleting,
 }: {
   guide: Guide;
   unreadNotif: Notification | null;
   rejectionReason: string | null;
-  rejectionNote: string | null;  // UPDATED 3.2/3.3: admin note
   onDelete: () => void;
   onPreview: () => void;
   onMarkRead?: () => void;
@@ -297,7 +271,7 @@ function GuideCard({
   // Action permissions per status:
   //   pending  → preview ✓ | edit ✗ | delete ✓
   //   draft    → preview ✓ | edit ✓ | delete ✓
-  //   approved → public-view ✓ | edit ✓ | delete ✓  (preview removed — use the public page)
+  //   approved → preview ✓ | public-view ✓ | edit ✓ | delete ✓
   //   rejected → preview ✓ | edit ✓ | delete ✓
   const canEdit      = guide.status !== "pending";
   const canPublicView = guide.status === "approved" && !!guide.model_id;
@@ -340,33 +314,23 @@ function GuideCard({
           </p>
         )}
         {guide.status === "rejected" && rejectionReason && (
-          // UPDATED 3.2/3.3: Show rejection reason AND admin note clearly
-          <div className="mt-1.5 space-y-1">
-            <p className="text-[10px] text-red-500 flex items-center gap-1">
-              <XCircle size={10} /> Rejected: {rejectionReason}
-            </p>
-            {rejectionNote && (
-              <p className="text-[10px] text-red-400 pl-3.5 italic">
-                Admin note: "{rejectionNote}"
-              </p>
-            )}
-          </div>
+          <p className="text-[10px] text-red-500 mt-1.5 flex items-center gap-1">
+            <XCircle size={10} /> Rejected: {rejectionReason}
+          </p>
         )}
       </div>
 
       {/* Action buttons */}
       <div className="flex items-center gap-1.5 shrink-0">
 
-        {/* Preview — only for non-approved statuses (draft, pending, rejected) */}
-        {guide.status !== "approved" && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onPreview(); }}
-            title="Preview guide (read-only)"
-            className="p-1.5 hover:bg-blue-50 border border-border rounded transition-colors"
-          >
-            <Eye size={13} className="text-blue-500" />
-          </button>
-        )}
+        {/* [V2 Req #4] Preview — ALL statuses, opens inline modal */}
+        <button
+          onClick={(e) => { e.stopPropagation(); onPreview(); }}
+          title="Preview guide (read-only)"
+          className="p-1.5 hover:bg-blue-50 border border-border rounded transition-colors"
+        >
+          <Eye size={13} className="text-blue-500" />
+        </button>
 
         {/* Public link — approved guides only (navigates to public page) */}
         {canPublicView && (
@@ -494,18 +458,6 @@ function GuidePreviewModal({
             </div>
           ) : guide ? (
             <div>
-              {/* UPDATED 6.1/6.4: Thumbnail FIRST in preview */}
-              {guide.thumbnail_url && (
-                <div className="mb-5 w-full overflow-hidden border border-border rounded" style={{ aspectRatio: "16/9" }}>
-                  <img
-                    src={guide.thumbnail_url}
-                    alt={guide.title}
-                    className="w-full h-full object-cover"
-                    onError={(e) => { (e.target as HTMLImageElement).src = "/no-thumbnail.png"; }}
-                    loading="lazy"
-                  />
-                </div>
-              )}
               {/* Guide header */}
               <div className="mb-6">
                 <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mb-1 capitalize">
@@ -565,24 +517,23 @@ function GuidePreviewModal({
                     </div>
                     <div className="p-4">
                       {step.images?.filter(Boolean).length > 0 && (
-                        // UPDATED 5: Large, clear images with correct aspect ratio, no distortion
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
+                        <div className="grid grid-cols-3 gap-2 mb-3">
                           {step.images.filter(Boolean).map((url, i) => (
-                            <div key={i} className="w-full overflow-hidden border border-border rounded" style={{ aspectRatio: "16/9" }}>
-                              <img
-                                src={url}
-                                alt={`Step ${step.step_number} image ${i + 1}`}
-                                className="w-full h-full object-cover"
-                                loading="lazy"
-                                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                              />
-                            </div>
+                            <img
+                              key={i} src={url}
+                              alt={`Step ${step.step_number} image ${i + 1}`}
+                              className="w-full aspect-video object-cover border border-border"
+                              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                            />
                           ))}
                         </div>
                       )}
                       <p className="text-sm leading-relaxed">{step.instructions}</p>
                       {step.video_url && (
-                        <VideoEmbed url={step.video_url} />
+                        <a href={step.video_url} target="_blank" rel="noopener noreferrer"
+                          className="mt-2 inline-flex items-center gap-1.5 text-xs text-primary font-bold hover:underline">
+                          <Video size={11} /> Watch video
+                        </a>
                       )}
                     </div>
                   </div>

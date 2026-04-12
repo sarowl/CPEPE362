@@ -30,7 +30,7 @@ interface AddModelForm{ name:string; category:string; years:string; info:string;
 interface EditModelForm{ name:string; category:string; years:string; info:string; imageFile:File|null; imagePreview:string; }
 
 const emptyAdd  = ():AddModelForm  => ({name:"",category:"",years:"",info:"",imageFile:null,imagePreview:""});
-const emptyEdit = (m:CarModelRow):EditModelForm => ({name:m.name,category:m.category,years:m.years,info:m.info??"",imageFile:null,imagePreview:m.model_img?`${m.model_img}?t=${Date.now()}`:"" });
+const emptyEdit = (m:CarModelRow):EditModelForm => ({name:m.name,category:m.category,years:m.years,info:m.info??"",imageFile:null,imagePreview:m.model_img??""});
 
 export default function AdminPage() {
   const session = useAdminGuard();
@@ -135,7 +135,7 @@ export default function AdminPage() {
         fd.append("slug",newModel.slug);
         const imgRes=await fetch("/api/car-models-image-upload",{method:"POST",headers:{"x-admin-email":session?.email??""},body:fd});
         const imgJson=await imgRes.json();
-        if(imgRes.ok) newModel={...newModel,model_img:`${imgJson.url}?t=${Date.now()}`};
+        if(imgRes.ok) newModel={...newModel,model_img:imgJson.url};
       }
 
       setCarModels(prev=>({...prev,[addModelFor]:[...(prev[addModelFor]??[]),newModel]}));
@@ -168,7 +168,7 @@ export default function AdminPage() {
         fd.append("slug",updated.slug||editModel.slug);
         const imgRes=await fetch("/api/car-models-image-upload",{method:"POST",headers:{"x-admin-email":session?.email??""},body:fd});
         const imgJson=await imgRes.json();
-        if(imgRes.ok) updated={...updated,model_img:`${imgJson.url}?t=${Date.now()}`};
+        if(imgRes.ok) updated={...updated,model_img:imgJson.url};
       }
 
       setCarModels(prev=>{
@@ -379,7 +379,7 @@ export default function AdminPage() {
                                 <div key={m.id} className="bg-background border border-border overflow-hidden group">
                                   <div className="relative aspect-video bg-secondary/50 flex items-center justify-center overflow-hidden">
                                     {m.model_img
-                                      ?<img src={`${m.model_img}?t=${Date.now()}`} alt={m.name} className="w-full h-full object-cover" onError={(e)=>{(e.target as HTMLImageElement).style.display="none";}}/>
+                                      ?<img src={m.model_img} alt={m.name} className="w-full h-full object-cover"/>
                                       :<div className="flex flex-col items-center gap-1 text-muted-foreground/40"><ImageIcon size={20}/><span className="text-[9px]">No image</span></div>
                                     }
                                   </div>

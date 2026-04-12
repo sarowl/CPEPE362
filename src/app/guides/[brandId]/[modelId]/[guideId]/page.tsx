@@ -1,10 +1,18 @@
 "use client";
 
+// ================================================================
+//  [1  Like / Dislike buttons on each guide.
+//            - Cannot react to own guide (disabled + tooltip)
+//            - Toggle: clicking same reaction removes it
+//            - Shows live like + dislike counts
+//
+//  [2]  Creator's name is now a clickable link → /user/[userId]
+//            Opens public profile page (about + approved guides)
+// ================================================================
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
 import Navbar from "@/components/Navbar";
 import {
   Clock, Wrench, ChevronRight, ArrowLeft, User,
@@ -16,7 +24,6 @@ interface Guide {
   difficulty: string; time_required: string; tools: string[];
   status: string; brand_id: string; model_name: string; user_id: string;
   created_at: string;
-  thumbnail_url?: string | null;
 }
 interface Step {
   step_id: string; step_number: number; title: string;
@@ -31,39 +38,6 @@ const DIFFICULTY_COLORS: Record<string, string> = {
   Expert:       "bg-red-50 text-red-700 border-red-200",
 };
 
-function getYouTubeId(url: string): string | null {
-  try {
-    const u = new URL(url);
-    if (u.hostname.includes("youtube.com")) return u.searchParams.get("v");
-    if (u.hostname === "youtu.be") return u.pathname.slice(1);
-    if (u.pathname.includes("/shorts/")) return u.pathname.split("/shorts/")[1];
-  } catch {}
-  return null;
-}
-
-function VideoEmbed({ url }: { url: string }) {
-  const ytId = getYouTubeId(url);
-  if (ytId) {
-    return (
-      <div className="mt-4 aspect-video w-full overflow-hidden border border-border">
-        <iframe
-          src={`https://www.youtube.com/embed/${ytId}`}
-          title="Step video"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowFullScreen
-          className="w-full h-full"
-        />
-      </div>
-    );
-  }
-  return (
-    <a href={url} target="_blank" rel="noopener noreferrer"
-      className="mt-3 inline-flex items-center gap-1.5 text-xs text-primary font-bold hover:underline">
-      <Video size={12} /> Watch video for this step
-    </a>
-  );
-}
-
 export default function GuideViewPage() {
   const params  = useParams();
   const router  = useRouter();
@@ -74,14 +48,15 @@ export default function GuideViewPage() {
   const [creator,      setCreator]      = useState<Creator | null>(null);
   const [loading,      setLoading]      = useState(true);
   const [error,        setError]        = useState("");
+
+  // [Req #8] Like / dislike state
   const [likes,        setLikes]        = useState(0);
   const [dislikes,     setDislikes]     = useState(0);
   const [myReaction,   setMyReaction]   = useState<"like" | "dislike" | null>(null);
   const [myUserId,     setMyUserId]     = useState<string | null>(null);
   const [reacting,     setReacting]     = useState(false);
-  const [bookmarked,   setBookmarked]   = useState(false);
-  const [bookmarking,  setBookmarking]  = useState(false);
 
+  // ── Load guide, steps, creator ───────────────────────────────
   useEffect(() => {
     if (!guideId) return;
     fetch(`/api/guides/${guideId}`)
@@ -100,6 +75,7 @@ export default function GuideViewPage() {
       .finally(() => setLoading(false));
   }, [guideId]);
 
+  // ── Load like/dislike counts ─────────────────────────────────
   useEffect(() => {
     if (!guideId) return;
     fetch(`/api/guides-likes?guide_id=${guideId}`)
@@ -109,13 +85,14 @@ export default function GuideViewPage() {
         setDislikes(json.dislikes ?? 0);
         setMyReaction(json.myReaction ?? null);
         setMyUserId(json.myUserId ?? null);
-        setBookmarked(json.bookmarked ?? false);
       })
-      .catch(() => {});
+      .catch(() => {/* not logged in or error — silently ignore */});
   }, [guideId]);
 
+  // ── Handle like / dislike toggle ─────────────────────────────
   const handleReact = async (reaction: "like" | "dislike") => {
     if (reacting) return;
+    // Toggle: same reaction again = remove it
     const newReaction = myReaction === reaction ? null : reaction;
     setReacting(true);
     try {
@@ -125,24 +102,13 @@ export default function GuideViewPage() {
         body: JSON.stringify({ guide_id: guideId, reaction: newReaction }),
       });
       const json = await res.json();
-      if (res.ok) { setLikes(json.likes ?? 0); setDislikes(json.dislikes ?? 0); setMyReaction(json.myReaction); }
-    } catch (_) {}
+      if (res.ok) {
+        setLikes(json.likes ?? 0);
+        setDislikes(json.dislikes ?? 0);
+        setMyReaction(json.myReaction);
+      }
+    } catch (_) { /* ignore */ }
     setReacting(false);
-  };
-
-  const handleBookmark = async () => {
-    if (!isLoggedIn || bookmarking) return;
-    setBookmarking(true);
-    try {
-      const res = await fetch("/api/guides-likes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ guide_id: guideId, action: "bookmark" }),
-      });
-      const json = await res.json();
-      if (res.ok) setBookmarked(json.bookmarked ?? !bookmarked);
-    } catch (_) {}
-    setBookmarking(false);
   };
 
   const isOwnGuide = !!(guide && myUserId && guide.user_id === myUserId);
@@ -174,9 +140,6 @@ export default function GuideViewPage() {
     );
   }
 
-  // UPDATED 6.4: Fallback thumbnail
-  const thumbnailSrc = guide.thumbnail_url || "/no-thumbnail.png";
-
   return (
     <div className="min-h-screen bg-paper text-ink flex flex-col animate-fade-in">
       <Navbar />
@@ -193,27 +156,14 @@ export default function GuideViewPage() {
 
         {/* Guide header */}
         <div className="border border-border bg-background p-6 mb-6">
-          <div className="flex items-start justify-between gap-4 mb-3">
+          <div className="flex items-start justify-between gap-4 mb-4">
             <div className="flex-1">
-              {/* UPDATED 6.1: Title first */}
               <h1 className="font-black uppercase tracking-tighter text-2xl leading-tight mb-2">{guide.title}</h1>
               <p className="text-sm text-muted-foreground leading-relaxed">{guide.summary}</p>
             </div>
             <span className={`text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 border shrink-0 ${DIFFICULTY_COLORS[guide.difficulty] ?? "bg-secondary border-border"}`}>
               {guide.difficulty}
             </span>
-          </div>
-
-          {/* UPDATED 6.1: Thumbnail immediately after title */}
-          <div className="mb-4 w-full overflow-hidden border border-border rounded" style={{ aspectRatio: "16/9" }}>
-            <img
-              src={thumbnailSrc}
-              alt={guide.title}
-              className="w-full h-full object-cover"
-              // UPDATED 5: Correct loading, proper scaling, maintain aspect ratio
-              onError={(e) => { (e.target as HTMLImageElement).src = "/no-thumbnail.png"; }}
-              loading="lazy"
-            />
           </div>
 
           {/* Meta row */}
@@ -224,11 +174,15 @@ export default function GuideViewPage() {
             <div className="flex items-center gap-1.5 text-muted-foreground">
               <BookOpen size={12} /> <span>{steps.length} step{steps.length !== 1 ? "s" : ""}</span>
             </div>
+            {/* [Req #9] Creator name → clickable link to public profile */}
             {creator && (
               <div className="flex items-center gap-1.5 text-muted-foreground">
                 <User size={12} />
                 <span>by{" "}
-                  <Link href={`/user/${creator.user_id}`} className="font-bold text-ink hover:text-primary hover:underline transition-colors">
+                  <Link
+                    href={`/user/${creator.user_id}`}
+                    className="font-bold text-ink hover:text-primary hover:underline transition-colors"
+                  >
                     {creator.name}
                   </Link>
                 </span>
@@ -250,56 +204,64 @@ export default function GuideViewPage() {
             </div>
           )}
 
-          {/* Like / Dislike / Bookmark row */}
+          {/* [Req #8] Like / Dislike buttons */}
           <div className="flex items-center gap-3 pt-4 border-t border-border">
             <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Was this guide helpful?</span>
             <div className="flex items-center gap-2 ml-auto">
+              {/* Like button */}
               <button
                 onClick={() => handleReact("like")}
                 disabled={reacting || isOwnGuide || !isLoggedIn}
-                title={isOwnGuide ? "Cannot react to your own guide" : !isLoggedIn ? "Log in to like" : myReaction === "like" ? "Remove like" : "Like"}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold border transition-all disabled:cursor-not-allowed ${myReaction === "like" ? "bg-green-600 text-white border-green-600" : "bg-background border-border text-muted-foreground hover:border-green-400 hover:text-green-600 disabled:opacity-40"}`}
+                title={
+                  isOwnGuide    ? "You cannot react to your own guide" :
+                  !isLoggedIn   ? "Log in to like this guide" :
+                  myReaction === "like" ? "Remove like" : "Like this guide"
+                }
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold border transition-all disabled:cursor-not-allowed ${
+                  myReaction === "like"
+                    ? "bg-green-600 text-white border-green-600"
+                    : "bg-background border-border text-muted-foreground hover:border-green-400 hover:text-green-600 disabled:opacity-40"
+                }`}
               >
                 {reacting && myReaction !== "like" ? <RefreshCw size={11} className="animate-spin" /> : <ThumbsUp size={12} />}
                 <span>{likes}</span>
               </button>
+
+              {/* Dislike button */}
               <button
                 onClick={() => handleReact("dislike")}
                 disabled={reacting || isOwnGuide || !isLoggedIn}
-                title={isOwnGuide ? "Cannot react to your own guide" : !isLoggedIn ? "Log in to rate" : myReaction === "dislike" ? "Remove dislike" : "Dislike"}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold border transition-all disabled:cursor-not-allowed ${myReaction === "dislike" ? "bg-red-600 text-white border-red-600" : "bg-background border-border text-muted-foreground hover:border-red-400 hover:text-red-500 disabled:opacity-40"}`}
+                title={
+                  isOwnGuide    ? "You cannot react to your own guide" :
+                  !isLoggedIn   ? "Log in to rate this guide" :
+                  myReaction === "dislike" ? "Remove dislike" : "Dislike this guide"
+                }
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold border transition-all disabled:cursor-not-allowed ${
+                  myReaction === "dislike"
+                    ? "bg-red-600 text-white border-red-600"
+                    : "bg-background border-border text-muted-foreground hover:border-red-400 hover:text-red-500 disabled:opacity-40"
+                }`}
               >
                 {reacting && myReaction !== "dislike" ? <RefreshCw size={11} className="animate-spin" /> : <ThumbsDown size={12} />}
                 <span>{dislikes}</span>
               </button>
-              {!isLoggedIn && <Link href="/login" className="text-[10px] text-muted-foreground hover:text-primary underline">Log in to react</Link>}
-              {/* UPDATED 2.1: Custom bookmark icon */}
-              {isLoggedIn && !isOwnGuide && (
-                <button
-                  onClick={handleBookmark}
-                  disabled={bookmarking}
-                  title={bookmarked ? "Remove bookmark" : "Bookmark this guide"}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold border transition-all disabled:cursor-not-allowed ml-2 ${bookmarked ? "bg-primary text-white border-primary" : "bg-background border-border text-muted-foreground hover:border-primary hover:text-primary"}`}
-                >
-                  {bookmarking ? <RefreshCw size={11} className="animate-spin" /> : (
-                    <img src="/bookmark-icon.png" alt="Bookmark" width={14} height={14} className="object-contain" style={{ filter: bookmarked ? "brightness(10)" : undefined }} />
-                  )}
-                  {bookmarked ? "Bookmarked" : "Bookmark"}
-                </button>
+
+              {!isLoggedIn && (
+                <Link href="/login" className="text-[10px] text-muted-foreground hover:text-primary underline">
+                  Log in to react
+                </Link>
               )}
             </div>
           </div>
         </div>
 
-        {/* Note/Introduction — UPDATED 4.3: labelled "Note" */}
-        {guide.introduction && (
-          <div className="border border-border bg-background p-6 mb-6">
-            <h2 className="font-black uppercase tracking-tighter text-sm mb-3">Note</h2>
-            <p className="text-sm leading-relaxed text-muted-foreground">{guide.introduction}</p>
-          </div>
-        )}
+        {/* Introduction */}
+        <div className="border border-border bg-background p-6 mb-6">
+          <h2 className="font-black uppercase tracking-tighter text-sm mb-3">Introduction</h2>
+          <p className="text-sm leading-relaxed text-muted-foreground">{guide.introduction}</p>
+        </div>
 
-        {/* Steps — UPDATED 5: images load correctly, proper scaling */}
+        {/* Steps */}
         <div className="space-y-4">
           {steps.map((step) => (
             <div key={step.step_id} className="border border-border bg-background overflow-hidden">
@@ -309,25 +271,29 @@ export default function GuideViewPage() {
                 </span>
                 <h3 className="font-bold text-sm">{step.title || `Step ${step.step_number}`}</h3>
               </div>
+
               <div className="p-5">
                 {step.images?.filter(Boolean).length > 0 && (
-                  // UPDATED 5: Large, clear images, correct aspect ratio, no distortion
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
                     {step.images.filter(Boolean).map((url, i) => (
-                      <div key={i} className="w-full overflow-hidden border border-border rounded" style={{ aspectRatio: "16/9" }}>
-                        <img
-                          src={url}
-                          alt={`Step ${step.step_number} photo ${i + 1}`}
-                          className="w-full h-full object-cover"
-                          loading="lazy"
-                          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                        />
-                      </div>
+                      <img
+                        key={i} src={url}
+                        alt={`Step ${step.step_number} photo ${i + 1}`}
+                        className="w-full aspect-video object-cover border border-border"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                      />
                     ))}
                   </div>
                 )}
+
                 <p className="text-sm leading-relaxed">{step.instructions}</p>
-                {step.video_url && <VideoEmbed url={step.video_url} />}
+
+                {step.video_url && (
+                  <a href={step.video_url} target="_blank" rel="noopener noreferrer"
+                    className="mt-3 inline-flex items-center gap-1.5 text-xs text-primary font-bold hover:underline">
+                    <Video size={12} /> Watch video for this step
+                  </a>
+                )}
               </div>
             </div>
           ))}
@@ -338,6 +304,7 @@ export default function GuideViewPage() {
           <button onClick={() => router.back()} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-ink transition-colors">
             <ArrowLeft size={13} /> Back to models
           </button>
+          {/* [Req #9] Creator profile link in footer too */}
           {creator && (
             <Link href={`/user/${creator.user_id}`} className="text-[10px] font-mono text-muted-foreground hover:text-primary transition-colors uppercase tracking-widest">
               By {creator.name}

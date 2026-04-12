@@ -1,3 +1,8 @@
+// ================================================================
+// PURPOSE: GET /api/guides/by-model?model_id=xxx
+//          Returns all approved guides for a given car model.
+// ================================================================
+
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 
@@ -10,7 +15,7 @@ export async function GET(req: Request) {
     const supabase = await createClient();
     const { data, error } = await supabase
       .from("guides")
-      .select("guide_id, title, summary, difficulty, time_required, brand_id, model_name, user_id, created_at, thumbnail_url")
+      .select("guide_id, title, summary, difficulty, time_required, brand_id, model_name, user_id, created_at")
       .eq("model_id", model_id)
       .eq("status", "approved")
       .order("created_at", { ascending: false });
