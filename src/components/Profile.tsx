@@ -31,6 +31,7 @@ export default function Profile() {
   const [certifications, setCertifications] = useState<CertificationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("about");
+  const [guideCount, setGuideCount] = useState(0);
 
   const [isEditingAbout, setIsEditingAbout] = useState(false);
   const [isEditingExperience, setIsEditingExperience] = useState(false);
@@ -72,7 +73,20 @@ export default function Profile() {
       setLoading(false);
     };
 
-    getProfile(); 
+    // Fetch approved guide count for this user
+    const getGuideCount = async () => {
+      try {
+        const res = await fetch("/api/guides?mine=1");
+        const data = await res.json();
+        if (res.ok) {
+          const approved = (data.guides || []).filter((g: any) => g.status === "approved");
+          setGuideCount(approved.length);
+        }
+      } catch {}
+    };
+
+    getProfile();
+    getGuideCount();
   }, []);
 
   const handleAboutSave = async () => {
@@ -409,7 +423,7 @@ export default function Profile() {
               {new Date(profile?.created_at || "").toLocaleDateString()}
             </p>
             <p>
-              <span className="font-semibold">Guides:</span> 0
+              <span className="font-semibold">Guides:</span> {guideCount}
             </p>
           </div>
         </div>
@@ -443,14 +457,15 @@ export default function Profile() {
             <img src="/shifts-activity-svgrepo-com.svg" alt="Activity" className="w-5 h-5" />
             Activity
           </button>
+          {/* UPDATED SECTION 2.2: Use bookmark-icon-profile.png */}
           <button
             onClick={() => setActiveTab("liked")}
             className={`w-full text-left px-6 py-3 flex items-center gap-2 ${
               activeTab === "liked" ? "bg-gray-100 font-semibold" : ""
             }`}
           >
-            <span className="w-5 h-5 flex items-center justify-center text-base">👍</span>
-            Liked Guides
+            <img src="/bookmark-icon-profile.png" alt="Bookmarks" className="w-5 h-5 object-contain" />
+            Bookmarks
           </button>
         </div>
       </div>
@@ -780,17 +795,16 @@ export default function Profile() {
   );
 }
 // ================================================================
-// [Req #10] LikedGuidesTab — shows guides the current user liked.
-// Private to owner: only rendered inside own Profile page.
-// Other users' profiles use the public /user/[userId] page which
-// does NOT expose this tab.
+// UPDATED (Spec 2 - Section 3 + Section 6):
+// LikedGuidesTab — Profile → Bookmarks tab.
+// Now displays thumbnails matching the /bookmarks page layout.
+// Uses actual thumbnail_url from guide data (no forced fallback).
 // ================================================================
 function LikedGuidesTab() {
   const [likedGuides, setLikedGuides] = useState<any[]>([]);
   const [loading, setLoading]         = useState(true);
 
   useEffect(() => {
-    // Fetch all guide_likes for current user then fetch each guide
     fetch("/api/guides-likes/mine")
       .then((r) => r.json())
       .then((json) => {
@@ -803,44 +817,64 @@ function LikedGuidesTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center gap-2 py-20 text-sm text-gray-500">
-        <span className="animate-pulse">Loading liked guides...</span>
+        <span className="animate-pulse">Loading bookmarks...</span>
       </div>
     );
   }
 
   return (
     <div>
-      <h1 className="text-3xl font-bold mb-2">Liked Guides</h1>
-      <p className="text-gray-500 text-sm mb-6">Guides you've liked — only visible to you.</p>
+      <div className="flex items-center gap-3 mb-2">
+        <img src="/bookmark-icon-profile.png" alt="Bookmarks" width={24} height={24} className="object-contain" />
+        <h1 className="text-3xl font-bold">Bookmarks</h1>
+      </div>
+      <p className="text-gray-500 text-sm mb-6">Guides you've bookmarked — only visible to you.</p>
 
       {likedGuides.length === 0 ? (
         <div className="border border-dashed border-gray-200 rounded-lg flex flex-col items-center justify-center py-16 gap-3">
-          <span className="text-4xl">👍</span>
-          <p className="text-sm font-bold text-gray-500">No liked guides yet</p>
+          <img src="/bookmark-icon-profile.png" alt="" width={36} height={36} className="object-contain opacity-30" />
+          <p className="text-sm font-bold text-gray-500">No bookmarks yet</p>
           <p className="text-xs text-gray-400 text-center max-w-xs">
-            Browse repair guides and like the ones you find helpful.
+            Browse repair guides and bookmark the ones you find helpful.
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {likedGuides.map((guide: any) => (
-            <a
-              key={guide.guide_id}
-              href={`/guides/${guide.brand_id}/${guide.model_id}/${guide.guide_id}`}
-              className="group block border border-gray-200 rounded-lg p-4 hover:border-gray-400 hover:shadow transition-all"
-            >
-              <div className="flex items-start justify-between gap-3 mb-1">
-                <h3 className="font-bold text-sm group-hover:text-blue-600 transition-colors">{guide.title}</h3>
-                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 bg-gray-100 border border-gray-200 text-gray-500 shrink-0">
-                  {guide.difficulty}
-                </span>
-              </div>
-              <p className="text-xs text-gray-500 line-clamp-2 mb-2">{guide.summary}</p>
-              <p className="text-[10px] text-gray-400 capitalize">
-                {guide.brand_id} · {guide.model_name} · {guide.time_required}
-              </p>
-            </a>
-          ))}
+        // SECTION 3: Same card layout as /bookmarks page
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {likedGuides.map((guide: any) => {
+            const thumbnailSrc = guide.thumbnail_url || "/no-thumbnail.png";
+            return (
+              <a
+                key={guide.guide_id}
+                href={`/guides/${guide.brand_id}/${guide.model_id}/${guide.guide_id}`}
+                className="group block border border-border bg-background hover:border-primary/50 transition-colors overflow-hidden rounded"
+              >
+                {/* SECTION 6: Actual thumbnail, fallback only if none */}
+                <div className="w-full overflow-hidden" style={{ aspectRatio: "16/9" }}>
+                  <img
+                    src={thumbnailSrc}
+                    alt={guide.title}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                    onError={(e) => { (e.target as HTMLImageElement).src = "/no-thumbnail.png"; }}
+                  />
+                </div>
+                <div className="p-4">
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground capitalize">
+                      {guide.brand_id} · {guide.model_name}
+                    </span>
+                    <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 bg-gray-100 border border-gray-200 text-gray-500 shrink-0">
+                      {guide.difficulty}
+                    </span>
+                  </div>
+                  <h3 className="font-bold text-sm group-hover:text-primary transition-colors line-clamp-2">{guide.title}</h3>
+                  <p className="text-xs text-gray-500 line-clamp-2 mt-1">{guide.summary}</p>
+                  <p className="text-[10px] text-gray-400 mt-2">{guide.time_required}</p>
+                </div>
+              </a>
+            );
+          })}
         </div>
       )}
     </div>

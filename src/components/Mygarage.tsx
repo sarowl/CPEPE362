@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Car, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import GarageModal, { type NewVehicleInput } from "./garagemodel";
 import GarageViewModal from "./garageviewmodal";
 import GarageEditModal from "./garageeditmodal";
@@ -23,6 +23,31 @@ type MaintenanceEntry = {
   notes: string;
   reminder: string;
   createdAt: string;
+};
+
+const toDateOnly = (value: unknown): string => {
+  if (typeof value !== "string") return "";
+
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  const parsed = Date.parse(trimmed);
+  if (Number.isNaN(parsed)) {
+    return "";
+  }
+
+  return new Date(parsed).toISOString().slice(0, 10);
+};
+
+const MS_IN_DAY = 24 * 60 * 60 * 1000;
+
+const getBrandLogoPath = (make?: string) => {
+  const slug = make?.trim().toLowerCase().replace(/[^a-z0-9]+/g, "") ?? "";
+  return slug ? `/car-makers/${slug}.png` : "";
 };
 
 export default function Mygarage() {
@@ -143,7 +168,7 @@ export default function Mygarage() {
       activity: safeText(row?.activity) || "N/A",
       date: safeText(row?.date) || "N/A",
       notes: safeText(row?.notes),
-      reminder: safeText(row?.reminder) || "N/A",
+      reminder: toDateOnly(row?.reminder) || "N/A",
       createdAt: safeText(row?.created_at),
     };
   };
@@ -155,6 +180,102 @@ export default function Mygarage() {
     setMaintenanceReminder("");
     setMaintenanceEditingId(null);
     setMaintenanceFormError(null);
+  };
+
+  const saveNotification = async (token: string, title: string, message: string) => {
+    try {
+      const res = await fetch("/api/notification/save", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ title, message }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        console.error(`Notification save failed (${res.status}):`, errorData);
+        return;
+      }
+
+      const data = await res.json();
+      console.log("Notification saved:", data);
+    } catch (error) {
+      console.error("Failed to save reminder notification", error);
+    }
+  };
+
+  const notifyMaintenanceReminders = async (
+    rows: MaintenanceEntry[],
+    vehicleRows: GarageVehicle[],
+    token: string
+  ) => {
+    if (!rows.length) return;
+
+    console.log("[DEBUG] Checking maintenance reminders for", rows.length, "rows");
+
+    const vehicleLabelById = new Map(
+      vehicleRows.map((vehicle) => [vehicle.id, `${vehicle.make} ${vehicle.model}`])
+    );
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const tasks: Promise<void>[] = [];
+
+    for (const row of rows) {
+      const reminderDateOnly = toDateOnly(row.reminder);
+      console.log(`[DEBUG] Row activity="${row.activity}" reminder="${row.reminder}" → parsed="${reminderDateOnly}"`);
+      if (!reminderDateOnly) continue;
+
+      const reminderDate = new Date(`${reminderDateOnly}T00:00:00`);
+      if (Number.isNaN(reminderDate.getTime())) continue;
+
+      const daysUntil = Math.round((reminderDate.getTime() - today.getTime()) / MS_IN_DAY);
+      console.log(`[DEBUG] Reminder date=${reminderDateOnly} daysUntil=${daysUntil}`);
+      const vehicleLabel = vehicleLabelById.get(row.carId) ?? "your vehicle";
+      const activityLabel = row.activity === "N/A" ? "Maintenance task" : row.activity;
+
+      if ([3, 2, 1].includes(daysUntil)) {
+        console.log(`[DEBUG] Creating ${daysUntil}-day reminder notification`);
+        tasks.push(
+          saveNotification(
+            token,
+            "Maintenance Reminder",
+            `${activityLabel} for ${vehicleLabel} is due in ${daysUntil} day${daysUntil === 1 ? "" : "s"} (${reminderDateOnly}).`
+          )
+        );
+        continue;
+      }
+
+      if (daysUntil === 0) {
+        console.log(`[DEBUG] Creating today reminder notification`);
+        tasks.push(
+          saveNotification(
+            token,
+            "Maintenance Reminder",
+            `${activityLabel} for ${vehicleLabel} is due today (${reminderDateOnly}).`
+          )
+        );
+        continue;
+      }
+
+      if (daysUntil < 0) {
+        console.log(`[DEBUG] Creating overdue notification (${daysUntil} days overdue)`);
+        tasks.push(
+          saveNotification(
+            token,
+            "Maintenance Reminder Missed",
+            `${activityLabel} for ${vehicleLabel} was due on ${reminderDateOnly} and is overdue.`
+          )
+        );
+      }
+    }
+
+    console.log(`[DEBUG] Created ${tasks.length} notification tasks`);
+    if (!tasks.length) return;
+    await Promise.all(tasks);
   };
 
 
@@ -259,6 +380,9 @@ const updateVehicleInDB = async (vehicle: GarageVehicle) => {
 
       setVehicles(formatted);
       setMaintenanceRows(formattedMaintenance);
+
+      console.log("[DEBUG] Calling notifyMaintenanceReminders with", formattedMaintenance.length, "maintenance entries");
+      await notifyMaintenanceReminders(formattedMaintenance, formatted, token);
 
       if (formatted.length > 0) {
         setActiveVehicleId(formatted[0].id);
@@ -519,14 +643,14 @@ const saveMaintenanceToDB = async () => {
           activity: maintenanceActivity.trim(),
           date: maintenanceDate.trim(),
           notes: maintenanceNotes.trim(),
-          reminder: maintenanceReminder.trim(),
+          reminder: toDateOnly(maintenanceReminder),
         }
       : {
           car_id: activeVehicleId,
           activity: maintenanceActivity.trim(),
           date: maintenanceDate.trim(),
           notes: maintenanceNotes.trim(),
-          reminder: maintenanceReminder.trim(),
+          reminder: toDateOnly(maintenanceReminder),
         };
 
     const res = await fetch(endpoint, {
@@ -558,7 +682,7 @@ const saveMaintenanceToDB = async () => {
 
   return (
     <div className="min-h-[calc(100vh-3.5rem)] bg-[#efefef] px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mx-auto w-full max-w-[980px]">
+      <div className="mx-auto w-full max-w-245">
         
         {/* HEADER */}
         <div className="px-0 py-4">
@@ -587,7 +711,7 @@ const saveMaintenanceToDB = async () => {
           ) : null}
 
           {isLoading ? (
-            <div className="mt-3 border border-[#d7d7d7] bg-[#f9f9f9] px-5 py-7 text-center font-mono text-sm uppercase tracking-[0.1em] text-[#5f5f5f]">
+            <div className="mt-3 border border-[#d7d7d7] bg-[#f9f9f9] px-5 py-7 text-center font-mono text-sm uppercase tracking-widest text-[#5f5f5f]">
               Loading garage...
             </div>
           ) : !isAuthenticated ? (
@@ -611,74 +735,93 @@ const saveMaintenanceToDB = async () => {
                         setActiveVehicleId(vehicle.id);
                       }
                     }}
-                    className={`min-h-[180px] border-2 border-dashed px-5 py-6 ${
+                    className={`group relative min-h-70 overflow-hidden border-2 border-dashed transition-transform duration-300 ${
                       selected
                         ? "border-[#242424] bg-[#ececec]"
                         : "border-[#c9c9c9] bg-[#f2f2f2]"
-                    } cursor-pointer`}
+                    } cursor-pointer hover:-translate-y-0.5 hover:shadow-xl`}
                   >
-                    <div className="mb-3 flex justify-center">
-                      {vehicle.photoUrl ? (
-                        <img
-                          src={vehicle.photoUrl}
-                          alt={`${vehicle.make} ${vehicle.model}`}
-                          className="h-20 w-full rounded-md border border-[#d5d5d5] object-cover"
-                        />
-                      ) : (
-                        <span className="inline-flex h-11 w-11 items-center justify-center text-[#7a7a7a]">
-                          <Car className="h-7 w-7" />
-                        </span>
-                      )}
-                    </div>
+                    {vehicle.photoUrl ? (
+                      <img
+                        src={vehicle.photoUrl}
+                        alt={`${vehicle.make} ${vehicle.model}`}
+                        className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      />
+                    ) : (
+                      <div className="absolute inset-0 overflow-hidden bg-linear-to-br from-[#f4f6f8] via-[#e7edf2] to-[#d9e1e8]">
+                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_18%,rgba(255,255,255,0.95),transparent_34%),radial-gradient(circle_at_80%_78%,rgba(255,255,255,0.75),transparent_32%)]" />
+                        <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(24,24,24,0.04)_0%,rgba(24,24,24,0)_32%),repeating-linear-gradient(135deg,rgba(24,24,24,0.06),rgba(24,24,24,0.06)_1px,transparent_1px,transparent_18px)] opacity-70" />
+                        <div className="absolute inset-0 flex items-center justify-center px-6">
+                          <div className="flex flex-col items-center gap-3 rounded-[1.75rem] border border-white/70 bg-white/45 px-8 py-7 shadow-[0_18px_40px_rgba(20,30,40,0.12)] backdrop-blur-sm transition-transform duration-500 group-hover:scale-[1.02]">
+                            <div className="flex h-22 w-22 items-center justify-center rounded-full border border-slate-200 bg-white shadow-inner">
+                              <img
+                                src={getBrandLogoPath(vehicle.make) || "/car-makers/toyota.png"}
+                                alt={`${vehicle.make} logo`}
+                                className="h-14 w-14 object-contain"
+                              />
+                            </div>
+                            <div className="text-center">
+                              <p className="font-mono text-xs font-semibold uppercase tracking-[0.18em] text-slate-700">
+                                {vehicle.make}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
-                    <button
-                      type="button"
-                      onClick={() => setActiveVehicleId(vehicle.id)}
-                      className="w-full cursor-pointer text-center"
-                    >
-                      <p className="font-mono text-[30px] font-semibold leading-tight">
-                        {vehicle.make} {vehicle.model}
-                      </p>
+                    <div className="absolute inset-0 bg-linear-to-t from-black/85 via-black/40 to-black/5 opacity-0 transition-opacity duration-300 group-hover:opacity-100 group-focus-within:opacity-100" />
 
-                      <p className="mt-2 font-mono text-base text-[#6f6f6f]">
-                        {vehicle.year} · {getPlate(vehicle)} ·
-                        <span className="ml-2 align-middle">{vehicle.colorName}</span>
-                      </p>
-                    </button>
-
-                    <div className="mt-5 flex items-center justify-center gap-2">
+                    <div className="absolute inset-x-0 bottom-0 z-10 flex h-full flex-col justify-end p-5 text-white opacity-0 transition-opacity duration-300 group-hover:opacity-100 group-focus-within:opacity-100">
                       <button
                         type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setActiveVehicleId(vehicle.id);
-                          setViewOpen(true);
-                        }}
-                        className="cursor-pointer border border-[#c9c9c9] px-3 py-1.5 font-mono text-xs uppercase tracking-[0.12em] text-[#1f1f1f] transition-colors hover:border-[#f26a2e] hover:bg-[#f26a2e] hover:text-white"
+                        onClick={() => setActiveVehicleId(vehicle.id)}
+                        className="w-full cursor-pointer text-left"
                       >
-                        View
+                        <p className="font-mono text-2xl font-semibold leading-tight drop-shadow-sm sm:text-[30px]">
+                          {vehicle.make} {vehicle.model}
+                        </p>
+
+                        <p className="mt-2 font-mono text-sm text-white/85 drop-shadow-sm sm:text-base">
+                          {vehicle.year} · {getPlate(vehicle)} ·
+                          <span className="ml-2 align-middle">{vehicle.colorName}</span>
+                        </p>
                       </button>
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setActiveVehicleId(vehicle.id);
-                          setEditOpen(true);
-                        }}
-                        className="cursor-pointer border border-[#c9c9c9] px-3 py-1.5 font-mono text-xs uppercase tracking-[0.12em] text-[#1f1f1f] transition-colors hover:border-[#f26a2e] hover:bg-[#f26a2e] hover:text-white"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          deleteVehicleFromDB(vehicle.id);
-                        }}
-                        className="cursor-pointer border border-[#c9c9c9] px-3 py-1.5 font-mono text-xs uppercase tracking-[0.12em] text-[#1f1f1f] transition-colors hover:border-[#d94343] hover:bg-[#d94343] hover:text-white"
-                      >
-                        Delete
-                      </button>
+
+                      <div className="mt-5 flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setActiveVehicleId(vehicle.id);
+                            setViewOpen(true);
+                          }}
+                          className="cursor-pointer border border-white/70 bg-white/10 px-3 py-1.5 font-mono text-xs uppercase tracking-[0.12em] text-white backdrop-blur-sm transition-colors hover:border-[#f26a2e] hover:bg-[#f26a2e]"
+                        >
+                          View
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setActiveVehicleId(vehicle.id);
+                            setEditOpen(true);
+                          }}
+                          className="cursor-pointer border border-white/70 bg-white/10 px-3 py-1.5 font-mono text-xs uppercase tracking-[0.12em] text-white backdrop-blur-sm transition-colors hover:border-[#f26a2e] hover:bg-[#f26a2e]"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            deleteVehicleFromDB(vehicle.id);
+                          }}
+                          className="cursor-pointer border border-white/70 bg-white/10 px-3 py-1.5 font-mono text-xs uppercase tracking-[0.12em] text-white backdrop-blur-sm transition-colors hover:border-[#d94343] hover:bg-[#d94343]"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </div>
                   </article>
                 );
@@ -688,7 +831,7 @@ const saveMaintenanceToDB = async () => {
               <button
                 type="button"
                 onClick={() => setOpen(true)}
-                className="flex min-h-[180px] cursor-pointer flex-col items-center justify-center border-2 border-dashed border-[#c9c9c9] bg-[#f2f2f2]"
+                className="flex min-h-45 cursor-pointer flex-col items-center justify-center border-2 border-dashed border-[#c9c9c9] bg-[#f2f2f2]"
               >
                 <Plus className="h-7 w-7" />
                 <span className="mt-3 font-mono text-base font-semibold uppercase tracking-[0.2em] text-[#6f6f6f]">
@@ -725,7 +868,7 @@ const saveMaintenanceToDB = async () => {
             </div>
 
             <div className="overflow-x-auto border border-[#cfcfcf] bg-[#f4f4f4]">
-              <table className="w-full min-w-[760px] border-collapse font-mono text-sm text-[#1e1e1e]">
+              <table className="w-full min-w-190 border-collapse font-mono text-sm text-[#1e1e1e]">
                 <thead>
                   <tr className="border-b border-[#cfcfcf] bg-[#e7e7e7] text-left text-xs uppercase tracking-[0.14em] text-[#555]">
                     <th className="px-4 py-3 font-semibold">Activity</th>
@@ -845,10 +988,9 @@ const saveMaintenanceToDB = async () => {
                   Reminder
                 </label>
                 <input
-                  type="text"
+                  type="date"
                   value={maintenanceReminder}
                   onChange={(event) => setMaintenanceReminder(event.target.value)}
-                  placeholder="e.g. Every 6 months"
                   className="h-10 w-full border border-[#cfcfcf] bg-[#f7f7f7] px-3 font-mono text-sm text-[#1e1e1e] outline-none transition focus:border-[#2d67e3]"
                 />
               </div>
