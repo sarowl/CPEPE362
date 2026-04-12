@@ -38,6 +38,77 @@ const Navbar = () => {
     router.push("/");
   };
 
+  const fetchNotifications = async () => {
+    if (!user) return;
+
+    setNotificationsLoading(true);
+    try {
+      const session = await supabase.auth.getSession();
+      const token = session.data.session?.access_token;
+
+      if (!token) return;
+
+      const res = await fetch("/api/notification/fetch", {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setNotifications(data.notifications ?? []);
+      }
+    } catch (error) {
+      console.error("Error fetching notifications:", error);
+    } finally {
+      setNotificationsLoading(false);
+    }
+  };
+
+  const markNotificationsAsRead = async () => {
+    if (!user || notifications.length === 0) return;
+
+    try {
+      const session = await supabase.auth.getSession();
+      const token = session.data.session?.access_token;
+
+      if (!token) return;
+
+      const unreadIds = notifications
+        .filter((n: any) => !n.is_read)
+        .map((n: any) => n.id);
+
+      if (unreadIds.length === 0) return;
+
+      const res = await fetch("/api/notification/mark-read", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ ids: unreadIds }),
+      });
+
+      if (res.ok) {
+        // Update local state to reflect read status
+        setNotifications((prev: any[]) =>
+          prev.map((n: any) => ({ ...n, is_read: true }))
+        );
+      }
+    } catch (error) {
+      console.error("Error marking notifications as read:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (user) {
+      fetchNotifications();
+      const interval = setInterval(fetchNotifications, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [user]);
+
   return (
     <nav className="sticky top-0 z-50 h-16 border-b bg-background">
       <div className="mx-auto flex h-full max-w-[1100px] items-center justify-between px-4">
