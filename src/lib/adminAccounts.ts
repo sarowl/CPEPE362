@@ -1,8 +1,3 @@
-// ============================================================
-// PURPOSE: Hardcoded admin accounts (no Supabase table needed).
-//          Add more admin objects here to create additional admins.
-// ============================================================
-
 export interface AdminAccount {
   email: string;
   password: string;

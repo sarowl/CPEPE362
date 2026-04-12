@@ -1,30 +1,52 @@
 // ================================================================
-// PURPOSE: CRUD operations for the guides table
-//   GET  /api/guides          → returns all guides owned by the current user
-//   POST /api/guides          → creates a new draft guide (no steps yet)
+// FILE: src/app/api/guides/route.ts
+//
+// UPDATED (Spec 2 - Section 6):
+// - GET now includes `thumbnail_url` in all guide select queries
+//   so that guide cards throughout the app can display the actual
+//   uploaded thumbnail instead of the fallback image.
 // ================================================================
 
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 
-// ── GET — fetch current user's guides ────────────────────────
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const { searchParams } = new URL(req.url);
+    const mine = searchParams.get("mine") === "1";
+
     const supabase = await createClient();
-    const { data: authData, error: authError } = await supabase.auth.getUser();
-    if (authError || !authData.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    if (mine) {
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (authError || !authData.user) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+
+      const { data: guides, error } = await supabase
+        .from("guides")
+        .select(`
+          guide_id, title, summary, brand_id, model_id, model_name,
+          difficulty, time_required, status, thumbnail_url,
+          created_at, updated_at, submitted_at, reviewed_at
+        `)
+        .eq("user_id", authData.user.id)
+        .order("updated_at", { ascending: false });
+
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ guides: guides ?? [] });
     }
 
+    // Public: all approved guides — UPDATED to include thumbnail_url
     const { data: guides, error } = await supabase
       .from("guides")
       .select(`
-        guide_id, title, summary, brand_id, model_name,
-        difficulty, time_required, status,
-        created_at, updated_at, submitted_at, reviewed_at
+        guide_id, title, summary, brand_id, model_id, model_name,
+        difficulty, time_required, status, user_id, thumbnail_url,
+        created_at, updated_at
       `)
-      .eq("user_id", authData.user.id)
-      .order("updated_at", { ascending: false });
+      .eq("status", "approved")
+      .order("created_at", { ascending: false });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ guides: guides ?? [] });
@@ -33,7 +55,6 @@ export async function GET() {
   }
 }
 
-// ── POST — create a new draft guide ──────────────────────────
 export async function POST(req: Request) {
   try {
     const supabase = await createClient();
@@ -45,7 +66,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { brand_id, model_id, model_name, title, summary, introduction, difficulty, time_required, tools } = body;
 
-    if (!brand_id || !model_id || !title || !summary || !introduction || !difficulty || !time_required) {
+    if (!brand_id || !model_id || !title || !summary || !difficulty || !time_required) {
       return NextResponse.json({ error: "Missing required fields." }, { status: 400 });
     }
 
@@ -54,7 +75,8 @@ export async function POST(req: Request) {
       .insert([{
         user_id: authData.user.id,
         brand_id, model_id, model_name,
-        title, summary, introduction,
+        title, summary,
+        introduction: introduction || "",
         difficulty, time_required,
         tools: tools ?? [],
         status: "draft",
