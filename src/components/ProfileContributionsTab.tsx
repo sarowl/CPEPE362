@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   BookOpen, Plus, Clock, Trash2, Edit2,
   CheckCircle, XCircle, AlertCircle, RefreshCw, Eye,
-  ArrowLeft, Wrench, Video, X,
+  ArrowLeft, Wrench, Video, X, Package,
 } from "lucide-react";
 
 interface Guide {
@@ -17,6 +17,7 @@ interface Guide {
   model_id?: string;
   difficulty: string;
   time_required: string;
+  required_parts?: string[];
   status: "draft" | "pending" | "approved" | "rejected";
   created_at: string;
   updated_at: string;
@@ -34,7 +35,7 @@ interface Notification {
 
 interface FullGuide {
   guide_id: string; title: string; summary: string; introduction: string;
-  difficulty: string; time_required: string; tools: string[];
+  difficulty: string; time_required: string; tools: string[]; required_parts?: string[];
   brand_id: string; model_name: string; status: string;
   thumbnail_url?: string | null;
 }
@@ -166,7 +167,7 @@ export default function ProfileContributionsTab() {
     if (!matchesStatus) return false;
     if (!searchQuery.trim()) return true;
     const keywords = searchQuery.toLowerCase().split(/\s+/).filter(Boolean);
-    const hay = [g.title, g.brand_id, g.model_name, g.difficulty, g.time_required].join(" ").toLowerCase();
+    const hay = [g.title, g.brand_id, g.model_name, g.difficulty, g.time_required, ...(g.required_parts ?? [])].join(" ").toLowerCase();
     return keywords.every((k) => hay.includes(k));
   });
 
@@ -597,6 +598,18 @@ function GuidePreviewModal({
                     <div className="flex flex-wrap gap-1.5">
                       {guide.tools.map((t, i) => (
                         <span key={i} className="text-xs bg-secondary border border-border px-2 py-0.5">{t}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {guide.required_parts?.length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1.5 flex items-center gap-1">
+                      <Package size={10} /> Required Parts
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {guide.required_parts.map((p, i) => (
+                        <span key={i} className="text-xs bg-blue-50 border border-blue-200 text-blue-700 px-2 py-0.5">{p}</span>
                       ))}
                     </div>
                   </div>

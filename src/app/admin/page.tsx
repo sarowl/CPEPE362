@@ -12,6 +12,8 @@ import {
   Edit2, AlertCircle, ImageIcon, ZoomIn, ZoomOut,
 } from "lucide-react";
 
+import { resolveCarModelImage } from "@/lib/carTypeImage";
+
 // ── Car Model Image Cropper ───────────────────────────────────────
 // Fixed aspect-ratio crop tool (same ratio as car model card 16:9).
 function CarImageCropper({
@@ -107,7 +109,7 @@ const BRANDS = [
   { name:"Hyundai",id:"hyundai"},{name:"Kia",id:"kia"},
   { name:"Geely",id:"geely"},{name:"MG",id:"mg"},
 ];
-const MODEL_TYPES = ["Sedan","SUV","Hatchback","Pickup Truck","Van / MPV","Crossover","Coupe","Convertible","Wagon","Electric"];
+const MODEL_TYPES = ["Sedan","SUV","Hatchback","Pickup Truck","Van / MPV","Crossover","Coupe","Convertible","Wagon","Electric","Hybrid","Sports","Truck","EV"];
 
 type Tab = "users"|"guides"|"car-models"|"documents"|"reports"|"forum";
 
@@ -172,6 +174,15 @@ export default function AdminPage() {
       .catch(()=>{});
   },[session?.email]);
 
+  // ── Storage Auto-Sync: ensure every car model has a folder in Car_Models/ ──
+  useEffect(()=>{
+    if (!session?.email) return;
+    fetch("/api/car-models-storage-sync", {
+      method: "POST",
+      headers: { "x-admin-email": session.email },
+    }).catch(()=>{}); // fire-and-forget; errors are non-critical
+  },[session?.email]);
+
   // ── Users ──────────────────────────────────────────────────
   const fetchUsers = useCallback(async()=>{
     setLoadingUsers(true);
@@ -189,17 +200,46 @@ export default function AdminPage() {
 
   useEffect(()=>{ if(activeTab==="users") fetchUsers(); },[activeTab,fetchUsers]);
 
-  // ── Car models ─────────────────────────────────────────────
-  const loadModels = async(brandId:string)=>{
-    if(carModels[brandId]!==undefined) return;
-    setCarModels(prev=>({...prev,[brandId]:null}));
-    const res=await fetch(`/api/car-models/${brandId}`);
-    const json=await res.json();
-    setCarModels(prev=>({...prev,[brandId]:json.models??[]}));
-  };
-  const handleBrandToggle=(brandId:string)=>{
-    if(expandedBrand===brandId){setExpandedBrand(null);}
-    else{setExpandedBrand(brandId);loadModels(brandId);}
+
+  // ── Car models — fetch ALL brands at once, grouped by brand_id ──
+  // Fixes the '0 models' count bug: old code only loaded lazily on click.
+  const fetchAllModels = useCallback(async () => {
+    // Mark every brand as loading (null = spinner)
+    const loading: Record<string, CarModelRow[] | null> = {};
+    BRANDS.forEach(b => { loading[b.id] = null; });
+    setCarModels(loading);
+
+    const { data, error } = await supabase
+      .from("car_models")
+      .select("id, name, slug, category, years, model_img, info, brand_id")
+      .order("name");
+
+    if (error) {
+      toast(`Failed to load car models: ${error.message}`, "err");
+      const empty: Record<string, CarModelRow[]> = {};
+      BRANDS.forEach(b => { empty[b.id] = []; });
+      setCarModels(empty);
+      return;
+    }
+
+    // Group by brand_id
+    const grouped: Record<string, CarModelRow[]> = {};
+    BRANDS.forEach(b => { grouped[b.id] = []; });
+    (data ?? []).forEach((m: any) => {
+      const bid = m.brand_id as string;
+      if (!grouped[bid]) grouped[bid] = [];
+      grouped[bid].push(m as CarModelRow);
+    });
+    setCarModels(grouped);
+  }, [toast]);
+
+  // Reload when tab becomes active
+  useEffect(() => {
+    if (activeTab === "car-models") fetchAllModels();
+  }, [activeTab, fetchAllModels]);
+
+  const handleBrandToggle = (brandId: string) => {
+    setExpandedBrand(prev => (prev === brandId ? null : brandId));
   };
 
   // ── Add model ──────────────────────────────────────────────
@@ -219,12 +259,14 @@ export default function AdminPage() {
       if(addForm.imageFile){
         const fd=new FormData();
         fd.append("file",addForm.imageFile);
-        fd.append("brand_id",addModelFor);
         fd.append("model_id",newModel.id);
         const imgRes=await fetch("/api/car-models-image-upload",{method:"POST",headers:{"x-admin-email":session?.email??""},body:fd});
         const imgJson=await imgRes.json();
         if(imgRes.ok) newModel={...newModel,model_img:`${imgJson.url}?t=${Date.now()}`};
       }
+
+      // Sync storage folders so new model always has a folder
+      fetch("/api/car-models-storage-sync",{method:"POST",headers:{"x-admin-email":session?.email??""}}).catch(()=>{});
 
       setCarModels(prev=>({...prev,[addModelFor]:[...(prev[addModelFor]??[]),newModel]}));
       toast(`"${newModel.name}" added to ${BRANDS.find(b=>b.id===addModelFor)?.name}.`);
@@ -251,7 +293,6 @@ export default function AdminPage() {
       if(editForm.imageFile){
         const fd=new FormData();
         fd.append("file",editForm.imageFile);
-        fd.append("brand_id",editModel.brand_id);
         fd.append("model_id",editModel.id);
         const imgRes=await fetch("/api/car-models-image-upload",{method:"POST",headers:{"x-admin-email":session?.email??""},body:fd});
         const imgJson=await imgRes.json();
@@ -461,9 +502,14 @@ export default function AdminPage() {
           {/* ── CAR MODELS ───────────────────────────────────── */}
           {activeTab==="car-models"&&(
             <section>
-              <div className="mb-5">
-                <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Admin / Car Models</p>
-                <h2 className="font-black uppercase tracking-tighter text-base mt-0.5">Car Model Management</h2>
+              <div className="mb-5 flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Admin / Car Models</p>
+                  <h2 className="font-black uppercase tracking-tighter text-base mt-0.5">Car Model Management</h2>
+                </div>
+                <button onClick={fetchAllModels} className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold border border-border hover:bg-secondary transition-colors mt-1">
+                  <RefreshCw size={11}/> Refresh
+                </button>
               </div>
               <div className="space-y-1.5">
                 {BRANDS.map(brand=>{
@@ -475,13 +521,16 @@ export default function AdminPage() {
                         onClick={()=>handleBrandToggle(brand.id)}>
                         <img src={`/car-makers/${brand.id}.png`} alt={brand.name} className="w-7 h-7 object-contain grayscale" onError={e=>{(e.target as HTMLImageElement).style.display="none";}}/>
                         <span className="font-bold text-xs uppercase tracking-widest flex-1">{brand.name}</span>
-                        {Array.isArray(models)&&<span className="text-[9px] font-mono text-muted-foreground uppercase">{models.length} model{models.length!==1?"s":""}</span>}
+                        {models===null || models===undefined
+                          ?<span className="text-[9px] font-mono text-muted-foreground uppercase"><RefreshCw size={9} className="inline animate-spin mr-1"/>loading</span>
+                          :<span className="text-[9px] font-mono text-muted-foreground uppercase">{models.length} model{models.length!==1?"s":""}</span>
+                        }
                         <ChevronRight size={13} className={`text-muted-foreground transition-transform duration-200 ${expandedBrand===brand.id?"rotate-90":""}`}/>
                       </button>
 
                       {expandedBrand===brand.id&&(
                         <div className="border-t border-border bg-secondary/20 px-5 py-4">
-                          {models===null&&<div className="flex items-center gap-2 text-xs text-muted-foreground py-2"><RefreshCw size={11} className="animate-spin"/> Loading...</div>}
+                          {(models===null||models===undefined)&&<div className="flex items-center gap-2 text-xs text-muted-foreground py-2"><RefreshCw size={11} className="animate-spin"/> Loading...</div>}
                           {Array.isArray(models)&&models.length===0&&<p className="text-xs text-muted-foreground py-1 mb-3">No models yet for this brand.</p>}
 
                           {Array.isArray(models)&&models.length>0&&(
@@ -489,10 +538,12 @@ export default function AdminPage() {
                               {models.map(m=>(
                                 <div key={m.id} className="bg-background border border-border overflow-hidden group">
                                   <div className="relative aspect-video bg-secondary/50 flex items-center justify-center overflow-hidden">
-                                    {m.model_img
-                                      ?<img src={`${m.model_img}?t=${Date.now()}`} alt={m.name} className="w-full h-full object-cover" onError={(e)=>{(e.target as HTMLImageElement).style.display="none";}}/>
-                                      :<div className="flex flex-col items-center gap-1 text-muted-foreground/40"><ImageIcon size={20}/><span className="text-[9px]">No image</span></div>
-                                    }
+                                    <img
+                                      src={resolveCarModelImage(m.model_img, m.category)}
+                                      alt={m.name}
+                                      className={`w-full h-full object-cover${!m.model_img ? " opacity-70" : ""}`}
+                                      onError={(e)=>{(e.target as HTMLImageElement).src="/no-thumbnail.png";}}
+                                    />
                                   </div>
                                   <div className="px-3 py-2.5">
                                     <p className="font-bold text-xs truncate">{m.name}</p>

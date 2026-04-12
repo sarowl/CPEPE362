@@ -1,9 +1,10 @@
 // ================================================================
-// UPDATED (Spec 3):
-// - Storage path changed to Car_Models/{brand_id}/{model_id}/image.<ext>
-//   (uses model UUID id, not slug)
-// - upsert:true ensures re-uploads overwrite existing images
-// - Returns public URL stored in car_models.model_img
+// Storage System - Car Model Images
+// Storage path: Car_Models/{model_id}/image.<ext>
+//   - No brand_id subfolder — path is flat: Car_Models/{model_id}/
+//   - Removes any existing image in folder before uploading (1 image only)
+//   - upsert:true as safety net
+//   - Returns public URL stored in car_models.model_img
 // ================================================================
 
 import { NextResponse } from "next/server";
@@ -21,30 +22,42 @@ export async function POST(req: Request) {
 
     const formData = await req.formData();
     const file     = formData.get("file")     as File   | null;
-    const brand_id = (formData.get("brand_id") as string | null)?.trim().toLowerCase();
     const model_id = (formData.get("model_id") as string | null)?.trim();
 
-    if (!file || !brand_id || !model_id) {
+    if (!file || !model_id) {
       return NextResponse.json(
-        { error: "file, brand_id, and model_id are required." },
+        { error: "file and model_id are required." },
         { status: 400 }
       );
     }
 
     const ext = (file.name.split(".").pop() ?? "jpg").toLowerCase();
-
-    // Storage path: Car_Models/<brand_id>/<model_id>/image.<ext>
-    // Using model UUID (id) as specified in Spec 3.1
-    const storagePath = `Car_Models/${brand_id}/${model_id}/image.${ext}`;
-
     const supabase = createAdminClient();
+
+    // Enforce 1 image per folder: remove any existing images first
+    const folderPath = `Car_Models/${model_id}`;
+    const { data: existingFiles } = await supabase.storage
+      .from(BUCKET)
+      .list(folderPath);
+
+    if (existingFiles && existingFiles.length > 0) {
+      const toRemove = existingFiles
+        .filter((f) => f.name !== ".keep")
+        .map((f) => `${folderPath}/${f.name}`);
+      if (toRemove.length > 0) {
+        await supabase.storage.from(BUCKET).remove(toRemove);
+      }
+    }
+
+    // Upload: Car_Models/{model_id}/image.<ext>
+    const storagePath = `${folderPath}/image.${ext}`;
 
     const arrayBuffer = await file.arrayBuffer();
     const { error: uploadError } = await supabase.storage
       .from(BUCKET)
       .upload(storagePath, arrayBuffer, {
         contentType: file.type || "image/jpeg",
-        upsert: true, // overwrite if file already exists (replace existing)
+        upsert: true,
       });
 
     if (uploadError) {
@@ -54,11 +67,11 @@ export async function POST(req: Request) {
       );
     }
 
-    // Get the public URL
+    // Build public URL
     const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(storagePath);
     const publicUrl = urlData.publicUrl;
 
-    // Update car_models.model_img with public URL
+    // Update car_models.model_img with the public URL
     const { error: updateError } = await supabase
       .from("car_models")
       .update({ model_img: publicUrl })

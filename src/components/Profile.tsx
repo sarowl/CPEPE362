@@ -886,6 +886,7 @@ function LikedGuidesTab() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {filteredGuides.map((guide: any) => {
+            const hasThumbnail = !!guide.thumbnail_url;
             const thumbnailSrc = guide.thumbnail_url || "/no-thumbnail.png";
             return (
               <a
@@ -897,7 +898,7 @@ function LikedGuidesTab() {
                   <img
                     src={thumbnailSrc}
                     alt={guide.title}
-                    className="w-full h-full object-cover"
+                    className={`w-full h-full object-cover${!hasThumbnail ? " opacity-70" : ""}`}
                     loading="lazy"
                     onError={(e) => { (e.target as HTMLImageElement).src = "/no-thumbnail.png"; }}
                   />

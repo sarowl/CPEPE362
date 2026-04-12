@@ -7,6 +7,8 @@ import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import { ChevronRight, Plus, User, Clock, BookOpen, ArrowLeft } from "lucide-react";
 
+import { resolveCarModelImage } from "@/lib/carTypeImage";
+
 interface Guide {
   guide_id: string;
   title: string;
@@ -45,6 +47,7 @@ export default function ModelGuidesPage() {
   const [modelName, setModelName] = useState("");
   const [modelInfo, setModelInfo] = useState<string | null>(null);
   const [modelImg,  setModelImg]  = useState<string | null>(null);
+  const [modelCategory, setModelCategory] = useState("");
   const [loading,   setLoading]   = useState(true);
 
   useEffect(() => {
@@ -58,6 +61,7 @@ export default function ModelGuidesPage() {
           setModelName(model.name);
           setModelInfo(model.info ?? null);
           setModelImg(model.model_img ?? null);
+          setModelCategory(model.category ?? "");
         }
       });
 
@@ -91,7 +95,7 @@ export default function ModelGuidesPage() {
 
         {/* Breadcrumb */}
         <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-widest text-muted-foreground mb-6">
-          <Link href="/car-makers" className="hover:text-ink transition-colors">Guides</Link>
+          <Link href="/car-makers" className="hover:text-ink transition-colors">Directory</Link>
           <ChevronRight size={10} />
           <Link href={`/guides/${brandId}`} className="hover:text-ink transition-colors">{brandLabel}</Link>
           <ChevronRight size={10} />
@@ -101,13 +105,13 @@ export default function ModelGuidesPage() {
         {/* Header */}
         <div className="flex items-start justify-between gap-4 mb-8 border-b border-border pb-6">
           <div className="flex items-start gap-5 flex-1">
-            {/* Model image (Spec 3.4) */}
+            {/* Model image */}
             <div className="w-32 shrink-0 aspect-video border border-border overflow-hidden bg-secondary/20">
               <img
-                src={modelImg ?? "/car_model_def.png"}
+                src={resolveCarModelImage(modelImg, modelCategory)}
                 alt={modelName}
-                className="w-full h-full object-cover"
-                onError={(e) => { (e.currentTarget as HTMLImageElement).src = "/car_model_def.png"; }}
+                className={`w-full h-full object-cover${!modelImg ? " opacity-70" : ""}`}
+                onError={(e) => { (e.currentTarget as HTMLImageElement).src = "/no-thumbnail.png"; }}
               />
             </div>
             <div>
@@ -193,6 +197,7 @@ function GuideCard({
   const diffBar   = DIFFICULTY_BAR[guide.difficulty]   ?? "bg-border";
   const href      = `/guides/${brandId}/${modelId}/${guide.guide_id}`;
   // SECTION 6: Use actual stored thumbnail; only fallback if genuinely absent
+  const hasThumbnail = !!guide.thumbnail_url;
   const thumbnailSrc = guide.thumbnail_url ?? "/no-thumbnail.png";
 
   return (
@@ -205,7 +210,7 @@ function GuideCard({
         <img
           src={thumbnailSrc}
           alt={guide.title}
-          className="w-full h-full object-cover"
+          className={`w-full h-full object-cover${!hasThumbnail ? " opacity-70" : ""}`}
           loading="lazy"
           onError={(e) => {
                 const img = e.target as HTMLImageElement;

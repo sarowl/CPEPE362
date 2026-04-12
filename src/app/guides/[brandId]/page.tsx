@@ -13,6 +13,8 @@ interface CarModel {
   slug: string;
   category: string;
   years: string;
+  model_img?: string | null;
+  info?: string | null;
 }
 
 export default function BrandModelsPage() {
@@ -121,7 +123,7 @@ export default function BrandModelsPage() {
 
         {/* BREADCRUMB */}
         <nav className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground mb-8">
-          <Link href="/guides" className="hover:text-primary transition-colors">
+          <Link href="/car-makers" className="hover:text-primary transition-colors">
             Directory
           </Link>
           <ChevronRight size={10} />
@@ -229,6 +231,7 @@ export default function BrandModelsPage() {
                 name: model.name,
                 years: model.years,
                 category: model.category,
+                model_img: model.model_img ?? null,
               }}
               brandId={brandId}
               brandName={brandName}

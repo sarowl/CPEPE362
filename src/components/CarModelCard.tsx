@@ -3,6 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { Plus, ImageIcon } from "lucide-react";
+import { resolveCarModelImage, getCarTypeImage } from "@/lib/carTypeImage";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -26,10 +27,11 @@ interface CarModelCardProps {
 
 export default function CarModelCard({ model, brandId, brandName, guideCount = 0, forumCount = 0 }: CarModelCardProps) {
   // Image source priority:
-  //   1. model_img from Supabase Storage (uploaded via admin, Spec 3.4)
-  //      Path: Car_Models/{brand_id}/{model_id}/image.*
-  //   2. /no-thumbnail.png — fallback if no image exists (Spec 3.3)
-  const imgSrc = model.model_img || null;
+  //   1. model_img from Supabase Storage (uploaded via admin) — if available
+  //   2. Default image based on car type/category (e.g. /Car Types/sedan.png)
+  //   3. /no-thumbnail.png — last-resort fallback for unknown categories
+  const hasUploadedImage = !!model.model_img;
+  const imgSrc = resolveCarModelImage(model.model_img, model.category);
 
   return (
     <Link
@@ -58,31 +60,20 @@ export default function CarModelCard({ model, brandId, brandName, guideCount = 0
 
       {/* ── Model Image ────────────────────────────────────────────────── */}
       <div className="relative w-full aspect-[16/9] flex items-center justify-center px-4 py-3 bg-secondary/20">
-        {imgSrc ? (
-          <img
-            src={imgSrc}
-            alt={`${brandName} ${model.name}`}
-            onError={(e) => {
-              // If storage image fails, show car_model_def.png fallback
-              (e.currentTarget as HTMLImageElement).src = "/car_model_def.png";
-            }}
-            className="
-              w-full h-full object-contain
-              transition-transform duration-300
-              group-hover:scale-105
-            "
-          />
-        ) : (
-          <img
-            src="/car_model_def.png"
-            alt={`${brandName} ${model.name}`}
-            className="
-              w-full h-full object-contain opacity-40
-              transition-transform duration-300
-              group-hover:scale-105
-            "
-          />
-        )}
+        <img
+          src={imgSrc}
+          alt={`${brandName} ${model.name}`}
+          onError={(e) => {
+            // If the resolved image fails, fall back to no-thumbnail
+            (e.currentTarget as HTMLImageElement).src = "/no-thumbnail.png";
+          }}
+          className={`
+            w-full h-full object-contain
+            transition-transform duration-300
+            group-hover:scale-105
+            ${!hasUploadedImage ? "opacity-70" : ""}
+          `}
+        />
       </div>
 
       {/* ── Model Name ─────────────────────────────────────────────────── */}

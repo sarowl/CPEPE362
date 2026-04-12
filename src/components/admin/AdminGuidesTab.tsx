@@ -20,7 +20,7 @@ interface PendingGuide {
 interface UserGroup { user_id: string; user_name: string; guides: PendingGuide[]; }
 interface FullGuide {
   guide_id: string; title: string; summary: string; introduction: string;
-  difficulty: string; time_required: string; tools: string[];
+  difficulty: string; time_required: string; tools: string[]; required_parts?: string[];
   brand_id: string; model_name: string;
   thumbnail_url?: string | null; // UPDATED 6.1
 }
@@ -31,7 +31,7 @@ interface Step {
 interface HistoryGuide {
   guide_id: string; title: string; summary: string;
   brand_id: string; model_id: string; model_name: string;
-  difficulty: string; time_required: string;
+  difficulty: string; time_required: string; required_parts?: string[];
   status: "approved" | "rejected";
   reviewed_at: string; reviewed_by: string; user_name: string;
   rejection: { reason: string; note: string | null } | null;
@@ -211,7 +211,7 @@ export default function AdminGuidesTab({
           <img
             src={guide.thumbnail_url ?? "/no-thumbnail.png"}
             alt={guide.title}
-            className="w-full h-full object-cover"
+            className={`w-full h-full object-cover${!guide.thumbnail_url ? " opacity-70" : ""}`}
             loading="lazy"
             onError={(e) => {
                 const img = e.target as HTMLImageElement;
@@ -223,6 +223,7 @@ export default function AdminGuidesTab({
           <span>Difficulty: <strong className="text-ink">{guide.difficulty}</strong></span>
           <span>Time: <strong className="text-ink">{guide.time_required}</strong></span>
           {guide.tools?.length > 0 && <span>Tools: <strong className="text-ink">{guide.tools.join(", ")}</strong></span>}
+          {guide.required_parts?.length > 0 && <span>Parts: <strong className="text-ink">{guide.required_parts.join(", ")}</strong></span>}
         </div>
         <div className="border-t border-border pt-4">
           {/* UPDATED 4.3: label is now "Note" */}
@@ -493,6 +494,7 @@ export default function AdminGuidesTab({
                 g.model_name.toLowerCase().includes(q) ||
                 g.difficulty.toLowerCase().includes(q) ||
                 g.time_required.toLowerCase().includes(q) ||
+                (g.required_parts ?? []).some((p) => p.toLowerCase().includes(q)) ||
                 dateStr.includes(q)
               );
             });

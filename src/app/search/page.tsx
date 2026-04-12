@@ -29,6 +29,7 @@ type RealGuide = {
   created_at: string;
   thumbnail_url?: string | null;
   tools?: string[];
+  required_parts?: string[];
 };
 
 const FORUM_RESULTS: ForumResult[] = [
@@ -123,6 +124,7 @@ function SearchPageComponent() {
         item.difficulty,
         item.time_required,
         ...(item.tools ?? []),
+        ...(item.required_parts ?? []),
       ].join(" ").toLowerCase();
       return keywords.every((k) => haystack.includes(k));
     });
@@ -320,6 +322,7 @@ function SearchGuideCard({
 }) {
   const diffColor = DIFFICULTY_COLORS[guide.difficulty] ?? "bg-secondary text-muted-foreground border-border";
   const href = `/guides/${guide.brand_id}/${guide.model_id}/${guide.guide_id}`;
+  const hasThumbnail = !!guide.thumbnail_url;
   const thumbnailSrc = guide.thumbnail_url ?? "/no-thumbnail.png";
 
   return (
@@ -334,7 +337,7 @@ function SearchGuideCard({
           <img
             src={thumbnailSrc}
             alt={guide.title}
-            className="w-full h-full object-cover"
+            className={`w-full h-full object-cover${!hasThumbnail ? " opacity-70" : ""}`}
             onError={(e) => {
               const img = e.target as HTMLImageElement;
               if (!img.dataset.errored) { img.dataset.errored = "1"; img.src = "/no-thumbnail.png"; } else { img.style.display = "none"; }
@@ -352,6 +355,16 @@ function SearchGuideCard({
           </div>
           <h3 className="text-sm font-bold leading-snug line-clamp-2">{guide.title}</h3>
           <p className="text-xs text-muted-foreground leading-relaxed flex-1 line-clamp-2">{guide.summary}</p>
+          {guide.required_parts && guide.required_parts.length > 0 && (
+            <div className="flex flex-wrap gap-1 pt-1">
+              {guide.required_parts.slice(0, 3).map((p, i) => (
+                <span key={i} className="text-[9px] bg-blue-50 border border-blue-200 text-blue-700 px-1.5 py-0.5 font-medium">{p}</span>
+              ))}
+              {guide.required_parts.length > 3 && (
+                <span className="text-[9px] text-muted-foreground">+{guide.required_parts.length - 3} more</span>
+              )}
+            </div>
+          )}
           <div className="pt-2 border-t border-border mt-auto flex items-center justify-between">
             <span className="text-[10px] font-mono text-muted-foreground">{guide.time_required}</span>
             <span className="text-[10px] font-bold text-primary group-hover:underline tracking-wide">

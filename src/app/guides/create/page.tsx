@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import {
   ChevronRight, ChevronLeft, Plus, Trash2, Upload, X,
-  AlertCircle, CheckCircle, Clock, Wrench, BookOpen,
+  AlertCircle, CheckCircle, Clock, Wrench, BookOpen, Package,
   ImageIcon, Video, RefreshCw, Send, ZoomIn, ZoomOut, Move,
 } from "lucide-react";
 
@@ -151,6 +151,8 @@ function CreateGuideForm() {
   const [timeReq,    setTimeReq]    = useState("");
   const [toolInput,  setToolInput]  = useState("");
   const [tools,      setTools]      = useState<string[]>([]);
+  const [partsInput, setPartsInput] = useState("");
+  const [parts,      setParts]      = useState<string[]>([]);
   const [thumbnail,  setThumbnail]  = useState<File|null>(null);
   const [thumbPreview,setThumbPreview] = useState("");
   const [thumbUrl,   setThumbUrl]   = useState("");
@@ -263,7 +265,7 @@ function CreateGuideForm() {
       const url    = guideId ? `/api/guides/${guideId}` : "/api/guides";
       const res    = await fetch(url, {
         method, headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brand_id: brandId, model_id: modelId, model_name: modelName, title, summary, introduction: note, difficulty, time_required: timeReq, tools }),
+        body: JSON.stringify({ brand_id: brandId, model_id: modelId, model_name: modelName, title, summary, introduction: note, difficulty, time_required: timeReq, tools, required_parts: parts }),
       });
       const json = await res.json();
       if (!res.ok) { setError(json.error ?? "Failed to save."); return; }
@@ -556,6 +558,24 @@ function CreateGuideForm() {
                 </div>
               </div>
               <div className="space-y-1.5">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block"><Package size={11} className="inline mr-1"/> Required Parts</label>
+                <div className="flex gap-2">
+                  <input type="text" value={partsInput} onChange={e=>setPartsInput(e.target.value)}
+                    onKeyDown={e=>{if(e.key==="Enter"&&partsInput.trim()){e.preventDefault();setParts(t=>[...t,partsInput.trim()]);setPartsInput("");}}}
+                    placeholder="Type a part name and press Enter..." className="flex-1 border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:border-ink"/>
+                  <button type="button" onClick={()=>{if(partsInput.trim()){setParts(t=>[...t,partsInput.trim()]);setPartsInput("");}}} className="px-3 py-2 border border-border hover:bg-secondary transition-colors"><Plus size={14}/></button>
+                </div>
+                {parts.length>0&&(
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {parts.map((p,i)=>(
+                      <span key={i} className="inline-flex items-center gap-1.5 bg-secondary border border-border text-xs px-2 py-1 font-medium">
+                        {p}<button onClick={()=>setParts(prev=>prev.filter((_,j)=>j!==i))} className="hover:text-red-500"><X size={11}/></button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="space-y-1.5">
                 <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block"><Wrench size={11} className="inline mr-1"/> Required Tools</label>
                 <div className="flex gap-2">
                   <input type="text" value={toolInput} onChange={e=>setToolInput(e.target.value)}
@@ -692,6 +712,7 @@ function CreateGuideForm() {
                 {/* UPDATED 4.3: label is now "Note" */}
                 <div><span className="font-bold">Note:</span> {note.trim() || <span className="text-muted-foreground italic">None</span>}</div>
                 <div><span className="font-bold">Required Tools:</span> {tools.length > 0 ? tools.join(", ") : <span className="text-muted-foreground italic">None</span>}</div>
+                <div><span className="font-bold">Required Parts:</span> {parts.length > 0 ? parts.join(", ") : <span className="text-muted-foreground italic">None</span>}</div>
               </div>
 
               {/* UPDATED 4.4: Steps with large images */}

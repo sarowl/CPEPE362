@@ -7,13 +7,13 @@ import Link from "next/link";
 import Image from "next/image";
 import Navbar from "@/components/Navbar";
 import {
-  Clock, Wrench, ChevronRight, ArrowLeft, User,
+  Clock, Wrench, Package, ChevronRight, ArrowLeft, User,
   AlertCircle, BookOpen, Video, ThumbsUp, ThumbsDown, RefreshCw,
 } from "lucide-react";
 
 interface Guide {
   guide_id: string; title: string; summary: string; introduction: string;
-  difficulty: string; time_required: string; tools: string[];
+  difficulty: string; time_required: string; tools: string[]; required_parts: string[];
   status: string; brand_id: string; model_name: string; user_id: string;
   created_at: string;
   thumbnail_url?: string | null;
@@ -254,6 +254,20 @@ export default function GuideViewPage() {
               <div className="flex flex-wrap gap-2">
                 {guide.tools.map((t, i) => (
                   <span key={i} className="text-xs bg-secondary border border-border px-2 py-0.5 font-medium">{t}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Required Parts */}
+          {guide.required_parts?.length > 0 && (
+            <div className="mb-4">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-1.5">
+                <Package size={11} /> Required Parts
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {guide.required_parts.map((p: string, i: number) => (
+                  <span key={i} className="text-xs bg-blue-50 border border-blue-200 text-blue-700 px-2 py-0.5 font-medium">{p}</span>
                 ))}
               </div>
             </div>
