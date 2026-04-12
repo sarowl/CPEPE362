@@ -1,19 +1,5 @@
 "use client";
 
-// ================================================================
-// FILE: src/components/Navbar.tsx
-//
-// UPDATED (Spec 2):
-// - SECTION 1: Auto Hub icon now has DEFAULT state (autohub-icon-default.png)
-//   and HOVER state (autohub-icon-hover.png) with smooth fade transition.
-//   State is controlled by React hover state on the dropdown item.
-// - SECTION 2.1: Header bookmark icon updated to bookmark-icon.png
-//   with glow effect on hover (drop-shadow filter).
-// - SECTION 3: Clicking the bookmark icon navigates to /bookmarks
-//   (the bookmarks page shows all bookmarked guides - same layout
-//    as Profile → Bookmarks tab).
-// ================================================================
-
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
