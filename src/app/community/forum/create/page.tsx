@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
@@ -21,14 +21,52 @@ const BRANDS = [
   { name: "MG", id: "mg" },
 ];
 
+interface CarModel {
+  id: string;
+  name: string;
+  slug: string;
+  category: string;
+  years: string;
+}
+
 export default function ForumPostCreatePage() {
   const router = useRouter();
 
   const [brand, setBrand] = useState("");
+  const [modelId, setModelId] = useState("");
+  const [models, setModels] = useState<CarModel[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!brand) {
+      setModels([]);
+      setModelId("");
+      return;
+    }
+
+    async function fetchModels() {
+      try {
+        setModelsLoading(true);
+        setModelId("");
+        const res = await fetch(`/api/car-models/${brand}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to fetch models");
+        setModels(data.models);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : "Failed to fetch models";
+        console.error(message);
+        setModels([]);
+      } finally {
+        setModelsLoading(false);
+      }
+    }
+
+    fetchModels();
+  }, [brand]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,6 +79,7 @@ export default function ForumPostCreatePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           brand_id: brand,
+          model_id: modelId || null,
           title,
           content,
         }),
@@ -107,6 +146,32 @@ export default function ForumPostCreatePage() {
             </select>
           </div>
 
+          {/* Model Selector */}
+          <div className="flex flex-col gap-2">
+            <label className="font-mono text-[10px] uppercase tracking-widest font-bold text-muted-foreground">
+              Car Model <span className="text-muted-foreground">(Optional)</span>
+            </label>
+            <select
+              value={modelId}
+              onChange={(e) => setModelId(e.target.value)}
+              disabled={!brand || modelsLoading}
+              className="bg-background border border-border px-4 py-3 font-mono text-sm text-ink focus:outline-none focus:border-primary transition-colors appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <option value="">
+                {!brand
+                  ? "Select a brand first"
+                  : modelsLoading
+                  ? "Loading models..."
+                  : "Select a model (optional)"}
+              </option>
+              {models.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* Post Title */}
           <div className="flex flex-col gap-2">
             <label className="font-mono text-[10px] uppercase tracking-widest font-bold text-muted-foreground">
@@ -147,7 +212,7 @@ export default function ForumPostCreatePage() {
             <button
               type="submit"
               disabled={submitting}
-              className="bg-primary text-white px-8 py-3 font-mono text-xs font-bold uppercase tracking-widest hover:brightness-110 transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-primary text-white px-8 py-3 font-mono text-xs font-bold uppercase tracking-widest hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? "Submitting..." : "Submit Post"}
             </button>

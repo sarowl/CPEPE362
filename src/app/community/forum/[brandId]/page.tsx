@@ -154,7 +154,7 @@ export default function BrandForumPage() {
               </Link>
               <Link
                 href="/community/forum/create"
-                className="bg-orange-500 text-white px-6 py-2 font-mono text-xs font-bold uppercase tracking-widest hover:brightness-110 transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
+                className="bg-orange-500 text-white px-6 py-2 font-mono text-xs font-bold uppercase tracking-widest hover:brightness-110 transition-all"
               >
                 + Create Post
               </Link>
@@ -197,7 +197,7 @@ export default function BrandForumPage() {
               <Link
                 key={post.forum_id}
                 href={`/community/forum/${brandId}/${post.forum_id}`}
-                className="group relative flex flex-col bg-background border border-border transition-all duration-200 hover:border-orange-500 hover:-translate-y-1 hover:shadow-[8px_8px_0px_0px_#f97316] overflow-hidden"
+                className="group relative flex flex-col bg-background border border-border transition-all duration-200 hover:border-orange-500 hover:-translate-y-1 overflow-hidden"
               >
                 {/* Post Title */}
                 <div className="p-5 flex-1">
