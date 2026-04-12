@@ -1,10 +1,6 @@
 "use client";
 
-<<<<<<< HEAD
-import { useEffect, useState } from "react";
-=======
 import { useEffect, useState, useRef } from "react";
->>>>>>> origin/development
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import {
@@ -224,8 +220,6 @@ export default function Navbar() {
           <Search size={20} />
         </button>
 
-<<<<<<< HEAD
-=======
         {user && (
           <>
             {/* Bookmarks */}
@@ -317,7 +311,7 @@ export default function Navbar() {
         )}
 
         {/* User menu / Auth buttons */}
->>>>>>> origin/development
+
         {user ? (
           <div className="group relative h-full flex items-center">
             <button className="flex items-center gap-2 text-primary-foreground/70 group-hover:text-primary-foreground transition-colors">
