@@ -1,3 +1,13 @@
+// ================================================================
+// Admin-only endpoint for the Guide History tab.
+//
+//  GET  → returns all reviewed (approved/rejected) guides
+//         EXCLUDING ones soft-deleted by admin (hidden from history)
+//
+//  DELETE ?guide_id=xxx → soft-deletes from admin history ONLY
+//         Does NOT remove the actual guide from the DB
+// ================================================================
+
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { isAdminEmail } from "@/lib/adminAccounts";

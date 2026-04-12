@@ -34,8 +34,8 @@ export async function POST(req: Request) {
 
     const ext = (file.name.split(".").pop() ?? "jpg").toLowerCase();
 
-    // Storage path: Car_Models/<brand_id>/<slug>/image.<ext>
-    const storagePath = `Car_Models/${brand_id}/${slug}/image.${ext}`;
+    // V2 storage path: car_models/<brand_id>/<slug>/image.<ext>
+    const storagePath = `car_models/${brand_id}/${slug}/image.${ext}`;
 
     const supabase = createAdminClient();
 

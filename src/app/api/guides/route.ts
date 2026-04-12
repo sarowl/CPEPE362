@@ -1,20 +1,15 @@
 // ================================================================
-// FILE: src/app/api/guides/route.ts
-//
-// UPDATED (Spec 2 - Section 6):
-// - GET now includes `thumbnail_url` in all guide select queries
-//   so that guide cards throughout the app can display the actual
-//   uploaded thumbnail instead of the fallback image.
+// PURPOSE: CRUD operations for the guides table
+//   GET  /api/guides          → returns all guides owned by the current user
+//   POST /api/guides          → creates a new draft guide (no steps yet)
 // ================================================================
 
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 
-export async function GET(req: Request) {
+// ── GET — fetch current user's guides ────────────────────────
+export async function GET() {
   try {
-    const { searchParams } = new URL(req.url);
-    const mine = searchParams.get("mine") === "1";
-
     const supabase = await createClient();
     const { data: guides, error } = await supabase
       .from("guides")
@@ -33,6 +28,7 @@ export async function GET(req: Request) {
   }
 }
 
+// ── POST — create a new draft guide ──────────────────────────
 export async function POST(req: Request) {
   try {
     const supabase = await createClient();
@@ -44,7 +40,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { brand_id, model_id, model_name, title, summary, introduction, difficulty, time_required, tools } = body;
 
-    if (!brand_id || !model_id || !title || !summary || !difficulty || !time_required) {
+    if (!brand_id || !model_id || !title || !summary || !introduction || !difficulty || !time_required) {
       return NextResponse.json({ error: "Missing required fields." }, { status: 400 });
     }
 
@@ -53,8 +49,7 @@ export async function POST(req: Request) {
       .insert([{
         user_id: authData.user.id,
         brand_id, model_id, model_name,
-        title, summary,
-        introduction: introduction || "",
+        title, summary, introduction,
         difficulty, time_required,
         tools: tools ?? [],
         status: "draft",

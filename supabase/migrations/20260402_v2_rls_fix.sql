@@ -1,3 +1,13 @@
+-- ================================================================
+-- V2 Req #7: Replace old anon-based RLS policies with
+-- authenticated-only policies as specified in the requirements.
+--
+-- Also adds:
+--  - guide_likes table RLS fix (ensure authenticated insert works)
+--  - admin_hidden_guides RLS
+-
+-- ================================================================
+
 -- ── Guides: allow authenticated users to read all (for admin review)
 DROP POLICY IF EXISTS "admin_select_all_guides" ON public.guides;
 CREATE POLICY "admin_select_all_guides"

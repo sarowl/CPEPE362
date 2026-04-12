@@ -1,12 +1,27 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback, Suspense } from "react";
+// ================================================================
+// FILE: src/app/guides/create/page.tsx
+//
+// FIX (User Fix #3): Redirect user to login page when they click
+//   "Create Guide" but have not logged in yet.
+//
+//   Added an auth check useEffect that runs on mount:
+//   - Calls GET /api/guides (which returns 401 if unauthenticated).
+//   - If 401 is returned, the user is redirected to /login with
+//     a ?redirect=/guides/create query param so they land back
+//     here after logging in.
+//   - Shows a loading screen while the auth check is in progress
+//     to prevent a flash of the form before the redirect fires.
+// ================================================================
+
+import { useState, useRef, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import {
   ChevronRight, ChevronLeft, Plus, Trash2, Upload, X,
   AlertCircle, CheckCircle, Clock, Wrench, BookOpen,
-  ImageIcon, Video, RefreshCw, Send, ZoomIn, ZoomOut, Move,
+  ImageIcon, Video, RefreshCw, Send,
 } from "lucide-react";
 
 const BRANDS = [
@@ -19,7 +34,6 @@ const BRANDS = [
 ];
 
 const DIFFICULTIES = ["Beginner", "Intermediate", "Advanced", "Expert"] as const;
-const THUMB_ASPECT = 16 / 9;
 
 interface CarModel { id: string; name: string; category: string; years: string; }
 interface StepDraft {
@@ -30,112 +44,35 @@ function emptyStep(n: number): StepDraft {
   return { step_number: n, title: "", instructions: "", images: [], imageFiles: [null,null,null], imagePreviews: ["","",""], video_url: "" };
 }
 
-// ── Thumbnail Cropper ────────────────────────────────────────────
-// Fixed 16:9 aspect-ratio crop tool with zoom + pan.
-function ThumbnailCropper({
-  src, onCropped, onCancel,
-}: { src: string; onCropped: (blob: Blob) => void; onCancel: () => void }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const imgRef    = useRef<HTMLImageElement | null>(null);
-  const [zoom, setZoom]     = useState(1);
-  const [offset, setOffset] = useState({ x: 0, y: 0 });
-  const [dragging, setDragging] = useState(false);
-  const dragStart = useRef({ mx: 0, my: 0, ox: 0, oy: 0 });
-
-  const CROP_W = 480;
-  const CROP_H = Math.round(CROP_W / THUMB_ASPECT); // 270
-
-  const draw = useCallback(() => {
-    const canvas = canvasRef.current;
-    const img    = imgRef.current;
-    if (!canvas || !img) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.clearRect(0, 0, CROP_W, CROP_H);
-    const scale = Math.max(CROP_W / img.naturalWidth, CROP_H / img.naturalHeight) * zoom;
-    const dw = img.naturalWidth  * scale;
-    const dh = img.naturalHeight * scale;
-    const dx = (CROP_W - dw) / 2 + offset.x;
-    const dy = (CROP_H - dh) / 2 + offset.y;
-    ctx.drawImage(img, dx, dy, dw, dh);
-  }, [zoom, offset]);
-
-  useEffect(() => {
-    const img = new Image();
-    img.onload = () => { imgRef.current = img; draw(); };
-    img.src = src;
-  }, [src]);
-
-  useEffect(() => { draw(); }, [draw]);
-
-  const onMouseDown = (e: React.MouseEvent) => {
-    setDragging(true);
-    dragStart.current = { mx: e.clientX, my: e.clientY, ox: offset.x, oy: offset.y };
-  };
-  const onMouseMove = (e: React.MouseEvent) => {
-    if (!dragging) return;
-    setOffset({
-      x: dragStart.current.ox + (e.clientX - dragStart.current.mx),
-      y: dragStart.current.oy + (e.clientY - dragStart.current.my),
-    });
-  };
-  const onMouseUp = () => setDragging(false);
-
-  const handleCrop = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    canvas.toBlob((blob) => { if (blob) onCropped(blob); }, "image/jpeg", 0.92);
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/80 px-4">
-      <div className="bg-background border border-border p-5 w-full max-w-lg shadow-[6px_6px_0_0_var(--ink)]">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-black uppercase tracking-tighter text-sm">Crop Thumbnail (16:9)</h3>
-          <button onClick={onCancel} className="p-1 hover:bg-secondary rounded"><X size={14} /></button>
-        </div>
-        <p className="text-[10px] text-muted-foreground mb-3">Drag to pan · Use zoom buttons to adjust</p>
-        {/* Canvas crop area */}
-        <div className="relative border border-border overflow-hidden cursor-move select-none"
-          style={{ width: CROP_W, maxWidth: "100%", aspectRatio: `${CROP_W}/${CROP_H}` }}
-          onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp} onMouseLeave={onMouseUp}
-        >
-          <canvas ref={canvasRef} width={CROP_W} height={CROP_H} className="w-full h-full" />
-        </div>
-        {/* Zoom controls */}
-        <div className="flex items-center gap-3 mt-3">
-          <button onClick={() => setZoom((z) => Math.max(0.5, z - 0.1))} className="p-1.5 border border-border hover:bg-secondary rounded"><ZoomOut size={14} /></button>
-          <input type="range" min={0.5} max={3} step={0.05} value={zoom} onChange={(e) => setZoom(Number(e.target.value))} className="flex-1" />
-          <button onClick={() => setZoom((z) => Math.min(3, z + 0.1))} className="p-1.5 border border-border hover:bg-secondary rounded"><ZoomIn size={14} /></button>
-          <span className="text-[10px] font-mono w-12 text-right">{(zoom * 100).toFixed(0)}%</span>
-        </div>
-        <div className="flex justify-end gap-3 mt-4">
-          <button onClick={onCancel} className="px-4 py-2 text-xs font-bold border border-border hover:bg-secondary">Cancel</button>
-          <button onClick={handleCrop} className="px-4 py-2 text-xs font-bold bg-ink text-white hover:bg-ink/80">Apply Crop</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Inner form component ─────────────────────────────────────────
+// ── Inner form component (needs useSearchParams so must be inside Suspense) ──
 function CreateGuideForm() {
   const router       = useRouter();
   const searchParams = useSearchParams();
   const [wizardStep, setWizardStep] = useState<1|2|3>(1);
+
+  // ── Auth guard (User Fix #3) ────────────────────────────────
+  // Check if the user is logged in before rendering the form.
+  // /api/guides returns 401 for unauthenticated requests.
   const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
     fetch("/api/guides")
       .then((res) => {
         if (res.status === 401) {
+          // Not logged in — redirect to login, return here after
           router.replace("/login?redirect=/guides/create");
-        } else { setAuthChecked(true); }
+        } else {
+          setAuthChecked(true);
+        }
       })
-      .catch(() => setAuthChecked(true));
+      .catch(() => {
+        // Network error — still allow the form to render
+        setAuthChecked(true);
+      });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Pre-populate from query params: ?brand=toyota&model=<modelId>
   const paramBrand = searchParams.get("brand") ?? "";
   const paramModel = searchParams.get("model") ?? "";
 
@@ -146,18 +83,11 @@ function CreateGuideForm() {
   const [loadingMods,setLoadingMods]= useState(false);
   const [title,      setTitle]      = useState("");
   const [summary,    setSummary]    = useState("");
-  const [note,       setNote]       = useState(""); // UPDATED 4.3: was "intro"
+  const [intro,      setIntro]      = useState("");
   const [difficulty, setDifficulty] = useState("");
   const [timeReq,    setTimeReq]    = useState("");
   const [toolInput,  setToolInput]  = useState("");
   const [tools,      setTools]      = useState<string[]>([]);
-  const [thumbnail,  setThumbnail]  = useState<File|null>(null);
-  const [thumbPreview,setThumbPreview] = useState("");
-  const [thumbUrl,   setThumbUrl]   = useState("");
-  const [uploadingThumb,setUploadingThumb] = useState(false);
-  const thumbInputRef = useRef<HTMLInputElement|null>(null);
-  // UPDATED 4.2: Cropper state
-  const [cropSrc,    setCropSrc]    = useState<string | null>(null);
   const [steps,      setSteps]      = useState<StepDraft[]>([emptyStep(1)]);
   const [guideId,    setGuideId]    = useState<string|null>(null);
   const [saving,     setSaving]     = useState(false);
@@ -165,14 +95,25 @@ function CreateGuideForm() {
   const [error,      setError]      = useState("");
   const [submitted,  setSubmitted]  = useState(false);
   const fileInputRefs = useRef<(HTMLInputElement|null)[][]>([]);
+  // Track uploading state per (stepIdx-slotIdx) key for visual feedback
   const [uploadingSlots, setUploadingSlots] = useState<Record<string,boolean>>({});
 
+  // [V2 Req #3] Auto-load models when brand is pre-selected from URL params.
+  // Without this useEffect, the models list stays empty and the model dropdown
+  // shows "Select model" even when a model was passed via ?brand=x&model=y.
+  //
+  // FIX (V2 Req #3): useSearchParams() inside a Suspense boundary returns ""
+  // on the first render. useState(paramBrand) captures that empty string as
+  // initial state, so brandId stays "" even when ?brand=toyota is in the URL.
+  // After auth resolves, searchParams are stable — re-read them here and
+  // explicitly set brandId so the dropdown is populated and the model selected.
   useEffect(() => {
     if (!authChecked) return;
     const brand = searchParams.get("brand") ?? "";
     const model = searchParams.get("model") ?? "";
     if (!brand) return;
-    setBrandId(brand);
+
+    setBrandId(brand); // sync in case useState initialised with ""
     setLoadingMods(true);
     fetch(`/api/car-models/${brand}`)
       .then((r) => r.json())
@@ -187,8 +128,9 @@ function CreateGuideForm() {
       })
       .catch(() => setLoadingMods(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authChecked]);
+  }, [authChecked]); // runs once, after auth resolves and searchParams are stable
 
+  // Show loading while auth check runs
   if (!authChecked) {
     return (
       <div className="min-h-screen bg-paper text-ink flex flex-col">
@@ -202,6 +144,7 @@ function CreateGuideForm() {
     );
   }
 
+  // Load models when brand changes (or on mount if brand pre-set from query)
   const loadModels = (bid: string) => {
     if (!bid) { setModels([]); setModelId(""); setModelName(""); return; }
     setLoadingMods(true);
@@ -218,42 +161,10 @@ function CreateGuideForm() {
       });
   };
 
-  // UPDATED 4.2: File selected → open cropper for 16:9 enforcement
-  const handleThumbnailFileSelect = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      if (e.target?.result) setCropSrc(e.target.result as string);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  // After cropping: set the cropped blob as the thumbnail
-  const handleCropDone = (blob: Blob) => {
-    setCropSrc(null);
-    const croppedFile = new File([blob], "thumbnail.jpg", { type: "image/jpeg" });
-    const preview = URL.createObjectURL(croppedFile);
-    setThumbnail(croppedFile);
-    setThumbPreview(preview);
-  };
-
-  const uploadThumbnailForGuide = async (gId: string) => {
-    if (!thumbnail) return;
-    setUploadingThumb(true);
-    try {
-      const fd = new FormData();
-      fd.append("file", thumbnail);
-      fd.append("guide_id", gId);
-      fd.append("is_thumbnail", "true"); // UPDATED 8: new storage path
-      const res  = await fetch("/api/guides-image-upload", { method: "POST", body: fd });
-      const json = await res.json();
-      if (res.ok) setThumbUrl(json.url);
-    } catch {}
-    setUploadingThumb(false);
-  };
-
+  // Step 1 → 2: save draft intro
   const handleSaveIntro = async () => {
     setError("");
-    if (!brandId || !modelId || !title.trim() || !summary.trim() || !difficulty || !timeReq.trim()) {
+    if (!brandId || !modelId || !title.trim() || !summary.trim() || !intro.trim() || !difficulty || !timeReq.trim()) {
       setError("Please fill in all required fields before continuing."); return;
     }
     setSaving(true);
@@ -262,19 +173,17 @@ function CreateGuideForm() {
       const url    = guideId ? `/api/guides/${guideId}` : "/api/guides";
       const res    = await fetch(url, {
         method, headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brand_id: brandId, model_id: modelId, model_name: modelName, title, summary, introduction: note, difficulty, time_required: timeReq, tools }),
+        body: JSON.stringify({ brand_id: brandId, model_id: modelId, model_name: modelName, title, summary, introduction: intro, difficulty, time_required: timeReq, tools }),
       });
       const json = await res.json();
       if (!res.ok) { setError(json.error ?? "Failed to save."); return; }
-      const newGuideId = json.guide.guide_id ?? guideId;
-      setGuideId(newGuideId);
-      if (thumbnail && newGuideId) await uploadThumbnailForGuide(newGuideId);
+      setGuideId(json.guide.guide_id ?? guideId);
       setWizardStep(2);
     } catch { setError("Network error. Please try again."); }
     finally { setSaving(false); }
   };
 
-  // UPDATED 8: Pass step_number to image upload
+  // Image select + upload
   const handleImageSelect = async (stepIdx: number, slotIdx: number, file: File) => {
     if (!guideId) return;
     const slotKey = `${stepIdx}-${slotIdx}`;
@@ -287,10 +196,7 @@ function CreateGuideForm() {
       next[stepIdx].imagePreviews[slotIdx] = preview;
       return next;
     });
-    const fd = new FormData();
-    fd.append("file", file);
-    fd.append("guide_id", guideId);
-    fd.append("step_number", String(steps[stepIdx].step_number)); // UPDATED 8
+    const fd = new FormData(); fd.append("file", file); fd.append("guide_id", guideId);
     const res  = await fetch("/api/guides-image-upload", { method: "POST", body: fd });
     const json = await res.json();
     if (res.ok) {
@@ -317,6 +223,7 @@ function CreateGuideForm() {
   const removeStep = (i: number) => setSteps((p) => p.filter((_,j)=>j!==i).map((s,j)=>({...s,step_number:j+1})));
   const updateStep = (i: number, f: keyof StepDraft, v: string) => setSteps((p) => { const n=[...p]; (n[i] as any)[f]=v; return n; });
 
+  // Step 2 → 3: save steps
   const handleSaveSteps = async () => {
     setError("");
     if (!steps.every((s) => s.instructions.trim())) { setError("Each step must have instructions."); return; }
@@ -331,6 +238,7 @@ function CreateGuideForm() {
     finally { setSaving(false); }
   };
 
+  // Step 3: submit for review
   const handleSubmit = async () => {
     if (!guideId) return;
     setError(""); setSubmitting(true);
@@ -343,6 +251,7 @@ function CreateGuideForm() {
     finally { setSubmitting(false); }
   };
 
+  // Success screen
   if (submitted) {
     return (
       <div className="min-h-screen bg-paper text-ink flex flex-col"><Navbar />
@@ -364,14 +273,6 @@ function CreateGuideForm() {
   return (
     <div className="min-h-screen bg-paper text-ink flex flex-col animate-fade-in">
       <Navbar />
-      {/* UPDATED 4.2: Thumbnail Cropper overlay */}
-      {cropSrc && (
-        <ThumbnailCropper
-          src={cropSrc}
-          onCropped={handleCropDone}
-          onCancel={() => setCropSrc(null)}
-        />
-      )}
       <main className="flex-1 w-full max-w-4xl mx-auto px-6 py-8">
 
         {/* Page header */}
@@ -427,50 +328,21 @@ function CreateGuideForm() {
               </div>
             </div>
 
-            {/* Guide info — UPDATED 4.1: Title first, then Thumbnail, then other fields */}
+            {/* Guide info */}
             <div className="border border-border bg-background p-6">
               <h2 className="font-black uppercase tracking-tighter text-sm mb-4 flex items-center gap-2"><BookOpen size={15} className="text-primary"/> Guide Info</h2>
               <div className="space-y-4">
-                {/* Title — first */}
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block">Title <span className="text-primary">*</span></label>
                   <input type="text" value={title} onChange={e=>setTitle(e.target.value)} placeholder='"How to Replace Brake Pads on a Toyota Corolla"' className="w-full border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:border-ink"/>
                 </div>
-
-                {/* UPDATED 4.1 + 4.2: Thumbnail immediately after Title */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block flex items-center gap-1.5">
-                    <ImageIcon size={11}/> Thumbnail <span className="text-muted-foreground font-normal normal-case tracking-normal">(optional – 16:9, cropped)</span>
-                  </label>
-                  <div className="flex items-start gap-4">
-                    {/* Fixed 16:9 preview box */}
-                    <div className={`relative border border-dashed flex items-center justify-center overflow-hidden transition-all bg-secondary/30 ${thumbPreview ? "border-primary/60" : "border-border"}`}
-                      style={{ width: 160, aspectRatio: "16/9" }}>
-                      {thumbPreview ? (
-                        <><img src={thumbPreview} alt="Thumbnail" className="w-full h-full object-cover"/>
-                        <button onClick={()=>{setThumbnail(null);setThumbPreview("");setThumbUrl("");}} className="absolute top-1 right-1 bg-ink/70 text-white p-0.5 rounded hover:bg-ink"><X size={10}/></button></>
-                      ) : (
-                        <button onClick={()=>thumbInputRef.current?.click()} className="flex flex-col items-center gap-1 text-muted-foreground hover:text-primary p-2 transition-all">
-                          <Upload size={16}/><span className="text-[9px] font-bold uppercase tracking-widest">Add Thumbnail</span>
-                        </button>
-                      )}
-                      <input type="file" accept="image/*" className="hidden" ref={thumbInputRef}
-                        onChange={e=>{const f=e.target.files?.[0];if(f)handleThumbnailFileSelect(f);e.target.value="";}}/>
-                    </div>
-                    <div className="text-xs text-muted-foreground leading-relaxed mt-1 max-w-xs">
-                      Cover image shown in guide listings. Will be cropped to <strong>16:9</strong> aspect ratio. Use the crop tool to zoom and adjust.
-                    </div>
-                  </div>
-                </div>
-
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block">Summary <span className="text-primary">*</span> <span className="text-muted-foreground font-normal normal-case tracking-normal">(1–2 sentences)</span></label>
                   <textarea value={summary} onChange={e=>setSummary(e.target.value)} rows={2} placeholder="Briefly describe what this guide covers..." className="w-full border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:border-ink resize-none"/>
                 </div>
-                {/* UPDATED 4.3: Renamed "Introduction" → "Note" */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block">Note <span className="text-muted-foreground font-normal normal-case tracking-normal">(optional — background, warnings)</span></label>
-                  <textarea value={note} onChange={e=>setNote(e.target.value)} rows={4} placeholder="Describe any special requirements, hazards, or reasons for this repair..." className="w-full border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:border-ink resize-none"/>
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block">Introduction <span className="text-primary">*</span> <span className="text-muted-foreground font-normal normal-case tracking-normal">(background, warnings)</span></label>
+                  <textarea value={intro} onChange={e=>setIntro(e.target.value)} rows={4} placeholder="Describe any special requirements, hazards, or reasons for this repair..." className="w-full border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:border-ink resize-none"/>
                 </div>
               </div>
             </div>
@@ -514,7 +386,7 @@ function CreateGuideForm() {
             </div>
 
             <div className="flex justify-end">
-              <button onClick={handleSaveIntro} disabled={saving||uploadingThumb} className="flex items-center gap-2 px-6 py-2.5 bg-ink text-white text-xs font-bold hover:bg-ink/80 disabled:opacity-60">
+              <button onClick={handleSaveIntro} disabled={saving} className="flex items-center gap-2 px-6 py-2.5 bg-ink text-white text-xs font-bold hover:bg-ink/80 disabled:opacity-60">
                 {saving?<><RefreshCw size={13} className="animate-spin"/> Saving...</>:<>Continue to Steps <ChevronRight size={13}/></>}
               </button>
             </div>
@@ -597,67 +469,34 @@ function CreateGuideForm() {
           </div>
         )}
 
-        {/* ── STEP 3: REVIEW & SUBMIT ── UPDATED 4.4 ── */}
+        {/* ── STEP 3: REVIEW & SUBMIT ── */}
         {wizardStep===3&&(
           <div className="space-y-6">
             <div className="border border-border bg-background p-6">
               <h2 className="font-black uppercase tracking-tighter text-base mb-1">Review Your Guide</h2>
               <p className="text-xs text-muted-foreground mb-5">Check everything looks good before submitting for admin review.</p>
-
-              {/* UPDATED 4.4: Thumbnail FIRST */}
-              {thumbPreview && (
-                <div className="mb-5">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Thumbnail</p>
-                  <img
-                    src={thumbPreview}
-                    alt="Thumbnail"
-                    className="w-full max-w-md rounded border border-border object-cover"
-                    style={{ aspectRatio: "16/9" }}
-                  />
-                </div>
-              )}
-
-              {/* UPDATED 4.4: Title shown prominently */}
-              <h3 className="font-black uppercase tracking-tighter text-xl mb-4">{title}</h3>
-
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
                 {[{label:"Vehicle",value:`${BRANDS.find(b=>b.id===brandId)?.name??""} ${modelName}`},{label:"Difficulty",value:difficulty},{label:"Time",value:timeReq},{label:"Steps",value:`${steps.length} step${steps.length!==1?"s":""}`}].map(r=>(
                   <div key={r.label} className="bg-secondary px-4 py-3"><p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">{r.label}</p><p className="text-sm font-bold mt-0.5 truncate">{r.value}</p></div>
                 ))}
               </div>
               <div className="space-y-3 text-sm">
+                <div><span className="font-bold">Title:</span> {title}</div>
                 <div><span className="font-bold">Summary:</span> {summary}</div>
-                {/* UPDATED 4.3: label is now "Note" */}
-                <div><span className="font-bold">Note:</span> {note.trim() || <span className="text-muted-foreground italic">None</span>}</div>
-                <div><span className="font-bold">Required Tools:</span> {tools.length > 0 ? tools.join(", ") : <span className="text-muted-foreground italic">None</span>}</div>
+                {tools.length>0&&<div><span className="font-bold">Tools:</span> {tools.join(", ")}</div>}
               </div>
-
-              {/* UPDATED 4.4: Steps with large images */}
-              <div className="mt-5 border-t border-border pt-4 space-y-4">
+              <div className="mt-5 border-t border-border pt-4 space-y-2">
                 {steps.map(s=>(
-                  <div key={s.step_number} className="border border-border overflow-hidden">
-                    <div className="flex items-center gap-3 px-4 py-2.5 bg-secondary border-b border-border">
-                      <span className="w-6 h-6 bg-ink text-white text-[10px] font-black flex items-center justify-center shrink-0">{s.step_number}</span>
+                  <div key={s.step_number} className="flex items-start gap-3 py-2">
+                    <span className="w-6 h-6 bg-ink text-white text-[10px] font-black flex items-center justify-center shrink-0">{s.step_number}</span>
+                    <div className="flex-1 min-w-0">
                       {s.title&&<p className="text-xs font-bold">{s.title}</p>}
-                    </div>
-                    <div className="p-4 space-y-3">
-                      {/* UPDATED 4.4: Large clear images */}
-                      {(s.imagePreviews.some(Boolean) || s.images.some(Boolean)) && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                          {[0,1,2].map(i=>{
-                            const src=s.imagePreviews[i]||s.images[i];
-                            return src?(
-                              <img key={i} src={src}
-                                className="w-full aspect-video object-cover border border-border rounded"
-                                alt={`Step ${s.step_number} image ${i+1}`}
-                                onError={(e)=>{(e.target as HTMLImageElement).style.display="none";}}
-                              />
-                            ):null;
-                          })}
+                      <p className="text-xs text-muted-foreground line-clamp-2">{s.instructions}</p>
+                      {s.images.filter(Boolean).length>0&&(
+                        <div className="flex gap-1.5 mt-1.5">
+                          {s.images.filter(Boolean).map((url,i)=><img key={i} src={url} className="w-12 h-8 object-cover border border-border" alt=""/>)}
                         </div>
                       )}
-                      <p className="text-sm leading-relaxed">{s.instructions}</p>
-                      {s.video_url && <p className="text-[10px] text-primary mt-1">📹 Video attached</p>}
                     </div>
                   </div>
                 ))}
@@ -682,6 +521,7 @@ function CreateGuideForm() {
   );
 }
 
+// ── Wrapped export — useSearchParams requires Suspense ────────
 export default function CreateGuidePage() {
   return (
     <Suspense fallback={<div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">Loading...</div>}>

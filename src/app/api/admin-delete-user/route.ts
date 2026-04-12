@@ -1,3 +1,8 @@
+// ================================================================
+// PURPOSE: Delete a user — removes from Users table AND from
+// 
+// ================================================================
+
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { isAdminEmail } from "@/lib/adminAccounts";
