@@ -224,7 +224,7 @@ export default function HomePage() {
           Join thousands of DIY mechanics using Autobot to diagnose, repair, and maintain their vehicles.
         </p>
         <Link
-          href={user ? "/ai-assistant" : "/signup"}
+          href={user ? "/ai-repair" : "/signup"}
           className="inline-block bg-primary text-primary-foreground font-mono text-sm font-bold px-8 py-3 tracking-wide hover:opacity-90 transition-opacity"
         >
           {user ? "START DIAGNOSING →" : "JOIN AUTOBOT →"}

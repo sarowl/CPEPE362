@@ -14,7 +14,7 @@ type GeminiResult =
   | { type: "validation"; isValid: boolean };
 
 interface Props {
-  onSubmit: (problem: string, diagnoses: any[], vehicle: Vehicle | null) => void; // ← vehicle added
+  onSubmit: (problem: string, diagnoses: any[], vehicle: Vehicle | null) => void; 
 }
 
 async function getNextStep(
@@ -223,39 +223,35 @@ const ProblemEntryScreen = ({ onSubmit }: Props) => {
           <p className="text-xs text-amber-500 text-center">{garageFetchError}</p>
         )}
 
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" />
-          <input
+        <div className="flex items-end gap-2 border rounded-lg px-3 py-2 focus-within:ring-2 focus-within:ring-ring">
+          <Search className="h-4 w-4 text-muted-foreground mb-2 flex-shrink-0" />
+          <textarea
             value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+            onChange={(e) => {
+              setInput(e.target.value);
+              e.target.style.height = "auto";
+              e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSubmit();
+              }
+            }}
             disabled={loading}
-            placeholder={
-              phase === "initial"
-                ? "e.g. grinding noise when braking"
-                : "Your answer"
-            }
-            className="w-full pl-10 pr-12 py-3 border rounded-lg"
+            rows={1}
+            placeholder="Describe your problem…"
+            className="flex-1 resize-none bg-transparent outline-none text-sm py-1.5 custom-scrollbar"
+            style={{ maxHeight: "200px", overflowY: "auto" }}
           />
           <button
             onClick={handleSubmit}
             disabled={!input.trim() || loading}
-            className="absolute right-2 top-1/2 -translate-y-1/2 p-2"
+            className="flex-shrink-0 mb-0.5 p-1.5 rounded-lg bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
-            {loading ? <Loader2 className="animate-spin" /> : <ArrowRight />}
-          </button>
-        </div>
-
-        <div className="flex justify-center">
-          <button
-            onClick={handleOpenGarage}
-            className="flex items-center gap-2 text-sm"
-          >
-            {garageLoading
+            {loading
               ? <Loader2 className="h-4 w-4 animate-spin" />
-              : <Logs className="h-4 w-4" />
-            }
-            Browse Garage
+              : <ArrowRight className="h-4 w-4" />}
           </button>
         </div>
 
