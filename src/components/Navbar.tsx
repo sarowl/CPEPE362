@@ -1,12 +1,40 @@
 "use client";
- 
-import { useEffect, useState } from "react";
+
+import { useEffect, useState, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { Search, ChevronDown, Bookmark, Bell, User, Settings, LogOut, Car, FileText, Cpu, Users, MessageSquare, BookOpen } from "lucide-react";
+import {
+  Search, ChevronDown, Bookmark, Bell, User,
+  Settings, LogOut, Car, FileText, Cpu, Users,
+  MessageSquare, BookOpen,
+} from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
- 
+
+const profileCache: { data: any | null; fetchedAt: number | null } = {
+  data: null,
+  fetchedAt: null,
+};
+const CACHE_TTL_MS = 60_000; 
+
+async function fetchProfileOnce(): Promise<any> {
+  const now = Date.now();
+  if (profileCache.data && profileCache.fetchedAt && now - profileCache.fetchedAt < CACHE_TTL_MS) {
+    return profileCache.data;
+  }
+  const res = await fetch("/api/profile_fetch");
+  if (!res.ok) throw new Error("Failed to fetch profile");
+  const data = await res.json();
+  profileCache.data = data;
+  profileCache.fetchedAt = Date.now();
+  return data;
+}
+
+export function invalidateProfileCache() {
+  profileCache.data = null;
+  profileCache.fetchedAt = null;
+}
+
 export default function Navbar() {
   const router = useRouter();
   const pathname = usePathname();
@@ -16,7 +44,10 @@ export default function Navbar() {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
- 
+
+  const userRef = useRef<SupabaseUser | null>(null);
+  userRef.current = user;
+
   useEffect(() => {
     const {
       data: { subscription },
@@ -25,7 +56,7 @@ export default function Navbar() {
     });
     return () => subscription.unsubscribe();
   }, []);
- 
+
   useEffect(() => {
     if (!user) {
       setProfilePicture(null);
@@ -38,30 +69,24 @@ export default function Navbar() {
         if (data?.user?.profile_picture) {
           setProfilePicture(data.user.profile_picture);
         }
-      } catch {}
-    };
-    fetchProfilePicture();
-  }, [user]);
- 
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    router.push("/");
-  };
- 
+      })
+      .catch(() => {});
+
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 30_000);
+    return () => clearInterval(interval);
+
+  }, [user?.id]); 
+
   const fetchNotifications = async () => {
-    if (!user) return;
- 
+    if (!userRef.current) return;
     setNotificationsLoading(true);
     try {
-      const session = await supabase.auth.getSession();
-      const token = session.data.session?.access_token;
- 
-      if (!token) return;
- 
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
       const res = await fetch("/api/notification/fetch", {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
- 
       if (res.ok) {
         const data = await res.json();
         setNotifications(data.notifications ?? []);
@@ -72,22 +97,14 @@ export default function Navbar() {
       setNotificationsLoading(false);
     }
   };
- 
+
   const markNotificationsAsRead = async () => {
     if (!user || notifications.length === 0) return;
- 
     try {
-      const session = await supabase.auth.getSession();
-      const token = session.data.session?.access_token;
- 
-      if (!token) return;
- 
-      const unreadIds = notifications
-        .filter((n: any) => !n.is_read)
-        .map((n: any) => n.id);
- 
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      const unreadIds = notifications.filter((n) => !n.is_read).map((n) => n.id);
       if (unreadIds.length === 0) return;
- 
       const res = await fetch("/api/notification/mark-read", {
         method: "PATCH",
         headers: {
@@ -96,7 +113,6 @@ export default function Navbar() {
         },
         body: JSON.stringify({ ids: unreadIds }),
       });
- 
       if (res.ok) {
         setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
       }
@@ -104,15 +120,15 @@ export default function Navbar() {
       console.error("Error marking notifications as read:", err);
     }
   };
- 
-  useEffect(() => {
-    if (user) {
-      fetchNotifications();
-      const interval = setInterval(fetchNotifications, 30000);
-      return () => clearInterval(interval);
-    }
-  }, [user]);
- 
+
+  const handleSignOut = async () => {
+    invalidateProfileCache();
+    await supabase.auth.signOut();
+    router.push("/");
+  };
+
+  const unreadCount = notifications.filter((n) => !n.is_read).length;
+
   return (
     <nav className="bg-ink flex items-center px-6 h-14 shrink-0 sticky top-0 z-50 border-b border-white/10">
       {/* Logo */}
@@ -122,9 +138,10 @@ export default function Navbar() {
       >
         <span className="text-primary">AUTO</span>BOT
       </Link>
- 
+
+      {/* Desktop nav */}
       <div className="hidden md:flex items-center gap-2 h-full">
- 
+
         {/* Fix It dropdown */}
         <div className="group relative h-full flex items-center">
           <button
@@ -137,25 +154,24 @@ export default function Navbar() {
             Fix it{" "}
             <ChevronDown size={14} className="group-hover:rotate-180 transition-transform" />
           </button>
- 
           <div className="absolute top-14 left-0 w-[500px] flex flex-row bg-ink border border-white/10 shadow-xl rounded-b-md transition-all duration-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible translate-y-2 group-hover:translate-y-0 overflow-hidden">
             <HorizontalDropdownItem
               href="/car-makers"
-              icon={<FileText size={20}/>}
+              icon={<FileText size={20} />}
               title="Repair Guides"
               subtitle="Step-by-step manuals"
             />
             <div className="w-[1px] bg-white/10 self-stretch" />
             <HorizontalDropdownItem
               href="/ai-repair"
-              icon={<Cpu size={20}/>}
+              icon={<Cpu size={20} />}
               title="Autobot AI"
               subtitle="Smart diagnostic helper"
               isPro
             />
           </div>
         </div>
- 
+
         {/* Community dropdown */}
         <div className="group relative h-full flex items-center">
           <button
@@ -192,7 +208,8 @@ export default function Navbar() {
           </div>
         </div>
       </div>
- 
+
+      {/* Right side */}
       <div className="ml-auto flex items-center gap-5">
         {/* Search */}
         <button
@@ -202,8 +219,7 @@ export default function Navbar() {
         >
           <Search size={20} />
         </button>
- 
-        {/* SECTION 2.1 + SECTION 3: Bookmark icon with glow on hover, links to /bookmarks */}
+
         {user && (
           <>
             {/* Bookmarks */}
@@ -214,14 +230,14 @@ export default function Navbar() {
             >
               <Bookmark size={20} />
             </Link>
- 
-            <div
-              className="relative"
-            >
+
+            {/* Notifications */}
+            <div className="relative">
               <button
-                onClick={async () => {
-                  setNotificationsOpen(!notificationsOpen);
-                  if (!notificationsOpen) {
+                onClick={() => {
+                  const opening = !notificationsOpen;
+                  setNotificationsOpen(opening);
+                  if (opening) {
                     fetchNotifications();
                     setTimeout(markNotificationsAsRead, 300);
                   }
@@ -240,7 +256,7 @@ export default function Navbar() {
                   </span>
                 )}
               </button>
- 
+
               {notificationsOpen && (
                 <>
                   <div
@@ -253,7 +269,6 @@ export default function Navbar() {
                         Notifications
                       </p>
                     </div>
-                   
                     {notificationsLoading ? (
                       <div className="px-4 py-4 text-center text-xs text-primary-foreground/50">
                         Loading...
@@ -264,7 +279,7 @@ export default function Navbar() {
                       </div>
                     ) : (
                       <div className="max-h-96 overflow-y-auto">
-                        {notifications.map((notif: any, idx: number) => (
+                        {notifications.map((notif, idx) => (
                           <div
                             key={idx}
                             className={`px-4 py-3 border-b border-white/5 transition-colors last:border-b-0 ${
@@ -294,7 +309,8 @@ export default function Navbar() {
             </div>
           </>
         )}
- 
+
+        {/* User menu / Auth buttons */}
         {user ? (
           <div className="group relative h-full flex items-center">
             <button className="flex items-center gap-2 text-primary-foreground/70 group-hover:text-primary-foreground transition-colors">
@@ -314,7 +330,7 @@ export default function Navbar() {
               </div>
               <ChevronDown size={12} className="group-hover:rotate-180 transition-transform" />
             </button>
- 
+
             <div className="absolute top-12 right-0 w-56 bg-ink border border-white/10 shadow-xl rounded-md transition-all duration-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible translate-y-2 group-hover:translate-y-0 overflow-hidden py-2">
               <div className="px-4 py-2 mb-1 border-b border-white/5">
                 <p className="text-[10px] uppercase tracking-widest text-primary-foreground/40 font-mono">
@@ -355,8 +371,18 @@ export default function Navbar() {
     </nav>
   );
 }
- 
-function HorizontalDropdownItem({ href, title, subtitle, icon, isPro }: { href: string; title: string; subtitle: string; icon?: React.ReactNode; isPro?: boolean }) {
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function HorizontalDropdownItem({
+  href, title, subtitle, icon, isPro,
+}: {
+  href: string;
+  title: string;
+  subtitle: string;
+  icon?: React.ReactNode;
+  isPro?: boolean;
+}) {
   return (
     <Link
       href={href}
@@ -381,8 +407,14 @@ function HorizontalDropdownItem({ href, title, subtitle, icon, isPro }: { href: 
     </Link>
   );
 }
- 
-function ProfileLink({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) {
+
+function ProfileLink({
+  href, icon, label,
+}: {
+  href: string;
+  icon: React.ReactNode;
+  label: string;
+}) {
   return (
     <Link
       href={href}
