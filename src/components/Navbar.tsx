@@ -1,10 +1,24 @@
 "use client";
 
+// ================================================================
+// FILE: src/components/Navbar.tsx
+//
+// UPDATED (Spec 2):
+// - SECTION 1: Auto Hub icon now has DEFAULT state (autohub-icon-default.png)
+//   and HOVER state (autohub-icon-hover.png) with smooth fade transition.
+//   State is controlled by React hover state on the dropdown item.
+// - SECTION 2.1: Header bookmark icon updated to bookmark-icon.png
+//   with glow effect on hover (drop-shadow filter).
+// - SECTION 3: Clicking the bookmark icon navigates to /bookmarks
+//   (the bookmarks page shows all bookmarked guides - same layout
+//    as Profile → Bookmarks tab).
+// ================================================================
+
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { Search, ChevronDown, User, Settings, LogOut, Car, Cpu, Users, MessageSquare, BookOpen, Bookmark } from "lucide-react";
+import { Search, ChevronDown, User, Settings, LogOut, Car, Cpu, Users, MessageSquare, BookOpen } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 
@@ -126,9 +140,20 @@ export default function Navbar() {
           <Search size={20} />
         </button>
 
+        {/* SECTION 2.1 + SECTION 3: Bookmark icon with glow on hover, links to /bookmarks */}
         {user && (
-          <Link href="/bookmarks" className={`text-primary-foreground/70 hover:text-primary-foreground transition-colors ${pathname === '/bookmarks' ? 'text-primary' : ''}`} title="My Bookmarks">
-            <Bookmark size={20} />
+          <Link
+            href="/bookmarks"
+            className="text-primary-foreground/70 hover:text-primary-foreground transition-colors group/bm"
+            title="My Bookmarks"
+          >
+            <Image
+              src="/bookmark-icon.png"
+              alt="Bookmarks"
+              width={22}
+              height={22}
+              className="object-contain transition-all duration-200 group-hover/bm:drop-shadow-[0_0_6px_rgba(var(--primary-rgb,250,204,21),0.9)] group-hover/bm:opacity-100 opacity-70"
+            />
           </Link>
         )}
 

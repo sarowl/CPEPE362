@@ -7,8 +7,6 @@ import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import { ChevronRight, Plus, User, Clock, BookOpen, ArrowLeft } from "lucide-react";
 
-import { resolveCarModelImage } from "@/lib/carTypeImage";
-
 interface Guide {
   guide_id: string;
   title: string;
@@ -45,9 +43,6 @@ export default function ModelGuidesPage() {
   const [guides,    setGuides]    = useState<Guide[]>([]);
   const [creators,  setCreators]  = useState<Record<string, string>>({});
   const [modelName, setModelName] = useState("");
-  const [modelInfo, setModelInfo] = useState<string | null>(null);
-  const [modelImg,  setModelImg]  = useState<string | null>(null);
-  const [modelCategory, setModelCategory] = useState("");
   const [loading,   setLoading]   = useState(true);
 
   useEffect(() => {
@@ -57,12 +52,7 @@ export default function ModelGuidesPage() {
       .then((r) => r.json())
       .then((j) => {
         const model = (j.models ?? []).find((m: any) => m.id === modelId);
-        if (model) {
-          setModelName(model.name);
-          setModelInfo(model.info ?? null);
-          setModelImg(model.model_img ?? null);
-          setModelCategory(model.category ?? "");
-        }
+        if (model) setModelName(model.name);
       });
 
     fetch(`/api/guides/by-model?model_id=${modelId}`)
@@ -95,7 +85,7 @@ export default function ModelGuidesPage() {
 
         {/* Breadcrumb */}
         <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-widest text-muted-foreground mb-6">
-          <Link href="/car-makers" className="hover:text-ink transition-colors">Directory</Link>
+          <Link href="/car-makers" className="hover:text-ink transition-colors">Guides</Link>
           <ChevronRight size={10} />
           <Link href={`/guides/${brandId}`} className="hover:text-ink transition-colors">{brandLabel}</Link>
           <ChevronRight size={10} />
@@ -104,28 +94,11 @@ export default function ModelGuidesPage() {
 
         {/* Header */}
         <div className="flex items-start justify-between gap-4 mb-8 border-b border-border pb-6">
-          <div className="flex items-start gap-5 flex-1">
-            {/* Model image */}
-            <div className="w-32 shrink-0 aspect-video border border-border overflow-hidden bg-secondary/20">
-              <img
-                src={resolveCarModelImage(modelImg, modelCategory)}
-                alt={modelName}
-                className={`w-full h-full object-cover${!modelImg ? " opacity-70" : ""}`}
-                onError={(e) => { (e.currentTarget as HTMLImageElement).src = "/no-thumbnail.png"; }}
-              />
-            </div>
-            <div>
-              <h1 className="font-black uppercase tracking-tighter text-3xl">
-                {brandLabel} <span className="text-primary">{modelName}</span>
-              </h1>
-              {/* Model info text below model name (Spec 3.5) */}
-              {modelInfo && (
-                <p className="text-sm text-muted-foreground mt-1 max-w-xl leading-relaxed">{modelInfo}</p>
-              )}
-              {!modelInfo && (
-                <p className="text-sm text-muted-foreground mt-1">Repair guides created by the community</p>
-              )}
-            </div>
+          <div>
+            <h1 className="font-black uppercase tracking-tighter text-3xl">
+              {brandLabel} <span className="text-primary">{modelName}</span>
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">Repair guides created by the community</p>
           </div>
           <Link
             href={createGuideUrl}
@@ -197,7 +170,6 @@ function GuideCard({
   const diffBar   = DIFFICULTY_BAR[guide.difficulty]   ?? "bg-border";
   const href      = `/guides/${brandId}/${modelId}/${guide.guide_id}`;
   // SECTION 6: Use actual stored thumbnail; only fallback if genuinely absent
-  const hasThumbnail = !!guide.thumbnail_url;
   const thumbnailSrc = guide.thumbnail_url ?? "/no-thumbnail.png";
 
   return (
@@ -210,7 +182,7 @@ function GuideCard({
         <img
           src={thumbnailSrc}
           alt={guide.title}
-          className={`w-full h-full object-cover${!hasThumbnail ? " opacity-70" : ""}`}
+          className="w-full h-full object-cover"
           loading="lazy"
           onError={(e) => {
                 const img = e.target as HTMLImageElement;

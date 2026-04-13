@@ -39,14 +39,14 @@ export default function HomePage() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Fetch 7 most recent approved guides
+  // Fetch 5 most recent approved guides
   useEffect(() => {
     fetch("/api/guides")
       .then((r) => r.json())
       .then((d) => {
         const all: RecentGuide[] = d.guides ?? [];
-        // Already sorted by created_at desc from API; take first 7
-        setRecent(all.slice(0, 7));
+        // Already sorted by created_at desc from API; take first 5
+        setRecent(all.slice(0, 5));
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -148,7 +148,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* RECENT REPAIR GUIDES — 7 most recent approved, horizontal scroll */}
+      {/* RECENT REPAIR GUIDES — 5 most recent approved, horizontal scroll */}
       <section className="bg-secondary/30 py-16 px-6 border-y border-border">
         <div className="max-w-6xl mx-auto">
           <div className="flex items-center justify-between mb-8">
