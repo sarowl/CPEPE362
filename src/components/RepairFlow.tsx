@@ -1,16 +1,15 @@
+// src/components/RepairFlow.tsx
 import { useState } from "react";
 import ProgressIndicator from "./AIRepairFlow/ProgressIndicator";
 import ProblemEntryScreen from "./AIRepairFlow/Screens/ProblemEntryScreen";
 import DiagnosisScreen, { Diagnosis } from "./AIRepairFlow/Screens/DiagnosisScreen";
-import RepairModeScreen, { RepairResult } from "./AIRepairFlow/Screens/RepairModeScreen";
+import RepairModeScreen, { RepairResult, RepairProcedure } from "./AIRepairFlow/Screens/RepairModeScreen";
 import EscalationScreen from "./AIRepairFlow/Screens/EscalationScreen";
 import PostRepairScreen from "./AIRepairFlow/Screens/PostRepairScreen";
 import { Vehicle } from "@/components/GarageModal";
 
 type Step = "problem" | "diagnosis" | "repair" | "escalation" | "complete";
-
 const steps: Step[] = ["problem", "diagnosis", "repair", "complete"];
-
 const labels: Record<Step, string> = {
   problem: "Describe Problem",
   diagnosis: "Diagnosis",
@@ -24,7 +23,9 @@ const RepairFlow = () => {
   const [diagnoses, setDiagnoses] = useState<Diagnosis[]>([]);
   const [selected, setSelected] = useState<Diagnosis | null>(null);
   const [result, setResult] = useState<RepairResult | null>(null);
-  const [vehicle, setVehicle] = useState<Vehicle | null>(null); // ← added
+  const [vehicle, setVehicle] = useState<Vehicle | null>(null);
+  // ↓ Cache the fetched procedure so it survives escalation round-trips
+  const [cachedProcedure, setCachedProcedure] = useState<RepairProcedure | null>(null);
 
   const index = steps.indexOf(step) + 1;
 
@@ -33,7 +34,8 @@ const RepairFlow = () => {
     setDiagnoses([]);
     setSelected(null);
     setResult(null);
-    setVehicle(null); // ← reset vehicle too
+    setVehicle(null);
+    setCachedProcedure(null); // ← clear cache on full reset
   };
 
   const showProgress =
@@ -41,7 +43,6 @@ const RepairFlow = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-
       {showProgress && (
         <div className="px-4 py-2 border-b">
           <ProgressIndicator
@@ -55,9 +56,9 @@ const RepairFlow = () => {
       <div className="flex-1">
         {step === "problem" && (
           <ProblemEntryScreen
-            onSubmit={(_, incoming, v) => { // ← receive vehicle
+            onSubmit={(_, incoming, v) => {
               setDiagnoses(incoming);
-              setVehicle(v);               // ← store it
+              setVehicle(v);
               setStep("diagnosis");
             }}
           />
@@ -76,6 +77,9 @@ const RepairFlow = () => {
         {step === "repair" && selected && (
           <RepairModeScreen
             diagnosis={selected}
+            vehicle={vehicle}
+            cachedProcedure={cachedProcedure}          // ← pass cache in
+            onProcedureFetched={setCachedProcedure}    // ← store it when loaded
             onComplete={(r) => {
               setResult(r);
               setStep("complete");
@@ -97,7 +101,7 @@ const RepairFlow = () => {
             diagnosis={selected}
             postRepairNote={result.postRepairNote}
             nextMaintenance={result.nextMaintenance}
-            carId={vehicle?.id ?? null}    // ← pass car ID
+            carId={vehicle?.id ?? null}
             onRestart={reset}
           />
         )}

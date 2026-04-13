@@ -1,4 +1,3 @@
-//src\components\AIRepairFlow\Screens\EscalationScreen.tsx
 import { useState } from "react";
 import {
   ShieldAlert,
@@ -9,6 +8,9 @@ import {
   Phone,
   Navigation,
   AlertCircle,
+  Search,
+  CheckCircle2,
+  Wrench,
   ExternalLink,
 } from "lucide-react";
 
@@ -18,10 +20,11 @@ interface Mechanic {
   place_id: string;
   name: string;
   vicinity: string;
-  rating?: number;
-  user_ratings_total?: number;
-  opening_hours?: { open_now: boolean };
-  formatted_phone_number?: string;
+  rating?: number | null;
+  user_ratings_total?: number | null;
+  opening_hours?: { open_now: boolean } | null;
+  formatted_phone_number?: string | null;
+  distance_meters?: number | null;
   geometry: {
     location: { lat: number; lng: number };
   };
@@ -33,13 +36,8 @@ interface EscalationScreenProps {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const ratingStars = (rating: number) => {
-  const full = Math.floor(rating);
-  return Array.from({ length: 5 }, (_, i) => i < full);
-};
-
 const mapsDirectionsUrl = (lat: number, lng: number, name: string) =>
-  `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&destination_place_id=${name}`;
+  `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&destination_place_id=${encodeURIComponent(name)}`;
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -64,7 +62,6 @@ const EscalationScreen = ({ onBack }: EscalationScreenProps) => {
       async (position) => {
         try {
           const { latitude, longitude } = position.coords;
-
           const res = await fetch("/api/find_mechanics", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -77,9 +74,8 @@ const EscalationScreen = ({ onBack }: EscalationScreenProps) => {
           }
 
           const data = await res.json();
-
           if (!Array.isArray(data.mechanics) || data.mechanics.length === 0) {
-            setError("No mechanics found near your location. Try expanding your search area.");
+            setError("No mechanics found nearby.");
           } else {
             setMechanics(data.mechanics);
           }
@@ -89,220 +85,135 @@ const EscalationScreen = ({ onBack }: EscalationScreenProps) => {
           setLoading(false);
         }
       },
-      (geoErr) => {
+      () => {
         setLoading(false);
-        switch (geoErr.code) {
-          case geoErr.PERMISSION_DENIED:
-            setError("Location access was denied. Please enable it in your browser settings.");
-            break;
-          case geoErr.POSITION_UNAVAILABLE:
-            setError("Your location is currently unavailable.");
-            break;
-          default:
-            setError("Unable to determine your location.");
-        }
+        setError("Location access denied.");
       },
       { timeout: 10000 }
     );
   };
 
-  // ── Idle state (before search) ──────────────────────────────────────────────
+  // ── Idle State ──────────────────────────────────────────────────────────────
   const renderIdle = () => (
-    <div className="flex flex-col items-center space-y-8 animate-fade-in">
-      {/* Icon */}
+    <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-8 animate-in fade-in zoom-in-95 duration-500 max-w-md mx-auto text-center">
       <div className="relative">
-        <div className="bg-destructive/10 rounded-full p-6">
-          <ShieldAlert className="h-12 w-12 text-destructive" />
+        <div className="bg-destructive/10 rounded-full p-8">
+          <Wrench className="h-14 w-14 text-destructive" />
         </div>
-        <span className="absolute -bottom-1 -right-1 bg-destructive rounded-full h-4 w-4 animate-ping opacity-70" />
+        <div className="absolute -top-2 -right-2 bg-destructive text-white p-1.5 rounded-full">
+          <ShieldAlert className="h-5 w-5" />
+        </div>
       </div>
-
-      {/* Copy */}
-      <div className="text-center space-y-3">
-        <h2 className="text-2xl font-bold text-foreground">
-          This repair needs a professional
-        </h2>
-        <p className="text-sm text-muted-foreground leading-relaxed max-w-sm">
-          Based on the complexity and safety requirements of this step, we
-          recommend having a certified mechanic complete the remaining work.
+      <div className="space-y-3">
+        <h2 className="text-3xl font-black italic tracking-tighter uppercase leading-none">Safety Escalation</h2>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          This repair requires professional tools and calibration. Let's find a certified shop to finish the job.
         </p>
       </div>
-
-      {/* CTA */}
       <button
         onClick={findMechanics}
-        className="w-full py-4 bg-primary text-primary-foreground rounded-xl flex items-center justify-center gap-2.5 font-bold text-sm shadow-lg shadow-primary/20 hover:opacity-90 active:scale-[0.98] transition-all"
+        className="w-full py-4 bg-primary text-primary-foreground rounded-2xl flex items-center justify-center gap-3 font-bold text-lg shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
       >
         <MapPin className="h-5 w-5" />
-        Find Mechanics &amp; Auto Shops Nearby
-      </button>
-
-      <button
-        onClick={onBack}
-        className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-      >
-        <ChevronLeft className="h-4 w-4" />
-        Go back to repair steps
+        Find Nearby Shops
       </button>
     </div>
   );
 
-  // ── Loading state ───────────────────────────────────────────────────────────
-  const renderLoading = () => (
-    <div className="flex flex-col items-center space-y-6 py-12 animate-fade-in">
-      <div className="relative">
-        <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
-          <MapPin className="h-8 w-8 text-primary" />
-        </div>
-        <Loader2 className="h-5 w-5 text-primary animate-spin absolute -top-1 -right-1" />
-      </div>
-      <div className="text-center space-y-1">
-        <p className="font-semibold text-foreground">Locating nearby mechanics…</p>
-        <p className="text-sm text-muted-foreground">Checking top-rated shops in your area</p>
-      </div>
-    </div>
-  );
-
-  // ── Error state ─────────────────────────────────────────────────────────────
-  const renderError = () => (
-    <div className="w-full space-y-4 animate-fade-in">
-      <div className="bg-destructive/10 border border-destructive/20 text-destructive p-4 rounded-xl flex gap-3">
-        <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
-        <p className="text-sm">{error}</p>
-      </div>
-      <button
-        onClick={findMechanics}
-        className="w-full py-3 bg-primary text-primary-foreground rounded-xl font-semibold text-sm hover:opacity-90 active:scale-[0.98] transition-all"
-      >
-        Try Again
-      </button>
-      <button
-        onClick={onBack}
-        className="w-full py-3 text-sm text-muted-foreground hover:text-foreground transition-colors"
-      >
-        Go back to repair steps
-      </button>
-    </div>
-  );
-
-  // ── Results state ───────────────────────────────────────────────────────────
   const renderResults = () => (
-    <div className="w-full space-y-4 animate-fade-in">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-bold text-foreground">Nearby Mechanics</h2>
-          <p className="text-xs text-muted-foreground">
-            {mechanics.length} top-rated shop{mechanics.length !== 1 ? "s" : ""} found
+    <div className="w-full space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-700">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-border pb-6">
+        <div className="space-y-1">
+          <h2 className="text-3xl font-black italic tracking-tighter uppercase leading-none">Nearby Shops</h2>
+          <p className="text-xs font-bold text-muted-foreground uppercase tracking-[0.2em]">
+            Professional shops near your location
           </p>
         </div>
         <button
-          onClick={() => {
-            setMechanics([]);
-            setSearched(false);
-            setError(null);
-          }}
-          className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+          onClick={() => { setMechanics([]); setSearched(false); }}
+          className="flex items-center gap-2 px-4 py-2 bg-secondary rounded-full hover:bg-primary hover:text-primary-foreground transition-all text-xs font-bold uppercase tracking-widest"
         >
-          Search again
+          <Search className="h-4 w-4" />
+          New Search
         </button>
       </div>
 
-      {/* Cards */}
-      <div className="space-y-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {mechanics.map((m) => (
           <div
             key={m.place_id}
-            className="bg-card border border-border rounded-xl p-4 space-y-3 hover:border-primary/40 transition-colors"
+            className="group bg-card border border-border rounded-[2rem] p-6 flex flex-col justify-between hover:border-primary/30 transition-all duration-300"
           >
-            {/* Name + open status */}
-            <div className="flex items-start justify-between gap-2">
-              <p className="font-semibold text-sm text-foreground leading-snug">{m.name}</p>
-              {m.opening_hours && (
-                <span
-                  className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full flex-shrink-0 ${
-                    m.opening_hours.open_now
-                      ? "bg-green-500/10 text-green-600"
-                      : "bg-muted text-muted-foreground"
-                  }`}
-                >
-                  {m.opening_hours.open_now ? "Open" : "Closed"}
-                </span>
-              )}
-            </div>
-
-            {/* Rating */}
-            {m.rating && (
-              <div className="flex items-center gap-1.5">
-                <div className="flex">
-                  {ratingStars(m.rating).map((filled, i) => (
-                    <Star
-                      key={i}
-                      className={`h-3.5 w-3.5 ${
-                        filled ? "text-yellow-400 fill-yellow-400" : "text-muted stroke-muted"
-                      }`}
-                    />
-                  ))}
+            <div className="space-y-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-lg text-foreground group-hover:text-primary transition-colors truncate">
+                    {m.name}
+                  </h3>
+                  <CheckCircle2 className="h-4 w-4 text-blue-500 flex-shrink-0" />
                 </div>
-                <span className="text-xs text-muted-foreground">
-                  {m.rating.toFixed(1)}
-                  {m.user_ratings_total && ` (${m.user_ratings_total.toLocaleString()})`}
-                </span>
+                <p className="text-sm text-muted-foreground mt-1 flex items-start gap-1.5">
+                  <MapPin className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+                  <span className="line-clamp-2">{m.vicinity}</span>
+                </p>
               </div>
-            )}
 
-            {/* Address */}
-            <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
-              <MapPin className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
-              <span>{m.vicinity}</span>
+              {m.distance_meters != null && (
+                <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest bg-secondary/50 w-fit px-2 py-1 rounded">
+                   {(m.distance_meters / 1000).toFixed(1)} km away
+                </div>
+              )}
             </div>
 
-            {/* Action buttons */}
-            <div className="flex gap-2 pt-1">
-              {m.formatted_phone_number && (
-                <a
-                  href={`tel:${m.formatted_phone_number}`}
-                  className="flex-1 py-2 border border-border rounded-lg flex items-center justify-center gap-1.5 text-xs font-medium text-foreground hover:bg-muted transition-colors"
-                >
-                  <Phone className="h-3.5 w-3.5" />
-                  Call
-                </a>
-              )}
+            <div className="gap-3 mt-8">
               <a
-                href={mapsDirectionsUrl(
-                  m.geometry.location.lat,
-                  m.geometry.location.lng,
-                  m.name
-                )}
+                href={mapsDirectionsUrl(m.geometry.location.lat, m.geometry.location.lng, m.name)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex-1 py-2 bg-primary/10 text-primary rounded-lg flex items-center justify-center gap-1.5 text-xs font-medium hover:bg-primary/20 transition-colors"
+                className="flex items-center justify-center gap-2 py-3 rounded-xl bg-primary text-primary-foreground hover:opacity-90 font-bold text-xs transition-all shadow-lg shadow-primary/10"
               >
-                <Navigation className="h-3.5 w-3.5" />
+                <Navigation className="h-4 w-4" />
                 Directions
-                <ExternalLink className="h-3 w-3 opacity-60" />
               </a>
             </div>
           </div>
         ))}
       </div>
 
-      <button
-        onClick={onBack}
-        className="w-full py-3 flex items-center justify-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-      >
-        <ChevronLeft className="h-4 w-4" />
-        Go back to repair steps
-      </button>
+      {/* Footer Nav */}
+      <div className="pt-8 border-t border-border flex justify-center">
+        <button
+          onClick={onBack}
+          className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-all"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          Back to Instructions
+        </button>
+      </div>
     </div>
   );
 
-  // ── Render ──────────────────────────────────────────────────────────────────
   return (
-    <div className="px-4 py-6 max-w-lg mx-auto flex flex-col items-center min-h-[60vh]">
+    <div className="px-6 py-12 w-full max-w-7xl mx-auto min-h-screen">
       {!searched && renderIdle()}
-      {searched && loading && renderLoading()}
-      {searched && !loading && error && renderError()}
+      
+      {searched && loading && (
+        <div className="flex flex-col items-center justify-center py-24 space-y-4">
+          <Loader2 className="h-10 w-10 text-primary animate-spin" />
+          <p className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground">Mapping nearest repair centers</p>
+        </div>
+      )}
+
+      {searched && !loading && error && (
+        <div className="max-w-md mx-auto text-center space-y-6 py-12">
+          <div className="bg-destructive/10 border-2 border-destructive/20 p-8 rounded-[2.5rem]">
+            <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
+            <p className="font-bold text-foreground leading-tight">{error}</p>
+          </div>
+          <button onClick={findMechanics} className="font-black text-xs uppercase tracking-widest border-b-2 border-primary pb-1">Try Again</button>
+        </div>
+      )}
+
       {searched && !loading && !error && mechanics.length > 0 && renderResults()}
     </div>
   );
