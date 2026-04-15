@@ -1,9 +1,22 @@
 "use client";
 
+// ================================================================
+//   Changes:
+//   1. Added `model_img?: string` to the CarModel interface so the
+//      field flows through from the API response.
+//   2. Image src logic:
+//      - If model_img is set (uploaded via admin panel), use it.
+//      - Otherwise fall back to the local /car-models/ path for
+//        models that already had a static image (backwards compat).
+//   3. If neither exists, shows a neutral placeholder so the card
+//      still renders cleanly.
+//
+//   This should makes the image visible to BOTH users and admin (Admin #4).
+// ================================================================
+
 import React from "react";
 import Link from "next/link";
 import { Plus, ImageIcon } from "lucide-react";
-import { resolveCarModelImage, getCarTypeImage } from "@/lib/carTypeImage";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -27,11 +40,10 @@ interface CarModelCardProps {
 
 export default function CarModelCard({ model, brandId, brandName, guideCount = 0, forumCount = 0 }: CarModelCardProps) {
   // Image source priority:
-  //   1. model_img from Supabase Storage (uploaded via admin) — if available
-  //   2. Default image based on car type/category (e.g. /Car Types/sedan.png)
-  //   3. /no-thumbnail.png — last-resort fallback for unknown categories
-  const hasUploadedImage = !!model.model_img;
-  const imgSrc = resolveCarModelImage(model.model_img, model.category);
+  //   1. model_img from Supabase Storage (uploaded via admin, Admin Fix #4)
+  //   2. Local static file (legacy fallback for pre-existing models)
+  //   3. null → placeholder rendered below
+  const imgSrc = model.model_img || `/car-models/${brandId}/${model.id}.png`;
 
   return (
     <Link
@@ -60,20 +72,32 @@ export default function CarModelCard({ model, brandId, brandName, guideCount = 0
 
       {/* ── Model Image ────────────────────────────────────────────────── */}
       <div className="relative w-full aspect-[16/9] flex items-center justify-center px-4 py-3 bg-secondary/20">
-        <img
-          src={imgSrc}
-          alt={`${brandName} ${model.name}`}
-          onError={(e) => {
-            // If the resolved image fails, fall back to no-thumbnail
-            (e.currentTarget as HTMLImageElement).src = "/no-thumbnail.png";
-          }}
-          className={`
-            w-full h-full object-contain
-            transition-transform duration-300
-            group-hover:scale-105
-            ${!hasUploadedImage ? "opacity-70" : ""}
-          `}
-        />
+        {imgSrc ? (
+          <img
+            src={imgSrc}
+            alt={`${brandName} ${model.name}`}
+            onError={(e) => {
+              // If both sources fail (e.g. local file missing), show placeholder
+              (e.currentTarget as HTMLImageElement).style.display = "none";
+              const placeholder = e.currentTarget.nextElementSibling as HTMLElement | null;
+              if (placeholder) placeholder.style.display = "flex";
+            }}
+            className="
+              w-full h-full object-contain
+              transition-transform duration-300
+              group-hover:scale-105
+            "
+          />
+        ) : null}
+
+        {/* Placeholder shown when no image is available */}
+        <div
+          style={{ display: imgSrc ? "none" : "flex" }}
+          className="w-full h-full items-center justify-center flex-col gap-1 text-muted-foreground"
+        >
+          <ImageIcon size={28} className="opacity-30" />
+          <span className="text-[9px] uppercase tracking-widest font-bold opacity-30">No image</span>
+        </div>
       </div>
 
       {/* ── Model Name ─────────────────────────────────────────────────── */}

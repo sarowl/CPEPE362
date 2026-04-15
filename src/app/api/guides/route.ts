@@ -27,7 +27,7 @@ export async function GET(req: Request) {
         .from("guides")
         .select(`
           guide_id, title, summary, brand_id, model_id, model_name,
-          difficulty, time_required, status, thumbnail_url, required_parts,
+          difficulty, time_required, status, thumbnail_url,
           created_at, updated_at, submitted_at, reviewed_at
         `)
         .eq("user_id", authData.user.id)
@@ -42,7 +42,7 @@ export async function GET(req: Request) {
       .from("guides")
       .select(`
         guide_id, title, summary, brand_id, model_id, model_name,
-        difficulty, time_required, status, user_id, thumbnail_url, required_parts,
+        difficulty, time_required, status, user_id, thumbnail_url,
         created_at, updated_at
       `)
       .eq("status", "approved")
@@ -64,7 +64,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { brand_id, model_id, model_name, title, summary, introduction, difficulty, time_required, tools, required_parts } = body;
+    const { brand_id, model_id, model_name, title, summary, introduction, difficulty, time_required, tools } = body;
 
     if (!brand_id || !model_id || !title || !summary || !difficulty || !time_required) {
       return NextResponse.json({ error: "Missing required fields." }, { status: 400 });
@@ -79,7 +79,6 @@ export async function POST(req: Request) {
         introduction: introduction || "",
         difficulty, time_required,
         tools: tools ?? [],
-        required_parts: required_parts ?? [],
         status: "draft",
       }])
       .select("guide_id, title, status")

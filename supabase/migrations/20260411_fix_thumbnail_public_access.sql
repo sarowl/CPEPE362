@@ -1,3 +1,16 @@
+-- =============================================================================
+-- FIX: Thumbnail Display System
+-- Ensures guide thumbnails stored in Autobot_Storage are publicly readable.
+--
+-- Root cause: The Guides/ path in Autobot_Storage may lack a public SELECT
+-- policy for `anon` role, causing thumbnail URLs to return 403 for guests.
+--
+-- This migration is IDEMPOTENT — safe to run multiple times.
+-- =============================================================================
+
+-- 1. Make the Autobot_Storage bucket public so its objects serve without auth.
+--    If your bucket is already set to public in the Supabase dashboard, this
+--    is a no-op safety measure.
 UPDATE storage.buckets
   SET public = true
 WHERE id = 'Autobot_Storage';

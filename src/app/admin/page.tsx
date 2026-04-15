@@ -9,97 +9,8 @@ import {
   Users, BookOpen, Car, FileText, BarChart2, MessageSquare,
   LogOut, Shield, ChevronRight, Plus, CheckCircle, XCircle,
   Clock, Trash2, Ban, RefreshCw, Search, Bell, Upload, X,
-  Edit2, AlertCircle, ImageIcon, ZoomIn, ZoomOut,
+  Edit2, AlertCircle, ImageIcon,
 } from "lucide-react";
-
-import { resolveCarModelImage } from "@/lib/carTypeImage";
-
-// ── Car Model Image Cropper ───────────────────────────────────────
-// Fixed aspect-ratio crop tool (same ratio as car model card 16:9).
-function CarImageCropper({
-  src, onCropped, onCancel,
-}: { src: string; onCropped: (blob: Blob) => void; onCancel: () => void }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const imgRef    = useRef<HTMLImageElement | null>(null);
-  const [zoom, setZoom]     = useState(1);
-  const [offset, setOffset] = useState({ x: 0, y: 0 });
-  const [dragging, setDragging] = useState(false);
-  const dragStart = useRef({ mx: 0, my: 0, ox: 0, oy: 0 });
-
-  const CROP_W = 480;
-  const CROP_H = Math.round(CROP_W / (16 / 9)); // 270
-
-  const draw = useCallback(() => {
-    const canvas = canvasRef.current;
-    const img    = imgRef.current;
-    if (!canvas || !img) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.clearRect(0, 0, CROP_W, CROP_H);
-    const scale = Math.max(CROP_W / img.naturalWidth, CROP_H / img.naturalHeight) * zoom;
-    const dw = img.naturalWidth  * scale;
-    const dh = img.naturalHeight * scale;
-    const dx = (CROP_W - dw) / 2 + offset.x;
-    const dy = (CROP_H - dh) / 2 + offset.y;
-    ctx.drawImage(img, dx, dy, dw, dh);
-  }, [zoom, offset]);
-
-  useEffect(() => {
-    const img = new Image();
-    img.onload = () => { imgRef.current = img; draw(); };
-    img.src = src;
-  }, [src]);
-
-  useEffect(() => { draw(); }, [draw]);
-
-  const onMouseDown = (e: React.MouseEvent) => {
-    setDragging(true);
-    dragStart.current = { mx: e.clientX, my: e.clientY, ox: offset.x, oy: offset.y };
-  };
-  const onMouseMove = (e: React.MouseEvent) => {
-    if (!dragging) return;
-    setOffset({
-      x: dragStart.current.ox + (e.clientX - dragStart.current.mx),
-      y: dragStart.current.oy + (e.clientY - dragStart.current.my),
-    });
-  };
-  const onMouseUp = () => setDragging(false);
-
-  const handleCrop = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    canvas.toBlob((blob) => { if (blob) onCropped(blob); }, "image/jpeg", 0.92);
-  };
-
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-ink/80 px-4">
-      <div className="bg-background border border-border p-5 w-full max-w-lg shadow-[6px_6px_0_0_var(--ink)]">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-black uppercase tracking-tighter text-sm">Crop Image (16:9)</h3>
-          <button onClick={onCancel} className="p-1 hover:bg-secondary rounded"><X size={14} /></button>
-        </div>
-        <p className="text-[10px] text-muted-foreground mb-3">Drag to pan · Use zoom buttons to adjust</p>
-        <div
-          className="relative border border-border overflow-hidden cursor-move select-none"
-          style={{ width: CROP_W, maxWidth: "100%", aspectRatio: `${CROP_W}/${CROP_H}` }}
-          onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp} onMouseLeave={onMouseUp}
-        >
-          <canvas ref={canvasRef} width={CROP_W} height={CROP_H} className="w-full h-full" />
-        </div>
-        <div className="flex items-center gap-3 mt-3">
-          <button onClick={() => setZoom((z) => Math.max(0.5, z - 0.1))} className="p-1.5 border border-border hover:bg-secondary rounded"><ZoomOut size={14} /></button>
-          <input type="range" min={0.5} max={3} step={0.05} value={zoom} onChange={(e) => setZoom(Number(e.target.value))} className="flex-1" />
-          <button onClick={() => setZoom((z) => Math.min(3, z + 0.1))} className="p-1.5 border border-border hover:bg-secondary rounded"><ZoomIn size={14} /></button>
-          <span className="text-[10px] font-mono w-12 text-right">{(zoom * 100).toFixed(0)}%</span>
-        </div>
-        <div className="flex justify-end gap-3 mt-4">
-          <button onClick={onCancel} className="px-4 py-2 text-xs font-bold border border-border hover:bg-secondary">Cancel</button>
-          <button onClick={handleCrop} className="px-4 py-2 text-xs font-bold bg-ink text-white hover:bg-ink/80">Apply Crop</button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 const BRANDS = [
   { name:"Toyota",id:"toyota"},{name:"Mitsubishi",id:"mitsubishi"},
@@ -109,7 +20,7 @@ const BRANDS = [
   { name:"Hyundai",id:"hyundai"},{name:"Kia",id:"kia"},
   { name:"Geely",id:"geely"},{name:"MG",id:"mg"},
 ];
-const MODEL_TYPES = ["Sedan","SUV","Hatchback","Pickup Truck","Van / MPV","Crossover","Coupe","Convertible","Wagon","Electric","Hybrid","Sports","Truck","EV"];
+const MODEL_TYPES = ["Sedan","SUV","Hatchback","Pickup Truck","Van / MPV","Crossover","Coupe","Convertible","Wagon","Electric"];
 
 type Tab = "users"|"guides"|"car-models"|"documents"|"reports"|"forum";
 
@@ -143,7 +54,6 @@ export default function AdminPage() {
   const [addLoading,   setAddLoading]   = useState(false);
   const [addError,     setAddError]     = useState("");
   const addImageRef = useRef<HTMLInputElement|null>(null);
-  const [addCropSrc,   setAddCropSrc]   = useState<string|null>(null);
 
   // Edit model modal
   const [editModel,    setEditModel]    = useState<CarModelRow|null>(null);
@@ -151,7 +61,6 @@ export default function AdminPage() {
   const [editLoading,  setEditLoading]  = useState(false);
   const [editError,    setEditError]    = useState("");
   const editImageRef = useRef<HTMLInputElement|null>(null);
-  const [editCropSrc,  setEditCropSrc]  = useState<string|null>(null);
 
   // Delete model confirm
   const [deleteModel,       setDeleteModel]       = useState<CarModelRow|null>(null);
@@ -174,15 +83,6 @@ export default function AdminPage() {
       .catch(()=>{});
   },[session?.email]);
 
-  // ── Storage Auto-Sync: ensure every car model has a folder in Car_Models/ ──
-  useEffect(()=>{
-    if (!session?.email) return;
-    fetch("/api/car-models-storage-sync", {
-      method: "POST",
-      headers: { "x-admin-email": session.email },
-    }).catch(()=>{}); // fire-and-forget; errors are non-critical
-  },[session?.email]);
-
   // ── Users ──────────────────────────────────────────────────
   const fetchUsers = useCallback(async()=>{
     setLoadingUsers(true);
@@ -200,46 +100,17 @@ export default function AdminPage() {
 
   useEffect(()=>{ if(activeTab==="users") fetchUsers(); },[activeTab,fetchUsers]);
 
-
-  // ── Car models — fetch ALL brands at once, grouped by brand_id ──
-  // Fixes the '0 models' count bug: old code only loaded lazily on click.
-  const fetchAllModels = useCallback(async () => {
-    // Mark every brand as loading (null = spinner)
-    const loading: Record<string, CarModelRow[] | null> = {};
-    BRANDS.forEach(b => { loading[b.id] = null; });
-    setCarModels(loading);
-
-    const { data, error } = await supabase
-      .from("car_models")
-      .select("id, name, slug, category, years, model_img, info, brand_id")
-      .order("name");
-
-    if (error) {
-      toast(`Failed to load car models: ${error.message}`, "err");
-      const empty: Record<string, CarModelRow[]> = {};
-      BRANDS.forEach(b => { empty[b.id] = []; });
-      setCarModels(empty);
-      return;
-    }
-
-    // Group by brand_id
-    const grouped: Record<string, CarModelRow[]> = {};
-    BRANDS.forEach(b => { grouped[b.id] = []; });
-    (data ?? []).forEach((m: any) => {
-      const bid = m.brand_id as string;
-      if (!grouped[bid]) grouped[bid] = [];
-      grouped[bid].push(m as CarModelRow);
-    });
-    setCarModels(grouped);
-  }, [toast]);
-
-  // Reload when tab becomes active
-  useEffect(() => {
-    if (activeTab === "car-models") fetchAllModels();
-  }, [activeTab, fetchAllModels]);
-
-  const handleBrandToggle = (brandId: string) => {
-    setExpandedBrand(prev => (prev === brandId ? null : brandId));
+  // ── Car models ─────────────────────────────────────────────
+  const loadModels = async(brandId:string)=>{
+    if(carModels[brandId]!==undefined) return;
+    setCarModels(prev=>({...prev,[brandId]:null}));
+    const res=await fetch(`/api/car-models/${brandId}`);
+    const json=await res.json();
+    setCarModels(prev=>({...prev,[brandId]:json.models??[]}));
+  };
+  const handleBrandToggle=(brandId:string)=>{
+    if(expandedBrand===brandId){setExpandedBrand(null);}
+    else{setExpandedBrand(brandId);loadModels(brandId);}
   };
 
   // ── Add model ──────────────────────────────────────────────
@@ -259,14 +130,13 @@ export default function AdminPage() {
       if(addForm.imageFile){
         const fd=new FormData();
         fd.append("file",addForm.imageFile);
+        fd.append("brand_id",addModelFor);
         fd.append("model_id",newModel.id);
+        fd.append("slug",newModel.slug);
         const imgRes=await fetch("/api/car-models-image-upload",{method:"POST",headers:{"x-admin-email":session?.email??""},body:fd});
         const imgJson=await imgRes.json();
         if(imgRes.ok) newModel={...newModel,model_img:`${imgJson.url}?t=${Date.now()}`};
       }
-
-      // Sync storage folders so new model always has a folder
-      fetch("/api/car-models-storage-sync",{method:"POST",headers:{"x-admin-email":session?.email??""}}).catch(()=>{});
 
       setCarModels(prev=>({...prev,[addModelFor]:[...(prev[addModelFor]??[]),newModel]}));
       toast(`"${newModel.name}" added to ${BRANDS.find(b=>b.id===addModelFor)?.name}.`);
@@ -293,7 +163,9 @@ export default function AdminPage() {
       if(editForm.imageFile){
         const fd=new FormData();
         fd.append("file",editForm.imageFile);
+        fd.append("brand_id",editModel.brand_id);
         fd.append("model_id",editModel.id);
+        fd.append("slug",updated.slug||editModel.slug);
         const imgRes=await fetch("/api/car-models-image-upload",{method:"POST",headers:{"x-admin-email":session?.email??""},body:fd});
         const imgJson=await imgRes.json();
         if(imgRes.ok) updated={...updated,model_img:`${imgJson.url}?t=${Date.now()}`};
@@ -355,30 +227,6 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen bg-paper text-ink flex flex-col">
-      {/* ── Car Model Image Crop Modals ── */}
-      {addCropSrc && (
-        <CarImageCropper
-          src={addCropSrc}
-          onCropped={(blob) => {
-            const file = new File([blob], "car-model-image.jpg", { type: "image/jpeg" });
-            setAddForm(prev => ({ ...prev, imageFile: file, imagePreview: URL.createObjectURL(blob) }));
-            setAddCropSrc(null);
-          }}
-          onCancel={() => setAddCropSrc(null)}
-        />
-      )}
-      {editCropSrc && (
-        <CarImageCropper
-          src={editCropSrc}
-          onCropped={(blob) => {
-            const file = new File([blob], "car-model-image.jpg", { type: "image/jpeg" });
-            setEditForm(prev => prev ? { ...prev, imageFile: file, imagePreview: URL.createObjectURL(blob) } : prev);
-            setEditCropSrc(null);
-          }}
-          onCancel={() => setEditCropSrc(null)}
-        />
-      )}
-
       {/* ── Notification toast ── */}
       {noticeMsg && (
         <div className={`fixed top-4 right-4 z-[100] px-5 py-3 text-sm font-bold shadow-lg border
@@ -502,14 +350,9 @@ export default function AdminPage() {
           {/* ── CAR MODELS ───────────────────────────────────── */}
           {activeTab==="car-models"&&(
             <section>
-              <div className="mb-5 flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Admin / Car Models</p>
-                  <h2 className="font-black uppercase tracking-tighter text-base mt-0.5">Car Model Management</h2>
-                </div>
-                <button onClick={fetchAllModels} className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold border border-border hover:bg-secondary transition-colors mt-1">
-                  <RefreshCw size={11}/> Refresh
-                </button>
+              <div className="mb-5">
+                <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Admin / Car Models</p>
+                <h2 className="font-black uppercase tracking-tighter text-base mt-0.5">Car Model Management</h2>
               </div>
               <div className="space-y-1.5">
                 {BRANDS.map(brand=>{
@@ -521,16 +364,13 @@ export default function AdminPage() {
                         onClick={()=>handleBrandToggle(brand.id)}>
                         <img src={`/car-makers/${brand.id}.png`} alt={brand.name} className="w-7 h-7 object-contain grayscale" onError={e=>{(e.target as HTMLImageElement).style.display="none";}}/>
                         <span className="font-bold text-xs uppercase tracking-widest flex-1">{brand.name}</span>
-                        {models===null || models===undefined
-                          ?<span className="text-[9px] font-mono text-muted-foreground uppercase"><RefreshCw size={9} className="inline animate-spin mr-1"/>loading</span>
-                          :<span className="text-[9px] font-mono text-muted-foreground uppercase">{models.length} model{models.length!==1?"s":""}</span>
-                        }
+                        {Array.isArray(models)&&<span className="text-[9px] font-mono text-muted-foreground uppercase">{models.length} model{models.length!==1?"s":""}</span>}
                         <ChevronRight size={13} className={`text-muted-foreground transition-transform duration-200 ${expandedBrand===brand.id?"rotate-90":""}`}/>
                       </button>
 
                       {expandedBrand===brand.id&&(
                         <div className="border-t border-border bg-secondary/20 px-5 py-4">
-                          {(models===null||models===undefined)&&<div className="flex items-center gap-2 text-xs text-muted-foreground py-2"><RefreshCw size={11} className="animate-spin"/> Loading...</div>}
+                          {models===null&&<div className="flex items-center gap-2 text-xs text-muted-foreground py-2"><RefreshCw size={11} className="animate-spin"/> Loading...</div>}
                           {Array.isArray(models)&&models.length===0&&<p className="text-xs text-muted-foreground py-1 mb-3">No models yet for this brand.</p>}
 
                           {Array.isArray(models)&&models.length>0&&(
@@ -538,12 +378,10 @@ export default function AdminPage() {
                               {models.map(m=>(
                                 <div key={m.id} className="bg-background border border-border overflow-hidden group">
                                   <div className="relative aspect-video bg-secondary/50 flex items-center justify-center overflow-hidden">
-                                    <img
-                                      src={resolveCarModelImage(m.model_img, m.category)}
-                                      alt={m.name}
-                                      className={`w-full h-full object-cover${!m.model_img ? " opacity-70" : ""}`}
-                                      onError={(e)=>{(e.target as HTMLImageElement).src="/no-thumbnail.png";}}
-                                    />
+                                    {m.model_img
+                                      ?<img src={`${m.model_img}?t=${Date.now()}`} alt={m.name} className="w-full h-full object-cover" onError={(e)=>{(e.target as HTMLImageElement).style.display="none";}}/>
+                                      :<div className="flex flex-col items-center gap-1 text-muted-foreground/40"><ImageIcon size={20}/><span className="text-[9px]">No image</span></div>
+                                    }
                                   </div>
                                   <div className="px-3 py-2.5">
                                     <p className="font-bold text-xs truncate">{m.name}</p>
@@ -664,19 +502,18 @@ export default function AdminPage() {
                 <textarea rows={2} placeholder="Brief notes about this model..." value={addForm.info} onChange={e=>setAddForm(f=>({...f,info:e.target.value}))} className="w-full border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:border-ink resize-none"/>
               </div>
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block">Model Image <span className="text-muted-foreground font-normal normal-case tracking-normal">(optional — 16:9, cropped)</span></label>
+                <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block">Model Image <span className="text-muted-foreground font-normal normal-case tracking-normal">(optional)</span></label>
                 {addForm.imagePreview
-                  ?<div className="relative w-full border border-border overflow-hidden" style={{aspectRatio:"16/9"}}>
+                  ?<div className="relative w-32 h-20 border border-border overflow-hidden">
                     <img src={addForm.imagePreview} alt="preview" className="w-full h-full object-cover"/>
                     <button onClick={()=>setAddForm(f=>({...f,imageFile:null,imagePreview:""}))} className="absolute top-1 right-1 bg-ink/70 text-white p-0.5 rounded"><X size={10}/></button>
-                    <button onClick={()=>addImageRef.current?.click()} className="absolute bottom-1 right-1 bg-ink/70 text-white px-2 py-0.5 text-[9px] font-bold rounded">Change</button>
                   </div>
                   :<button onClick={()=>addImageRef.current?.click()} className="flex items-center gap-2 px-3 py-2 border border-dashed border-border hover:border-ink text-xs font-bold text-muted-foreground hover:text-ink transition-all">
-                    <Upload size={13}/> Choose Image (will crop to 16:9)
+                    <Upload size={13}/> Choose Image
                   </button>
                 }
                 <input ref={addImageRef} type="file" accept="image/*" className="hidden"
-                  onChange={e=>{const f=e.target.files?.[0];if(f){setAddCropSrc(URL.createObjectURL(f));}e.target.value="";}}/>
+                  onChange={e=>{const f=e.target.files?.[0];if(f){setAddForm(prev=>({...prev,imageFile:f,imagePreview:URL.createObjectURL(f)}));}e.target.value="";}}/>
               </div>
               {addError&&<p className="text-xs text-red-600 flex items-center gap-1.5"><XCircle size={12}/> {addError}</p>}
             </div>
@@ -723,21 +560,23 @@ export default function AdminPage() {
               </div>
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block">
-                  {editForm.imagePreview ? "Replace Image" : "Add Image"} <span className="text-muted-foreground font-normal normal-case tracking-normal">(16:9, cropped)</span>
+                  {editForm.imagePreview?"Replace Image":"Add Image"}
                 </label>
                 {editForm.imagePreview
-                  ?<div className="space-y-2">
-                    <div className="relative w-full border border-border overflow-hidden" style={{aspectRatio:"16/9"}}>
+                  ?<div className="flex items-start gap-3">
+                    <div className="relative w-32 h-20 border border-border overflow-hidden shrink-0">
                       <img src={editForm.imagePreview} alt="preview" className="w-full h-full object-cover"/>
-                      <button onClick={()=>editImageRef.current?.click()} className="absolute bottom-1 right-1 bg-ink/70 text-white px-2 py-0.5 text-[9px] font-bold rounded">Replace</button>
                     </div>
+                    <button onClick={()=>editImageRef.current?.click()} className="flex items-center gap-2 px-3 py-2 border border-dashed border-border hover:border-ink text-xs font-bold text-muted-foreground hover:text-ink transition-all">
+                      <Upload size={13}/> Replace
+                    </button>
                   </div>
                   :<button onClick={()=>editImageRef.current?.click()} className="flex items-center gap-2 px-3 py-2 border border-dashed border-border hover:border-ink text-xs font-bold text-muted-foreground hover:text-ink transition-all">
-                    <Upload size={13}/> Choose Image (will crop to 16:9)
+                    <Upload size={13}/> Choose Image
                   </button>
                 }
                 <input ref={editImageRef} type="file" accept="image/*" className="hidden"
-                  onChange={e=>{const f=e.target.files?.[0];if(f){setEditCropSrc(URL.createObjectURL(f));}e.target.value="";}}/>
+                  onChange={e=>{const f=e.target.files?.[0];if(f){setEditForm(prev=>prev?{...prev,imageFile:f,imagePreview:URL.createObjectURL(f)}:prev);}e.target.value="";}}/>
                 {editForm.imageFile&&<p className="text-[10px] text-green-600 flex items-center gap-1"><CheckCircle size={10}/> New image selected — will be saved on update.</p>}
               </div>
               {editError&&<p className="text-xs text-red-600 flex items-center gap-1.5"><XCircle size={12}/> {editError}</p>}

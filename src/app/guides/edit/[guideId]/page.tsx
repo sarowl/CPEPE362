@@ -5,7 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import {
   ChevronRight, ChevronLeft, Plus, Trash2, Upload, X,
-  AlertCircle, CheckCircle, Clock, Wrench, Package,
+  AlertCircle, CheckCircle, Clock, Wrench,
   ImageIcon, Video, RefreshCw, Save, ZoomIn, ZoomOut,
   FileEdit,
 } from "lucide-react";
@@ -142,7 +142,6 @@ export default function EditGuidePage() {
   const [origDifficulty, setOrigDifficulty] = useState("");
   const [origTimeReq,    setOrigTimeReq]    = useState("");
   const [origTools,      setOrigTools]      = useState<string[]>([]);
-  const [origParts,      setOrigParts]      = useState<string[]>([]);
   const [origThumbUrl,   setOrigThumbUrl]   = useState<string | null>(null);
   const [origSteps,      setOrigSteps]      = useState<StepDraft[]>([]);
 
@@ -159,8 +158,6 @@ export default function EditGuidePage() {
   const [timeReq,    setTimeReq]    = useState("");
   const [toolInput,  setToolInput]  = useState("");
   const [tools,      setTools]      = useState<string[]>([]);
-  const [partsInput, setPartsInput] = useState("");
-  const [parts,      setParts]      = useState<string[]>([]);
   // Spec 4.1: Thumbnail pending — NOT uploaded to storage until confirmed
   const [existingThumbUrl, setExistingThumbUrl] = useState<string | null>(null);
   const [pendingThumb,     setPendingThumb]     = useState<File | null>(null);
@@ -174,7 +171,6 @@ export default function EditGuidePage() {
   const [error,      setError]      = useState("");
   const [saved,      setSaved]      = useState(false);
   const [savedAction, setSavedAction] = useState<"submitted"|"draft"|null>(null);
-  const [showTurnToDraftModal, setShowTurnToDraftModal] = useState(false);
   const fileInputRefs = useRef<(HTMLInputElement|null)[][]>([]);
 
   useEffect(() => {
@@ -189,12 +185,12 @@ export default function EditGuidePage() {
         setOrigGuideStatus(g.status ?? "draft");
         setOrigBrandId(g.brand_id ?? ""); setOrigModelId(g.model_id ?? ""); setOrigModelName(g.model_name ?? "");
         setOrigTitle(g.title ?? ""); setOrigSummary(g.summary ?? ""); setOrigIntro(g.introduction ?? "");
-        setOrigDifficulty(g.difficulty ?? ""); setOrigTimeReq(g.time_required ?? ""); setOrigTools(g.tools ?? []); setOrigParts(g.required_parts ?? []);
+        setOrigDifficulty(g.difficulty ?? ""); setOrigTimeReq(g.time_required ?? ""); setOrigTools(g.tools ?? []);
         setOrigThumbUrl(g.thumbnail_url ?? null);
         // Set working state
         setBrandId(g.brand_id ?? ""); setModelId(g.model_id ?? ""); setModelName(g.model_name ?? "");
         setTitle(g.title ?? ""); setSummary(g.summary ?? ""); setIntro(g.introduction ?? "");
-        setDifficulty(g.difficulty ?? ""); setTimeReq(g.time_required ?? ""); setTools(g.tools ?? []); setParts(g.required_parts ?? []);
+        setDifficulty(g.difficulty ?? ""); setTimeReq(g.time_required ?? ""); setTools(g.tools ?? []);
         if (g.thumbnail_url) { setExistingThumbUrl(g.thumbnail_url); setThumbPreview(g.thumbnail_url); }
         const rawSteps: any[] = guideJson.steps ?? [];
         const loadedSteps = rawSteps.length > 0 ? rawSteps.map(stepFromDB) : [emptyStep(1)];
@@ -240,7 +236,7 @@ export default function EditGuidePage() {
   const handleCancelEdit = () => {
     setBrandId(origBrandId); setModelId(origModelId); setModelName(origModelName);
     setTitle(origTitle); setSummary(origSummary); setIntro(origIntro);
-    setDifficulty(origDifficulty); setTimeReq(origTimeReq); setTools([...origTools]); setParts([...origParts]);
+    setDifficulty(origDifficulty); setTimeReq(origTimeReq); setTools([...origTools]);
     setExistingThumbUrl(origThumbUrl); setThumbPreview(origThumbUrl ?? "");
     setPendingThumb(null); setCropSrc(null);
     setSteps(origSteps.map((s) => ({ ...s, images: [...s.images], imageFiles: [null,null,null], imagePreviews: [...s.imagePreviews] })));
@@ -351,7 +347,7 @@ export default function EditGuidePage() {
   const doCommit = async (statusOverride?: string) => {
     await commitThumbnail();
     const committedSteps = await commitAllStepImages();
-    const body: any = { brand_id: brandId, model_id: modelId, model_name: modelName, title, summary, introduction: intro, difficulty, time_required: timeReq, tools, required_parts: parts };
+    const body: any = { brand_id: brandId, model_id: modelId, model_name: modelName, title, summary, introduction: intro, difficulty, time_required: timeReq, tools };
     if (statusOverride) body.status = statusOverride;
     const res = await fetch(`/api/guides/${guideId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     if (!res.ok) { const j = await res.json(); throw new Error(j.error ?? "Failed to save guide."); }
@@ -362,21 +358,12 @@ export default function EditGuidePage() {
     await fetch("/api/guides-storage-cleanup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ guide_id: guideId }) });
   };
 
-  // Spec 2.2: Turn to Draft — show modal with Leave Edit / Continue Editing
-  const handleTurnToDraft = () => {
-    setShowTurnToDraftModal(true);
-  };
-
-  const handleTurnToDraftConfirm = async () => {
-    setShowTurnToDraftModal(false);
+  // Spec 2.2: Turn to Draft — save all + set status=draft
+  const handleTurnToDraft = async () => {
     setError(""); setSaving(true);
     try { await doCommit("draft"); setSavedAction("draft"); setSaved(true); }
     catch (e: any) { setError(e.message ?? "Error saving."); }
     finally { setSaving(false); }
-  };
-
-  const handleTurnToDraftContinue = () => {
-    setShowTurnToDraftModal(false);
   };
 
   // Spec 3.2: Save Draft — save all, keep current status (draft)
@@ -433,23 +420,11 @@ export default function EditGuidePage() {
       {cropSrc && <ThumbnailCropper src={cropSrc} onCropped={handleCropDone} onCancel={() => setCropSrc(null)} />}
       <main className="flex-1 w-full max-w-3xl mx-auto px-6 py-8">
 
-        <div className="mb-8 flex items-start justify-between gap-4">
-          <div>
-            <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mb-1">Edit Guide</p>
-            <h1 className="font-black uppercase tracking-tighter text-2xl">Update Repair Guide</h1>
-            {isApprovedOrRejected && <p className="text-xs text-muted-foreground mt-1">Editing an {origGuideStatus} guide. Use <strong>Turn to Draft</strong> to save changes — guide will require re-review.</p>}
-            {isDraft && <p className="text-xs text-muted-foreground mt-1">Editing a draft. Use <strong>Save Draft</strong> to keep changes or <strong>Submit for Review</strong> to publish.</p>}
-          </div>
-          {/* Turn to Draft — available immediately under Step 1: Info section */}
-          <button
-            onClick={handleTurnToDraft}
-            disabled={saving}
-            className="flex items-center gap-1.5 px-3 py-2 border border-border text-xs font-bold hover:bg-secondary transition-colors disabled:opacity-60 shrink-0 mt-1"
-            title="Save as draft"
-          >
-            {saving ? <RefreshCw size={11} className="animate-spin" /> : null}
-            Turn to Draft
-          </button>
+        <div className="mb-8">
+          <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mb-1">Edit Guide</p>
+          <h1 className="font-black uppercase tracking-tighter text-2xl">Update Repair Guide</h1>
+          {isApprovedOrRejected && <p className="text-xs text-muted-foreground mt-1">Editing an {origGuideStatus} guide. Use <strong>Turn to Draft</strong> to save changes — guide will require re-review.</p>}
+          {isDraft && <p className="text-xs text-muted-foreground mt-1">Editing a draft. Use <strong>Save Draft</strong> to keep changes or <strong>Submit for Review</strong> to publish.</p>}
         </div>
 
         {/* Wizard indicator */}
@@ -566,27 +541,6 @@ export default function EditGuidePage() {
               </label>
               <input type="text" value={timeReq} onChange={(e) => setTimeReq(e.target.value)} placeholder="e.g. 1-2 hours"
                 className="w-full border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:border-primary" />
-            </div>
-
-            <div>
-              <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block mb-2">
-                <Package size={10} className="inline mr-1" /> Required Parts
-              </label>
-              <div className="flex gap-2 mb-2">
-                <input type="text" value={partsInput} onChange={(e) => setPartsInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter" && partsInput.trim()) { setParts((p)=>[...p,partsInput.trim()]); setPartsInput(""); e.preventDefault(); }}}
-                  placeholder="Add a part, press Enter"
-                  className="flex-1 border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:border-primary" />
-                <button onClick={() => { if (partsInput.trim()) { setParts((p)=>[...p,partsInput.trim()]); setPartsInput(""); }}}
-                  className="px-3 py-2 bg-secondary border border-border text-xs font-bold hover:bg-border transition-colors"><Plus size={12} /></button>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {parts.map((p, i) => (
-                  <span key={i} className="flex items-center gap-1.5 px-2 py-1 bg-secondary border border-border text-xs">
-                    {p}<button onClick={() => setParts((prev)=>prev.filter((_,j)=>j!==i))} className="text-muted-foreground hover:text-ink"><X size={10} /></button>
-                  </span>
-                ))}
-              </div>
             </div>
 
             <div>
@@ -725,7 +679,6 @@ export default function EditGuidePage() {
               <div className="text-sm"><span className="font-bold">Summary:</span> {summary}</div>
               {intro && <div className="text-sm"><span className="font-bold">Note:</span> {intro}</div>}
               {tools.length > 0 && <div className="text-sm"><span className="font-bold">Tools:</span> {tools.join(", ")}</div>}
-              {parts.length > 0 && <div className="text-sm"><span className="font-bold">Required Parts:</span> {parts.join(", ")}</div>}
               <div className="border-t border-border pt-4 space-y-3">
                 {steps.map((s) => (
                   <div key={s.step_number} className="border border-border overflow-hidden">
@@ -784,33 +737,6 @@ export default function EditGuidePage() {
           </div>
         )}
       </main>
-
-      {/* ── Turn to Draft Modal ── */}
-      {showTurnToDraftModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 backdrop-blur-sm px-4">
-          <div className="w-full max-w-sm bg-background border border-border shadow-[6px_6px_0_0_var(--ink)] p-6">
-            <h3 className="font-black uppercase tracking-tighter text-base mb-2">Turn to Draft</h3>
-            <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
-              Your guide will be saved as a draft and will require re-review before publishing. What would you like to do?
-            </p>
-            <div className="flex flex-col gap-3">
-              <button
-                onClick={handleTurnToDraftConfirm}
-                disabled={saving}
-                className="w-full px-4 py-2.5 bg-ink text-white text-xs font-bold hover:bg-ink/80 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
-              >
-                {saving ? <><RefreshCw size={12} className="animate-spin" /> Saving...</> : "Leave Edit"}
-              </button>
-              <button
-                onClick={handleTurnToDraftContinue}
-                className="w-full px-4 py-2.5 border border-border text-xs font-bold hover:bg-secondary transition-colors"
-              >
-                Continue Editing
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
