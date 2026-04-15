@@ -1,22 +1,13 @@
 "use client";
 
+
 import { useEffect, useMemo, useState, Suspense } from "react";
-import Navbar from "@/components/Navbar";
 import Link from "next/link";
-import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Search, X, Wrench, MessageCircle, Tag } from "lucide-react";
+import { Search, X, Wrench, MessageCircle, Tag, RefreshCw } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
-
-type GuideResult = {
-  id: number;
-  title: string;
-  make: string;
-  model: string;
-  description: string;
-  image: string;
-};
+import Navbar from "@/components/Navbar";
 
 type ForumResult = {
   id: number;
@@ -25,7 +16,6 @@ type ForumResult = {
   tags: string[];
   answers: number;
 };
-
 
 type RealGuide = {
   guide_id: string;
@@ -38,8 +28,8 @@ type RealGuide = {
   model_name: string;
   user_id: string;
   created_at: string;
+  thumbnail_url?: string | null;
 };
-
 
 const FORUM_RESULTS: ForumResult[] = [
   {
@@ -65,9 +55,12 @@ const FORUM_RESULTS: ForumResult[] = [
   },
 ];
 
-const SEARCH_CATEGORIES = ["All", "Store", "Devices", "Guides", "Wikis", "Answers", "Pages", "News", "Documents"];
-
-
+const DIFFICULTY_COLORS: Record<string, string> = {
+  Beginner:     "bg-green-50 text-green-700 border-green-200",
+  Intermediate: "bg-yellow-50 text-yellow-700 border-yellow-200",
+  Advanced:     "bg-orange-50 text-orange-700 border-orange-200",
+  Expert:       "bg-red-50 text-red-700 border-red-200",
+};
 
 function SearchPageComponent() {
   const params = useSearchParams();
@@ -77,7 +70,6 @@ function SearchPageComponent() {
   const [notice, setNotice] = useState("");
   const [guides, setGuides] = useState<RealGuide[]>([]);
   const [loading, setLoading] = useState(false);
-  const [models, setModels] = useState<any[]>([]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -93,55 +85,20 @@ function SearchPageComponent() {
     setQuery(params.get("q") ?? "");
   }, [params]);
 
-  // Fetch all car models on mount
   useEffect(() => {
-    async function fetchModels() {
-      // You may want to fetch all brands and their models
-      // For simplicity, try common brands
-      const brands = ["toyota","mitsubishi","byd","suzuki","isuzu","ford","nissan","honda","hyundai","kia","geely","mg"];
-      let allModels: any[] = [];
-      await Promise.all(
-        brands.map(async (brand) => {
-          const res = await fetch(`/api/car-models/${brand}`);
-          if (res.ok) {
-            const data = await res.json();
-            if (data.models) {
-              allModels = allModels.concat(data.models.map((m: any) => ({...m, brand })));
-            }
-          }
-        })
-      );
-      setModels(allModels);
-    }
-    fetchModels();
-  }, []);
-
-  // Fetch guides when query changes
-  useEffect(() => {
-    async function fetchGuidesForSearch() {
+    async function fetchAllGuides() {
       setLoading(true);
-      let foundModel = null;
-      const trimmedQuery = query.trim();
-      if (trimmedQuery) {
-        // Try to match the query to a model name
-        const q = trimmedQuery.toLowerCase();
-        foundModel = models.find((m) => m.name.toLowerCase() === q || q.includes(m.name.toLowerCase()));
-      }
-      if (trimmedQuery && foundModel) {
-        // Fetch guides for this model
-        const res = await fetch(`/api/guides/by-model?model_id=${foundModel.id}`);
-        const data = await res.json();
-        setGuides(data.guides || []);
-      } else {
-        // If no query or no model match, show all guides
+      try {
         const res = await fetch("/api/guides");
         const data = await res.json();
         setGuides(data.guides || []);
+      } catch {
+        // ignore
       }
       setLoading(false);
     }
-    fetchGuidesForSearch();
-  }, [query, models]);
+    fetchAllGuides();
+  }, []);
 
   const keywords = useMemo(() => {
     return query
@@ -151,23 +108,16 @@ function SearchPageComponent() {
       .filter(Boolean);
   }, [query]);
 
-  // Show all guides if no search, otherwise filter by keyword
   const filteredGuides = useMemo(() => {
     if (!query.trim()) return guides;
-    const keywords = query
-      .toLowerCase()
-      .split(/\s+/)
-      .map((k) => k.trim())
-      .filter(Boolean);
     return guides.filter((item) => {
-      const haystack = `${item.title} ${item.model_name} ${item.summary}`.toLowerCase();
+      const haystack = `${item.title} ${item.model_name} ${item.brand_id} ${item.summary}`.toLowerCase();
       return keywords.every((k) => haystack.includes(k));
     });
-  }, [guides, query]);
+  }, [guides, query, keywords]);
 
   const filteredForum = useMemo(() => {
     if (!keywords.length) return FORUM_RESULTS;
-
     return FORUM_RESULTS.filter((item) => {
       const haystack = `${item.title} ${item.content} ${item.tags.join(" ")}`.toLowerCase();
       return keywords.every((k) => haystack.includes(k));
@@ -177,147 +127,187 @@ function SearchPageComponent() {
   const handleSearch = (value: string) => {
     setQuery(value);
     const trimmed = value.trim();
-
     if (trimmed) {
       router.replace(`/search?q=${encodeURIComponent(trimmed)}`);
       return;
     }
-
     router.replace("/search");
   };
 
   const handleProtectedClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     if (user) return;
-
     e.preventDefault();
     setNotice("Login is required to view full content.");
   };
 
   return (
-    <>
+    <div className="min-h-screen bg-paper text-ink flex flex-col">
       <Navbar />
-      <main className="bg-secondary/40 min-h-[calc(100vh-56px)] px-4 py-8 md:px-8">
-      <section className="mx-auto w-full max-w-6xl rounded-2xl border border-border bg-background p-5 shadow-sm md:p-8">
-        <h1 className="text-3xl font-extrabold tracking-tight">Search</h1>
+      <main className="bg-secondary/40 flex-1 px-4 py-8 md:px-8">
+        <section className="mx-auto w-full max-w-6xl rounded-2xl border border-border bg-background p-5 shadow-sm md:p-8">
+          <h1 className="text-3xl font-extrabold tracking-tight">Search</h1>
 
-        <div className="mt-5 flex items-center gap-2 rounded-lg border border-border bg-background px-3 h-11">
-          <Search size={16} className="text-muted-foreground" />
-          <input
-            value={query}
-            onChange={(e) => handleSearch(e.target.value)}
-            placeholder="Search by keyword"
-            className="h-full flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-          />
-          {query ? (
-            <button
-              type="button"
-              onClick={() => handleSearch("")}
-              className="rounded p-1 text-muted-foreground hover:bg-secondary"
-              aria-label="Clear search"
-            >
-              <X size={14} />
-            </button>
+          <div className="mt-5 flex items-center gap-2 rounded-lg border border-border bg-background px-3 h-11">
+            <Search size={16} className="text-muted-foreground" />
+            <input
+              value={query}
+              onChange={(e) => handleSearch(e.target.value)}
+              placeholder="Search guides by keyword, car model, brand..."
+              className="h-full flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            />
+            {query ? (
+              <button
+                type="button"
+                onClick={() => handleSearch("")}
+                className="rounded p-1 text-muted-foreground hover:bg-secondary"
+                aria-label="Clear search"
+              >
+                <X size={14} />
+              </button>
+            ) : null}
+          </div>
+
+          {notice ? (
+            <div className="mt-4 rounded-md border border-primary/40 bg-primary/10 px-3 py-2 text-sm">
+              {notice}{" "}
+              <Link href="/login" className="font-semibold underline">
+                Go to login
+              </Link>
+            </div>
           ) : null}
-        </div>
 
-        <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 border-b border-border pb-3">
-          {SEARCH_CATEGORIES.map((category, idx) => (
-            <span
-              key={category}
-              className={`text-sm font-semibold ${idx === 0 ? "text-foreground" : "text-foreground/70"}`}
-            >
-              {category}
-            </span>
-          ))}
-        </div>
+          {/* UPDATED 7: Guides Section — matches Community Guides card layout */}
+          <section className="mt-8">
+            <div className="mb-4 flex items-end justify-between">
+              <h2 className="text-3xl font-extrabold tracking-tight">Guides</h2>
+              <span className="text-sm text-primary">
+                {loading ? "Loading..." : `${filteredGuides.length} result${filteredGuides.length !== 1 ? "s" : ""}`}
+              </span>
+            </div>
 
-        {notice ? (
-          <div className="mt-4 rounded-md border border-primary/40 bg-primary/10 px-3 py-2 text-sm">
-            {notice} <Link href="/login" className="font-semibold underline">Go to login</Link>
-          </div>
-        ) : null}
+            {loading ? (
+              <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
+                <RefreshCw size={14} className="animate-spin" /> Loading guides...
+              </div>
+            ) : filteredGuides.length === 0 ? (
+              <div className="py-10 text-center text-muted-foreground text-sm">
+                {query ? "No guides found for your search." : "No approved guides yet."}
+              </div>
+            ) : (
+              // UPDATED 7: Same card structure as community/guides — 3-col grid, thumbnail above
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredGuides.map((guide) => (
+                  <SearchGuideCard
+                    key={guide.guide_id}
+                    guide={guide}
+                    isLoggedIn={!!user}
+                    onProtectedClick={handleProtectedClick}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
 
-        <section className="mt-8">
-          <div className="mb-4 flex items-end justify-between">
-            <h2 className="text-3xl font-extrabold tracking-tight">Guides</h2>
-            <span className="text-sm text-primary">See all {filteredGuides.length} results</span>
-          </div>
-
-          {loading ? (
-            <div className="py-8 text-center text-muted-foreground">Loading guides...</div>
-          ) : (
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              {filteredGuides.map((guide) => (
+          {/* Forums Section */}
+          <section className="mt-10">
+            <div className="mb-4 flex items-end justify-between">
+              <h2 className="text-3xl font-extrabold tracking-tight">Answers</h2>
+              <span className="text-sm text-primary">
+                {filteredForum.length} result{filteredForum.length !== 1 ? "s" : ""}
+              </span>
+            </div>
+            <div className="space-y-4">
+              {filteredForum.map((post) => (
                 <Link
-                  key={guide.guide_id}
-                  href={`/guides/${guide.brand_id}/${guide.model_id}/${guide.guide_id}`}
+                  key={post.id}
+                  href={`/community/forum/${post.id}`}
                   onClick={handleProtectedClick}
-                  className="flex gap-3 rounded-2xl border border-border p-3 transition-colors hover:border-primary/50"
+                  className="flex items-start gap-4 rounded-2xl border border-border p-4 transition-colors hover:border-primary/50"
                 >
-                  <div className="h-20 w-20 rounded-lg bg-secondary flex items-center justify-center">
-                    <Wrench size={32} className="text-primary" />
+                  <div className="mt-1 flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-secondary text-primary">
+                    <MessageCircle size={20} />
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="mb-1 flex items-center gap-2 text-[11px] uppercase tracking-wide text-muted-foreground">
                       <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5">
-                        <Wrench size={11} /> Repair Guide
+                        <Tag size={11} /> Forum
                       </span>
                     </div>
-                    <p className="line-clamp-2 text-base font-semibold leading-snug">{guide.title}</p>
-                    <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
-                      {guide.summary} ({guide.model_name})
-                    </p>
+                    <p className="line-clamp-2 text-base font-semibold leading-snug">{post.title}</p>
+                    <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{post.content}</p>
+                  </div>
+                  <div className="text-right text-xs text-muted-foreground shrink-0">
+                    {post.answers} {post.answers === 1 ? "answer" : "answers"}
                   </div>
                 </Link>
               ))}
             </div>
-          )}
+          </section>
         </section>
+      </main>
+    </div>
+  );
+}
 
-        <section className="mt-10">
-          <div className="mb-4 flex items-end justify-between">
-            <h2 className="text-3xl font-extrabold tracking-tight">Answers</h2>
-            <span className="text-sm text-primary">See all {filteredForum.length} results</span>
+// UPDATED 7: Search Guide Card matching Community Guides card exactly
+// - thumbnail above, cropped half-preview
+// - UPDATED 6.2 (Auto Hub / Guide Search): full aspect ratio shown (mostly visible)
+function SearchGuideCard({
+  guide,
+  isLoggedIn,
+  onProtectedClick,
+}: {
+  guide: RealGuide;
+  isLoggedIn: boolean;
+  onProtectedClick: (e: React.MouseEvent<HTMLAnchorElement>) => void;
+}) {
+  const diffColor = DIFFICULTY_COLORS[guide.difficulty] ?? "bg-secondary text-muted-foreground border-border";
+  const href = `/guides/${guide.brand_id}/${guide.model_id}/${guide.guide_id}`;
+  // UPDATED 6.4: fallback thumbnail
+  const thumbnailSrc = guide.thumbnail_url || "/no-thumbnail.png";
+
+  return (
+    <Link
+      href={isLoggedIn ? href : "/login"}
+      onClick={onProtectedClick}
+      className="block h-full"
+    >
+      <div className="border border-border bg-background hover:border-primary/50 transition-colors group flex flex-col h-full overflow-hidden rounded-lg">
+        {/* UPDATED 6.2: Full aspect ratio thumbnail (mostly visible, not cropped half) */}
+        <div className="relative w-full overflow-hidden" style={{ aspectRatio: "16/9" }}>
+          <img
+            src={thumbnailSrc}
+            alt={guide.title}
+            className="w-full h-full object-cover"
+            onError={(e) => { (e.target as HTMLImageElement).src = "/no-thumbnail.png"; }}
+          />
+        </div>
+        <div className="p-4 flex flex-col gap-2 flex-1">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground capitalize">
+              {guide.brand_id} · {guide.model_name}
+            </span>
+            <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 border rounded ${diffColor}`}>
+              {guide.difficulty}
+            </span>
           </div>
-
-          <div className="space-y-4">
-            {filteredForum.map((post) => (
-              <Link
-                key={post.id}
-                href={`/community/forum/${post.id}`}
-                onClick={handleProtectedClick}
-                className="flex items-start gap-4 rounded-2xl border border-border p-4 transition-colors hover:border-primary/50"
-              >
-                <div className="mt-1 flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-secondary text-primary">
-                  <MessageCircle size={20} />
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <div className="mb-1 flex items-center gap-2 text-[11px] uppercase tracking-wide text-muted-foreground">
-                    <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5">
-                      <Tag size={11} /> Forum
-                    </span>
-                  </div>
-                  <p className="line-clamp-2 text-base font-semibold leading-snug">{post.title}</p>
-                  <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{post.content}</p>
-                </div>
-
-                <div className="text-right text-xs text-muted-foreground">
-                  {post.answers} {post.answers === 1 ? "answer" : "answers"}
-                </div>
-              </Link>
-            ))}
+          <h3 className="text-sm font-bold leading-snug line-clamp-2">{guide.title}</h3>
+          <p className="text-xs text-muted-foreground leading-relaxed flex-1 line-clamp-2">{guide.summary}</p>
+          <div className="pt-2 border-t border-border mt-auto flex items-center justify-between">
+            <span className="text-[10px] font-mono text-muted-foreground">{guide.time_required}</span>
+            <span className="text-[10px] font-bold text-primary group-hover:underline tracking-wide">
+              {isLoggedIn ? "VIEW GUIDE →" : "🔒 LOGIN TO VIEW"}
+            </span>
           </div>
-        </section>
-      </section>
-    </main>
-    </>
+        </div>
+      </div>
+    </Link>
   );
 }
 
 export default function SearchPage() {
   return (
-    <Suspense fallback={<div>Loading search...</div>}>
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">Loading search...</div>}>
       <SearchPageComponent />
     </Suspense>
   );

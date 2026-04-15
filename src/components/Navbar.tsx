@@ -1,118 +1,316 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { Search, ChevronDown, Bookmark, User, Settings, LogOut, Car, FileText, Cpu, Users, MessageSquare } from "lucide-react";
-import { supabase } from "@/lib/supabase"; 
+import {
+  Search, ChevronDown, Bookmark, Bell, User,
+  Settings, LogOut, Car, FileText, Cpu, Users,
+  MessageSquare, BookOpen,
+} from "lucide-react";
+import { supabase } from "@/lib/supabase";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
+
+const profileCache: { data: any | null; fetchedAt: number | null } = {
+  data: null,
+  fetchedAt: null,
+};
+const CACHE_TTL_MS = 60_000; 
+
+async function fetchProfileOnce(): Promise<any> {
+  const now = Date.now();
+  if (profileCache.data && profileCache.fetchedAt && now - profileCache.fetchedAt < CACHE_TTL_MS) {
+    return profileCache.data;
+  }
+  const res = await fetch("/api/profile_fetch");
+  if (!res.ok) throw new Error("Failed to fetch profile");
+  const data = await res.json();
+  profileCache.data = data;
+  profileCache.fetchedAt = Date.now();
+  return data;
+}
+
+export function invalidateProfileCache() {
+  profileCache.data = null;
+  profileCache.fetchedAt = null;
+}
 
 export default function Navbar() {
   const router = useRouter();
   const pathname = usePathname();
+
   const [user, setUser] = useState<SupabaseUser | null>(null);
-  const [searchOpen, setSearchOpen] = useState(false);
   const [profilePicture, setProfilePicture] = useState<string | null>(null);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+
+  const userRef = useRef<SupabaseUser | null>(null);
+  userRef.current = user;
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
     });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
-
     return () => subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
-    const fetchProfilePicture = async () => {
-      if (!user) {
-        setProfilePicture(null);
-        return;
-      }
+    if (!user) {
+      setProfilePicture(null);
+      setNotifications([]);
+      return;
+    }
 
-      try {
-        const res = await fetch("/api/profile_fetch");
-        const data = await res.json();
-        if (res.ok && data.user?.profile_picture) {
+    fetchProfileOnce()
+      .then((data) => {
+        if (data?.user?.profile_picture) {
           setProfilePicture(data.user.profile_picture);
         }
-      } catch (error) {
-        console.error("Error fetching profile picture:", error);
-      }
-    };
+      })
+      .catch(() => {});
 
-    fetchProfilePicture();
-  }, [user]);
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 30_000);
+    return () => clearInterval(interval);
+
+  }, [user?.id]); 
+
+  const fetchNotifications = async () => {
+    if (!userRef.current) return;
+    setNotificationsLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      const res = await fetch("/api/notification/fetch", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setNotifications(data.notifications ?? []);
+      }
+    } catch (err) {
+      console.error("Error fetching notifications:", err);
+    } finally {
+      setNotificationsLoading(false);
+    }
+  };
+
+  const markNotificationsAsRead = async () => {
+    if (!user || notifications.length === 0) return;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      const unreadIds = notifications.filter((n) => !n.is_read).map((n) => n.id);
+      if (unreadIds.length === 0) return;
+      const res = await fetch("/api/notification/mark-read", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ ids: unreadIds }),
+      });
+      if (res.ok) {
+        setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+      }
+    } catch (err) {
+      console.error("Error marking notifications as read:", err);
+    }
+  };
 
   const handleSignOut = async () => {
+    invalidateProfileCache();
     await supabase.auth.signOut();
     router.push("/");
   };
 
+  const unreadCount = notifications.filter((n) => !n.is_read).length;
+
   return (
     <nav className="bg-ink flex items-center px-6 h-14 shrink-0 sticky top-0 z-50 border-b border-white/10">
-      <Link href="/" className="font-display text-lg font-bold tracking-wide text-primary-foreground mr-8">
+      {/* Logo */}
+      <Link
+        href="/"
+        className="font-display text-lg font-bold tracking-wide text-primary-foreground mr-8"
+      >
         <span className="text-primary">AUTO</span>BOT
       </Link>
 
+      {/* Desktop nav */}
       <div className="hidden md:flex items-center gap-2 h-full">
-        
+
+        {/* Fix It dropdown */}
         <div className="group relative h-full flex items-center">
-          <button className={`flex items-center gap-1 px-4 h-full font-mono text-sm transition-colors ${pathname.startsWith('/guides') ? 'text-primary' : 'text-primary-foreground/70 group-hover:text-primary-foreground'}`}>
-            Fix it <ChevronDown size={14} className="group-hover:rotate-180 transition-transform" />
+          <button
+            className={`flex items-center gap-1 px-4 h-full font-mono text-sm transition-colors ${
+              pathname.startsWith("/car-makers") || pathname.startsWith("/guides")
+                ? "text-primary"
+                : "text-primary-foreground/70 group-hover:text-primary-foreground"
+            }`}
+          >
+            Fix it{" "}
+            <ChevronDown size={14} className="group-hover:rotate-180 transition-transform" />
           </button>
-          
           <div className="absolute top-14 left-0 w-[500px] flex flex-row bg-ink border border-white/10 shadow-xl rounded-b-md transition-all duration-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible translate-y-2 group-hover:translate-y-0 overflow-hidden">
-            <HorizontalDropdownItem 
-              href="/car-makers" 
-              icon={<FileText size={20}/>} 
-              title="Repair Guides" 
-              subtitle="Step-by-step manuals" 
+            <HorizontalDropdownItem
+              href="/car-makers"
+              icon={<FileText size={20} />}
+              title="Repair Guides"
+              subtitle="Step-by-step manuals"
             />
-            <div className="w-[1px] bg-white/10 self-stretch" /> 
-            <HorizontalDropdownItem 
-              href="/ai-assistant" 
-              icon={<Cpu size={20}/>} 
-              title="Autobot AI" 
-              subtitle="Smart diagnostic helper" 
-              isPro 
+            <div className="w-[1px] bg-white/10 self-stretch" />
+            <HorizontalDropdownItem
+              href="/ai-repair"
+              icon={<Cpu size={20} />}
+              title="Autobot AI"
+              subtitle="Smart diagnostic helper"
+              isPro
             />
           </div>
         </div>
 
+        {/* Community dropdown */}
         <div className="group relative h-full flex items-center">
-          <button className={`flex items-center gap-1 px-4 h-full font-mono text-sm transition-colors ${pathname.startsWith('/community') ? 'text-primary' : 'text-primary-foreground/70 group-hover:text-primary-foreground'}`}>
-            Community <ChevronDown size={14} className="group-hover:rotate-180 transition-transform" />
+          <button
+            className={`flex items-center gap-1 px-4 h-full font-mono text-sm transition-colors ${
+              pathname.startsWith("/community")
+                ? "text-primary"
+                : "text-primary-foreground/70 group-hover:text-primary-foreground"
+            }`}
+          >
+            Community{" "}
+            <ChevronDown size={14} className="group-hover:rotate-180 transition-transform" />
           </button>
-          
-          <div className="absolute top-14 left-0 w-[500px] flex flex-row bg-ink border border-white/10 shadow-xl rounded-b-md transition-all duration-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible translate-y-2 group-hover:translate-y-0 overflow-hidden">
-            <HorizontalDropdownItem 
-              href="/community/contribute" 
-              icon={<Users size={20}/>}
-              title="Be Involved" 
-              subtitle="Contribute to the database" 
+          <div className="absolute top-14 left-0 w-[600px] flex flex-row bg-ink border border-white/10 shadow-xl rounded-b-md transition-all duration-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible translate-y-2 group-hover:translate-y-0 overflow-hidden">
+            <HorizontalDropdownItem
+              href="/community/contribute"
+              icon={<Users size={20} />}
+              title="Be Involved"
+              subtitle="Contribute to the database"
             />
             <div className="w-[1px] bg-white/10 self-stretch" />
-            <HorizontalDropdownItem 
-              href="/community/forum" 
-              icon={<MessageSquare size={20}/>}
-              title="Answer Forum" 
-              subtitle="Get help from the community" 
+            <HorizontalDropdownItem
+              href="/community/forum"
+              icon={<MessageSquare size={20} />}
+              title="Forums"
+              subtitle="Get help from the community"
+            />
+            <div className="w-[1px] bg-white/10 self-stretch" />
+            <HorizontalDropdownItem
+              href="/community/guides"
+              icon={<BookOpen size={20} />}
+              title="Guides"
+              subtitle="Step-by-step manuals"
             />
           </div>
         </div>
       </div>
 
+      {/* Right side */}
       <div className="ml-auto flex items-center gap-5">
+        {/* Search */}
+        <button
+          onClick={() => router.push("/search")}
+          className="text-primary-foreground/70 hover:text-primary-foreground transition-colors"
+          title="Search"
+        >
+          <Search size={20} />
+        </button>
+
         {user && (
-          <Link href="/bookmarks" className="text-primary-foreground/70 hover:text-primary-foreground transition-colors" title="Bookmarked Guides">
-            <Bookmark size={20} />
-          </Link>
+          <>
+            {/* Bookmarks */}
+            <Link
+              href="/bookmarks"
+              className="text-primary-foreground/70 hover:text-primary-foreground transition-colors"
+              title="Bookmarked Guides"
+            >
+              <Bookmark size={20} />
+            </Link>
+
+            {/* Notifications */}
+            <div className="relative">
+              <button
+                onClick={() => {
+                  const opening = !notificationsOpen;
+                  setNotificationsOpen(opening);
+                  if (opening) {
+                    fetchNotifications();
+                    setTimeout(markNotificationsAsRead, 300);
+                  }
+                }}
+                className="flex items-center gap-1 text-primary-foreground/70 hover:text-primary-foreground transition-colors relative"
+                title="Notifications"
+              >
+                <Bell
+                  size={20}
+                  stroke="white"
+                  fill={unreadCount > 0 ? "black" : "none"}
+                />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-2 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {notificationsOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setNotificationsOpen(false)}
+                  />
+                  <div className="absolute top-12 right-0 w-80 bg-ink border border-white/10 shadow-xl rounded-md overflow-hidden py-2 z-50">
+                    <div className="px-4 py-2 border-b border-white/5">
+                      <p className="text-[10px] uppercase tracking-widest text-primary-foreground/40 font-mono">
+                        Notifications
+                      </p>
+                    </div>
+                    {notificationsLoading ? (
+                      <div className="px-4 py-4 text-center text-xs text-primary-foreground/50">
+                        Loading...
+                      </div>
+                    ) : notifications.length === 0 ? (
+                      <div className="px-4 py-4 text-center text-xs text-primary-foreground/50">
+                        No notifications
+                      </div>
+                    ) : (
+                      <div className="max-h-96 overflow-y-auto">
+                        {notifications.map((notif, idx) => (
+                          <div
+                            key={idx}
+                            className={`px-4 py-3 border-b border-white/5 transition-colors last:border-b-0 ${
+                              !notif.is_read
+                                ? "bg-primary/20 hover:bg-primary/30"
+                                : "hover:bg-white/5"
+                            }`}
+                          >
+                            <p className="text-xs font-semibold text-primary-foreground mb-1">
+                              {notif.title}
+                            </p>
+                            <p className="text-[11px] text-primary-foreground/70 leading-tight">
+                              {notif.message}
+                            </p>
+                            {notif.created_at && (
+                              <p className="text-[9px] text-primary-foreground/40 mt-1">
+                                {new Date(notif.created_at).toLocaleDateString()}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          </>
         )}
 
+        {/* User menu / Auth buttons */}
         {user ? (
           <div className="group relative h-full flex items-center">
             <button className="flex items-center gap-2 text-primary-foreground/70 group-hover:text-primary-foreground transition-colors">
@@ -123,8 +321,7 @@ export default function Navbar() {
                     alt="Profile"
                     className="w-full h-full object-cover"
                     onError={(e) => {
-                      e.currentTarget.style.display = 'none';
-                      e.currentTarget.parentElement!.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-primary"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>';
+                      setProfilePicture(null);
                     }}
                   />
                 ) : (
@@ -136,13 +333,17 @@ export default function Navbar() {
 
             <div className="absolute top-12 right-0 w-56 bg-ink border border-white/10 shadow-xl rounded-md transition-all duration-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible translate-y-2 group-hover:translate-y-0 overflow-hidden py-2">
               <div className="px-4 py-2 mb-1 border-b border-white/5">
-                <p className="text-[10px] uppercase tracking-widest text-primary-foreground/40 font-mono">Account</p>
-                <p className="text-xs truncate font-medium text-primary-foreground/90">{user.email}</p>
+                <p className="text-[10px] uppercase tracking-widest text-primary-foreground/40 font-mono">
+                  Account
+                </p>
+                <p className="text-xs truncate font-medium text-primary-foreground/90">
+                  {user.email}
+                </p>
               </div>
-              <ProfileLink href="/profile" icon={<User size={14}/>} label="My Profile" />
-              <ProfileLink href="/garage" icon={<Car size={14}/>} label="My Garage" />
-              <ProfileLink href="/settings" icon={<Settings size={14}/>} label="Settings" />
-              <button 
+              <ProfileLink href="/profile" icon={<User size={14} />} label="My Profile" />
+              <ProfileLink href="/garage" icon={<Car size={14} />} label="My Garage" />
+              <ProfileLink href="/settings" icon={<Settings size={14} />} label="Settings" />
+              <button
                 onClick={handleSignOut}
                 className="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-mono text-red-400 hover:bg-white/5 transition-colors"
               >
@@ -152,10 +353,16 @@ export default function Navbar() {
           </div>
         ) : (
           <>
-            <Link href="/login" className="font-mono text-xs bg-primary text-ink px-4 py-1.5 rounded hover:bg-primary/90 transition-colors">
+            <Link
+              href="/login"
+              className="font-mono text-xs bg-primary text-ink px-4 py-1.5 rounded hover:bg-primary/90 transition-colors"
+            >
               Log In
             </Link>
-            <Link href="/signup" className="font-mono text-xs border border-primary text-primary px-4 py-1.5 rounded hover:bg-primary hover:text-ink transition-colors">
+            <Link
+              href="/signup"
+              className="font-mono text-xs border border-primary text-primary px-4 py-1.5 rounded hover:bg-primary hover:text-ink transition-colors"
+            >
               Sign Up
             </Link>
           </>
@@ -165,28 +372,54 @@ export default function Navbar() {
   );
 }
 
-/* --- HELPER COMPONENTS --- */
+// ─── Sub-components ───────────────────────────────────────────────────────────
 
-function HorizontalDropdownItem({ href, title, subtitle, icon, isPro }: { href: string; title: string; subtitle: string; icon?: React.ReactNode; isPro?: boolean }) {
+function HorizontalDropdownItem({
+  href, title, subtitle, icon, isPro,
+}: {
+  href: string;
+  title: string;
+  subtitle: string;
+  icon?: React.ReactNode;
+  isPro?: boolean;
+}) {
   return (
-    <Link href={href} className="flex-1 flex flex-col items-center text-center p-6 hover:bg-white/5 transition-colors group/item">
+    <Link
+      href={href}
+      className="flex-1 flex flex-col items-center text-center p-6 hover:bg-white/5 transition-colors group/item"
+    >
       <div className="mb-3 p-3 rounded-full bg-white/5 text-primary group-hover/item:bg-primary group-hover/item:text-ink transition-all">
         {icon}
       </div>
       <div className="flex flex-col items-center">
         <div className="flex items-center gap-1.5">
           <span className="text-sm font-bold text-primary-foreground">{title}</span>
-          {isPro && <span className="text-[9px] bg-primary/20 text-primary px-1 rounded font-mono">AI</span>}
+          {isPro && (
+            <span className="text-[9px] bg-primary/20 text-primary px-1 rounded font-mono">
+              AI
+            </span>
+          )}
         </div>
-        <p className="text-[11px] text-primary-foreground/50 leading-tight mt-1 max-w-[120px]">{subtitle}</p>
+        <p className="text-[11px] text-primary-foreground/50 leading-tight mt-1 max-w-[120px]">
+          {subtitle}
+        </p>
       </div>
     </Link>
   );
 }
 
-function ProfileLink({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) {
+function ProfileLink({
+  href, icon, label,
+}: {
+  href: string;
+  icon: React.ReactNode;
+  label: string;
+}) {
   return (
-    <Link href={href} className="flex items-center gap-3 px-4 py-2.5 text-xs font-mono text-primary-foreground/70 hover:text-primary-foreground hover:bg-white/5 transition-colors">
+    <Link
+      href={href}
+      className="flex items-center gap-3 px-4 py-2.5 text-xs font-mono text-primary-foreground/70 hover:text-primary-foreground hover:bg-white/5 transition-colors"
+    >
       {icon} {label}
     </Link>
   );
