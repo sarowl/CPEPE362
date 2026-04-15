@@ -1,0 +1,37 @@
+import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase-server";
+
+export async function POST(req: Request) {
+  try {
+    const supabase = await createClient();
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData.user) {
+      return NextResponse.json({ error: "User not authenticated" }, { status: 401 });
+    }
+
+    const { post_id, content } = await req.json();
+
+    if (!post_id || !content) {
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    }
+
+    const { data: comment, error } = await supabase
+      .from("ForumComment")
+      .insert({
+        post_id,
+        user_id: authData.user.id,
+        content,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ comment }, { status: 201 });
+  } catch (error) {
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
+}
