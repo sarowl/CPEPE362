@@ -32,13 +32,11 @@ interface CarModelCardProps {
   model: CarModel;
   brandId: string;
   brandName: string;
-  guideCount?: number;
-  forumCount?: number;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function CarModelCard({ model, brandId, brandName, guideCount = 0, forumCount = 0 }: CarModelCardProps) {
+export default function CarModelCard({ model, brandId, brandName }: CarModelCardProps) {
   // Image source priority:
   //   1. model_img from Supabase Storage (uploaded via admin, Admin Fix #4)
   //   2. Local static file (legacy fallback for pre-existing models)
@@ -101,7 +99,7 @@ export default function CarModelCard({ model, brandId, brandName, guideCount = 0
       </div>
 
       {/* ── Model Name ─────────────────────────────────────────────────── */}
-      <div className="px-4 pb-8 border-t border-border pt-3">
+      <div className="px-4 pb-4 border-t border-border pt-3">
         <h3 className="
           text-lg font-black uppercase tracking-tighter leading-none
           group-hover:text-orange-600 transition-colors
@@ -109,24 +107,6 @@ export default function CarModelCard({ model, brandId, brandName, guideCount = 0
           {model.name}
         </h3>
         <p className="text-[10px] text-muted-foreground mt-0.5 font-mono">{model.years}</p>
-      </div>
-
-      {/* ── 6.1: Data Indicators — Approved Guides + Forums (bottom-right) ── */}
-      <div className="absolute bottom-2 right-2 flex items-center gap-1">
-        <span
-          title={`${guideCount} approved guide${guideCount !== 1 ? "s" : ""}`}
-          className="flex items-center gap-0.5 bg-orange-50 border border-orange-200 text-orange-700 text-[8px] font-bold px-1.5 py-0.5 rounded-sm"
-        >
-          <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-          {guideCount}
-        </span>
-        <span
-          title={`${forumCount} forum thread${forumCount !== 1 ? "s" : ""}`}
-          className="flex items-center gap-0.5 bg-zinc-50 border border-zinc-200 text-zinc-500 text-[8px] font-bold px-1.5 py-0.5 rounded-sm"
-        >
-          <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-          {forumCount}
-        </span>
       </div>
 
       {/* ── Decorative corners ─────────────────────────────────────────── */}

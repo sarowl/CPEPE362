@@ -169,8 +169,8 @@ function GuideCard({
   const diffColor = DIFFICULTY_COLORS[guide.difficulty] ?? "bg-secondary text-muted-foreground border-border";
   const diffBar   = DIFFICULTY_BAR[guide.difficulty]   ?? "bg-border";
   const href      = `/guides/${brandId}/${modelId}/${guide.guide_id}`;
-  // SECTION 6: Use actual stored thumbnail; only fallback if genuinely absent
-  const thumbnailSrc = guide.thumbnail_url ?? "/no-thumbnail.png";
+  // SECTION 6: Use actual stored thumbnail, fallback if none
+  const thumbnailSrc = guide.thumbnail_url || "/no-thumbnail.png";
 
   return (
     <Link
@@ -184,10 +184,7 @@ function GuideCard({
           alt={guide.title}
           className="w-full h-full object-cover"
           loading="lazy"
-          onError={(e) => {
-                const img = e.target as HTMLImageElement;
-                if (!img.dataset.errored) { img.dataset.errored = "1"; img.src = "/no-thumbnail.png"; } else { img.style.display = "none"; }
-              }}
+          onError={(e) => { (e.target as HTMLImageElement).src = "/no-thumbnail.png"; }}
         />
         {/* Difficulty bar at bottom of thumbnail */}
         <div className={`absolute bottom-0 left-0 right-0 h-1 ${diffBar}`} />

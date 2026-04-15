@@ -7,7 +7,6 @@ import {
   ChevronRight, ChevronLeft, Plus, Trash2, Upload, X,
   AlertCircle, CheckCircle, Clock, Wrench,
   ImageIcon, Video, RefreshCw, Save, ZoomIn, ZoomOut,
-  FileEdit,
 } from "lucide-react";
 
 const BRANDS = [
@@ -65,6 +64,7 @@ function VideoEmbed({ url }: { url: string }) {
   return null;
 }
 
+// SECTION 5.1: Thumbnail Cropper — 16:9 fixed aspect ratio
 function ThumbnailCropper({ src, onCropped, onCancel }: { src: string; onCropped: (blob: Blob) => void; onCancel: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef    = useRef<HTMLImageElement | null>(null);
@@ -130,22 +130,6 @@ export default function EditGuidePage() {
   const [wizardStep, setWizardStep] = useState<1|2|3>(1);
   const [loadingGuide, setLoadingGuide] = useState(true);
   const [blocked, setBlocked] = useState("");
-
-  // Spec 2.1: Snapshot originals for cancel-restore
-  const [origGuideStatus, setOrigGuideStatus] = useState<string>("");
-  const [origBrandId,    setOrigBrandId]    = useState("");
-  const [origModelId,    setOrigModelId]    = useState("");
-  const [origModelName,  setOrigModelName]  = useState("");
-  const [origTitle,      setOrigTitle]      = useState("");
-  const [origSummary,    setOrigSummary]    = useState("");
-  const [origIntro,      setOrigIntro]      = useState("");
-  const [origDifficulty, setOrigDifficulty] = useState("");
-  const [origTimeReq,    setOrigTimeReq]    = useState("");
-  const [origTools,      setOrigTools]      = useState<string[]>([]);
-  const [origThumbUrl,   setOrigThumbUrl]   = useState<string | null>(null);
-  const [origSteps,      setOrigSteps]      = useState<StepDraft[]>([]);
-
-  // Working edit state
   const [brandId,    setBrandId]    = useState("");
   const [models,     setModels]     = useState<CarModel[]>([]);
   const [modelId,    setModelId]    = useState("");
@@ -158,20 +142,19 @@ export default function EditGuidePage() {
   const [timeReq,    setTimeReq]    = useState("");
   const [toolInput,  setToolInput]  = useState("");
   const [tools,      setTools]      = useState<string[]>([]);
-  // Spec 4.1: Thumbnail pending — NOT uploaded to storage until confirmed
+  // SECTION 5.1: Thumbnail state
   const [existingThumbUrl, setExistingThumbUrl] = useState<string | null>(null);
-  const [pendingThumb,     setPendingThumb]     = useState<File | null>(null);
-  const [thumbPreview,     setThumbPreview]     = useState("");
-  const [cropSrc,          setCropSrc]          = useState<string | null>(null);
+  const [thumbnail,     setThumbnail]     = useState<File | null>(null);
+  const [thumbPreview,  setThumbPreview]  = useState("");
+  const [uploadingThumb,setUploadingThumb]= useState(false);
+  const [cropSrc,       setCropSrc]       = useState<string | null>(null);
   const thumbInputRef = useRef<HTMLInputElement | null>(null);
-  // Spec 4.1: Step images pending — NOT uploaded until confirmed
   const [steps,      setSteps]      = useState<StepDraft[]>([emptyStep(1)]);
-  const pendingStepFiles = useRef<Record<string, File>>({});
   const [saving,     setSaving]     = useState(false);
   const [error,      setError]      = useState("");
   const [saved,      setSaved]      = useState(false);
-  const [savedAction, setSavedAction] = useState<"submitted"|"draft"|null>(null);
   const fileInputRefs = useRef<(HTMLInputElement|null)[][]>([]);
+  const [uploadingSlots, setUploadingSlots] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (!guideId) return;
@@ -181,70 +164,67 @@ export default function EditGuidePage() {
         if (guideJson.error) { setBlocked(guideJson.error); setLoadingGuide(false); return; }
         const g = guideJson.guide;
         if (g.status === "pending") { setBlocked("This guide is pending review and cannot be edited until reviewed."); setLoadingGuide(false); return; }
-        // Save originals
-        setOrigGuideStatus(g.status ?? "draft");
-        setOrigBrandId(g.brand_id ?? ""); setOrigModelId(g.model_id ?? ""); setOrigModelName(g.model_name ?? "");
-        setOrigTitle(g.title ?? ""); setOrigSummary(g.summary ?? ""); setOrigIntro(g.introduction ?? "");
-        setOrigDifficulty(g.difficulty ?? ""); setOrigTimeReq(g.time_required ?? ""); setOrigTools(g.tools ?? []);
-        setOrigThumbUrl(g.thumbnail_url ?? null);
-        // Set working state
-        setBrandId(g.brand_id ?? ""); setModelId(g.model_id ?? ""); setModelName(g.model_name ?? "");
-        setTitle(g.title ?? ""); setSummary(g.summary ?? ""); setIntro(g.introduction ?? "");
-        setDifficulty(g.difficulty ?? ""); setTimeReq(g.time_required ?? ""); setTools(g.tools ?? []);
-        if (g.thumbnail_url) { setExistingThumbUrl(g.thumbnail_url); setThumbPreview(g.thumbnail_url); }
+        setBrandId(g.brand_id ?? "");
+        setModelId(g.model_id ?? "");
+        setModelName(g.model_name ?? "");
+        setTitle(g.title ?? "");
+        setSummary(g.summary ?? "");
+        setIntro(g.introduction ?? "");
+        setDifficulty(g.difficulty ?? "");
+        setTimeReq(g.time_required ?? "");
+        setTools(g.tools ?? []);
+        // SECTION 5.1: Load existing thumbnail
+        if (g.thumbnail_url) {
+          setExistingThumbUrl(g.thumbnail_url);
+          setThumbPreview(g.thumbnail_url);
+        }
         const rawSteps: any[] = guideJson.steps ?? [];
-        const loadedSteps = rawSteps.length > 0 ? rawSteps.map(stepFromDB) : [emptyStep(1)];
-        setSteps(loadedSteps);
-        setOrigSteps(rawSteps.length > 0 ? rawSteps.map(stepFromDB) : [emptyStep(1)]);
+        setSteps(rawSteps.length > 0 ? rawSteps.map(stepFromDB) : [emptyStep(1)]);
         if (g.brand_id) {
-          fetch(`/api/car-models/${g.brand_id}`).then((r) => r.json()).then((j) => setModels(j.models ?? []));
+          fetch(`/api/car-models/${g.brand_id}`)
+            .then((r) => r.json())
+            .then((j) => setModels(j.models ?? []));
         }
         setLoadingGuide(false);
       })
       .catch(() => { setBlocked("Failed to load guide."); setLoadingGuide(false); });
   }, [guideId]);
 
-  if (loadingGuide) return (
-    <div className="min-h-screen bg-paper text-ink flex flex-col"><Navbar />
-      <main className="flex-1 flex items-center justify-center">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground animate-pulse">
-          <RefreshCw size={14} className="animate-spin" /> Loading guide...
-        </div>
-      </main>
-    </div>
-  );
+  if (loadingGuide) {
+    return (
+      <div className="min-h-screen bg-paper text-ink flex flex-col"><Navbar />
+        <main className="flex-1 flex items-center justify-center">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground animate-pulse">
+            <RefreshCw size={14} className="animate-spin" /> Loading guide...
+          </div>
+        </main>
+      </div>
+    );
+  }
 
-  if (blocked) return (
-    <div className="min-h-screen bg-paper text-ink flex flex-col"><Navbar />
-      <main className="flex-1 flex items-center justify-center px-6">
-        <div className="text-center max-w-sm">
-          <AlertCircle size={32} className="text-red-400 mx-auto mb-3" />
-          <p className="text-sm font-bold mb-4">{blocked}</p>
-          <button onClick={() => router.back()} className="text-xs text-primary hover:underline">Go back</button>
-        </div>
-      </main>
-    </div>
-  );
+  if (blocked) {
+    return (
+      <div className="min-h-screen bg-paper text-ink flex flex-col"><Navbar />
+        <main className="flex-1 flex items-center justify-center px-6">
+          <div className="text-center max-w-sm">
+            <AlertCircle size={32} className="text-red-400 mx-auto mb-3" />
+            <p className="text-sm font-bold mb-4">{blocked}</p>
+            <button onClick={() => router.back()} className="text-xs text-primary hover:underline">Go back</button>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   const loadModels = (bid: string) => {
     if (!bid) { setModels([]); setModelId(""); setModelName(""); return; }
     setLoadingMods(true);
-    fetch(`/api/car-models/${bid}`).then((r) => r.json()).then((j) => { setModels(j.models ?? []); setLoadingMods(false); });
+    fetch(`/api/car-models/${bid}`)
+      .then((r) => r.json())
+      .then((j) => { setModels(j.models ?? []); setLoadingMods(false); });
   };
 
-  // Spec 2.1: Cancel Edit — restore originals, no DB/storage writes
-  const handleCancelEdit = () => {
-    setBrandId(origBrandId); setModelId(origModelId); setModelName(origModelName);
-    setTitle(origTitle); setSummary(origSummary); setIntro(origIntro);
-    setDifficulty(origDifficulty); setTimeReq(origTimeReq); setTools([...origTools]);
-    setExistingThumbUrl(origThumbUrl); setThumbPreview(origThumbUrl ?? "");
-    setPendingThumb(null); setCropSrc(null);
-    setSteps(origSteps.map((s) => ({ ...s, images: [...s.images], imageFiles: [null,null,null], imagePreviews: [...s.imagePreviews] })));
-    pendingStepFiles.current = {};
-    setError("");
-    router.push("/profile?tab=contributions");
-  };
-
+  // SECTION 5.1: Thumbnail select → open cropper
   const handleThumbnailFileSelect = (file: File) => {
     const reader = new FileReader();
     reader.onload = (e) => { if (e.target?.result) setCropSrc(e.target.result as string); };
@@ -254,71 +234,88 @@ export default function EditGuidePage() {
   const handleCropDone = (blob: Blob) => {
     setCropSrc(null);
     const croppedFile = new File([blob], "thumbnail.jpg", { type: "image/jpeg" });
-    setPendingThumb(croppedFile);
+    setThumbnail(croppedFile);
     setThumbPreview(URL.createObjectURL(croppedFile));
   };
 
-  // Spec 4.4: Commit thumbnail to storage only on confirmed action
-  const commitThumbnail = async (): Promise<void> => {
-    if (!pendingThumb || !guideId) return;
-    const fd = new FormData();
-    fd.append("file", pendingThumb);
-    fd.append("guide_id", guideId);
-    fd.append("is_thumbnail", "true");
-    const res  = await fetch("/api/guides-image-upload", { method: "POST", body: fd });
-    const json = await res.json();
-    if (res.ok) { setExistingThumbUrl(json.url); setThumbPreview(json.url); setPendingThumb(null); }
-    else { throw new Error(json.error ?? "Thumbnail upload failed."); }
-  };
-
-  // Spec 4.4: Commit all pending step images to storage only on confirmed action
-  const commitAllStepImages = async (): Promise<StepDraft[]> => {
-    const updatedSteps = steps.map((s) => ({ ...s, images: [...s.images] }));
-    for (let si = 0; si < steps.length; si++) {
-      for (let sl = 0; sl < 3; sl++) {
-        const key = `${si}-${sl}`;
-        const file = pendingStepFiles.current[key];
-        if (file) {
-          const fd = new FormData();
-          fd.append("file", file);
-          fd.append("guide_id", guideId);
-          fd.append("step_number", String(steps[si].step_number));
-          const res  = await fetch("/api/guides-image-upload", { method: "POST", body: fd });
-          const json = await res.json();
-          if (res.ok) { updatedSteps[si].images[sl] = json.url; delete pendingStepFiles.current[key]; }
-          else { throw new Error(json.error ?? "Image upload failed."); }
-        }
+  const uploadThumbnailForGuide = async () => {
+    if (!thumbnail || !guideId) return;
+    setUploadingThumb(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", thumbnail);
+      fd.append("guide_id", guideId);
+      fd.append("is_thumbnail", "true");
+      const res  = await fetch("/api/guides-image-upload", { method: "POST", body: fd });
+      const json = await res.json();
+      if (res.ok) {
+        // Update thumbnail_url in DB via PATCH
+        await fetch(`/api/guides/${guideId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ thumbnail_url: json.url }),
+        });
+        setExistingThumbUrl(json.url);
       }
-    }
-    setSteps(updatedSteps);
-    return updatedSteps;
+    } catch {}
+    setUploadingThumb(false);
   };
 
-  // Step image: local preview only — NOT uploaded yet (Spec 4.1)
-  const handleImageSelect = (stepIdx: number, slotIdx: number, file: File) => {
-    pendingStepFiles.current[`${stepIdx}-${slotIdx}`] = file;
+  const handleSaveIntro = async () => {
+    setError("");
+    if (!brandId || !modelId || !title.trim() || !summary.trim() || !difficulty || !timeReq.trim()) {
+      setError("Please fill in all required fields before continuing."); return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/guides/${guideId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brand_id: brandId, model_id: modelId, model_name: modelName, title, summary, introduction: intro, difficulty, time_required: timeReq, tools }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setError(json.error ?? "Failed to save."); return; }
+      // Upload new thumbnail if selected
+      if (thumbnail) await uploadThumbnailForGuide();
+      setWizardStep(2);
+    } catch { setError("Network error. Please try again."); }
+    finally { setSaving(false); }
+  };
+
+  // SECTION 7: Pass step_number to route images to step_{N}/ subfolder
+  const handleImageSelect = async (stepIdx: number, slotIdx: number, file: File) => {
     const preview = URL.createObjectURL(file);
+    const slotKey = `${stepIdx}-${slotIdx}`;
+    setUploadingSlots((prev) => ({ ...prev, [slotKey]: true }));
     setSteps((prev) => {
       const next = [...prev];
-      next[stepIdx] = {
-        ...next[stepIdx],
-        imageFiles: next[stepIdx].imageFiles.map((f, i) => i === slotIdx ? file : f) as (File|null)[],
-        imagePreviews: next[stepIdx].imagePreviews.map((p, i) => i === slotIdx ? preview : p),
-      };
+      next[stepIdx] = { ...next[stepIdx], imageFiles: [...next[stepIdx].imageFiles], imagePreviews: [...next[stepIdx].imagePreviews] };
+      next[stepIdx].imageFiles[slotIdx] = file;
+      next[stepIdx].imagePreviews[slotIdx] = preview;
       return next;
     });
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("guide_id", guideId);
+    fd.append("step_number", String(steps[stepIdx].step_number));
+    const res  = await fetch("/api/guides-image-upload", { method: "POST", body: fd });
+    const json = await res.json();
+    if (res.ok) {
+      setSteps((prev) => {
+        const next = [...prev];
+        next[stepIdx] = { ...next[stepIdx], images: [...next[stepIdx].images] };
+        next[stepIdx].images[slotIdx] = json.url;
+        return next;
+      });
+    } else { setError(json.error ?? "Image upload failed."); }
+    setUploadingSlots((prev) => { const n = { ...prev }; delete n[slotKey]; return n; });
   };
 
   const removeImage = (si: number, sl: number) => {
-    delete pendingStepFiles.current[`${si}-${sl}`];
     setSteps((prev) => {
       const next = [...prev];
-      next[si] = {
-        ...next[si],
-        images: next[si].images.map((v, i) => i === sl ? "" : v),
-        imageFiles: next[si].imageFiles.map((f, i) => i === sl ? null : f) as (File|null)[],
-        imagePreviews: next[si].imagePreviews.map((p, i) => i === sl ? "" : p),
-      };
+      next[si] = { ...next[si], images:[...next[si].images], imageFiles:[...next[si].imageFiles], imagePreviews:[...next[si].imagePreviews] };
+      next[si].images[sl]=""; next[si].imageFiles[sl]=null; next[si].imagePreviews[sl]="";
       return next;
     });
   };
@@ -327,92 +324,43 @@ export default function EditGuidePage() {
   const removeStep = (i: number) => setSteps((p) => p.filter((_,j)=>j!==i).map((s,j)=>({...s,step_number:j+1})));
   const updateStep = (i: number, f: keyof StepDraft, v: string) => setSteps((p) => { const n=[...p]; (n[i] as any)[f]=v; return n; });
 
-  // Validate step 1 → move to step 2 (no DB writes)
-  const handleNextToSteps = () => {
-    setError("");
-    if (!brandId || !modelId || !title.trim() || !summary.trim() || !difficulty || !timeReq.trim()) {
-      setError("Please fill in all required fields before continuing."); return;
-    }
-    setWizardStep(2);
-  };
-
-  // Validate step 2 → move to review (no DB writes)
-  const handleNextToReview = () => {
+  const handleSaveSteps = async () => {
     setError("");
     if (!steps.every((s) => s.instructions.trim())) { setError("Each step must have instructions."); return; }
-    setWizardStep(3);
-  };
-
-  // Shared commit logic
-  const doCommit = async (statusOverride?: string) => {
-    await commitThumbnail();
-    const committedSteps = await commitAllStepImages();
-    const body: any = { brand_id: brandId, model_id: modelId, model_name: modelName, title, summary, introduction: intro, difficulty, time_required: timeReq, tools };
-    if (statusOverride) body.status = statusOverride;
-    const res = await fetch(`/api/guides/${guideId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    if (!res.ok) { const j = await res.json(); throw new Error(j.error ?? "Failed to save guide."); }
-    const stepsPayload = committedSteps.map((s) => ({ step_number: s.step_number, title: s.title, instructions: s.instructions, images: s.images.filter(Boolean), video_url: s.video_url || null }));
-    const sRes = await fetch(`/api/guides/${guideId}/steps`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ steps: stepsPayload }) });
-    if (!sRes.ok) { const j = await sRes.json(); throw new Error(j.error ?? "Failed to save steps."); }
-    // Spec 6: Enforce storage structure and clean up stale/invalid files
-    await fetch("/api/guides-storage-cleanup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ guide_id: guideId }) });
-  };
-
-  // Spec 2.2: Turn to Draft — save all + set status=draft
-  const handleTurnToDraft = async () => {
-    setError(""); setSaving(true);
-    try { await doCommit("draft"); setSavedAction("draft"); setSaved(true); }
-    catch (e: any) { setError(e.message ?? "Error saving."); }
-    finally { setSaving(false); }
-  };
-
-  // Spec 3.2: Save Draft — save all, keep current status (draft)
-  const handleSaveDraft = async () => {
-    setError(""); setSaving(true);
-    try { await doCommit(); setSavedAction("draft"); setSaved(true); }
-    catch (e: any) { setError(e.message ?? "Error saving."); }
-    finally { setSaving(false); }
-  };
-
-  // Spec 4.4: Submit for Review — save all + submit
-  const handleSubmit = async () => {
-    setError(""); setSaving(true);
+    setSaving(true);
     try {
-      await doCommit();
-      const subRes = await fetch("/api/guides-submit", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ guide_id: guideId }) });
-      if (subRes.ok) { setSavedAction("submitted"); setSaved(true); }
-      else { const j = await subRes.json(); setError(j.error ?? "Submission failed."); }
-    } catch (e: any) { setError(e.message ?? "Error submitting."); }
+      const payload = steps.map((s) => ({ step_number: s.step_number, title: s.title, instructions: s.instructions, images: s.images.filter(Boolean), video_url: s.video_url || null }));
+      const res = await fetch(`/api/guides/${guideId}/steps`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ steps: payload }) });
+      if (!res.ok) { const j=await res.json(); setError(j.error ?? "Failed."); return; }
+      setWizardStep(3);
+    } catch { setError("Network error."); }
     finally { setSaving(false); }
   };
 
-  if (saved) return (
-    <div className="min-h-screen bg-paper text-ink flex flex-col"><Navbar />
-      <main className="flex-1 flex items-center justify-center px-6">
-        <div className="text-center max-w-sm">
-          <CheckCircle size={40} className="text-green-500 mx-auto mb-4" />
-          {savedAction === "submitted" ? (
-            <><h2 className="font-black uppercase tracking-tighter text-xl mb-2">Guide Submitted!</h2>
-            <p className="text-sm text-muted-foreground mb-6">Your updated guide has been submitted for admin review.</p></>
-          ) : (
-            <><h2 className="font-black uppercase tracking-tighter text-xl mb-2">Saved as Draft</h2>
-            <p className="text-sm text-muted-foreground mb-6">Your changes have been saved. You can continue editing or submit later.</p></>
-          )}
-          <button onClick={() => router.push("/profile?tab=contributions")} className="px-5 py-2.5 bg-primary text-white text-xs font-bold hover:brightness-110 transition-all">Back to Contributions</button>
-        </div>
-      </main>
-    </div>
-  );
+  const handleSubmit = async () => {
+    setSaving(true);
+    const res = await fetch("/api/guides-submit", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ guide_id: guideId }) });
+    if (res.ok) { setSaved(true); }
+    else { const j = await res.json(); setError(j.error ?? "Submission failed."); }
+    setSaving(false);
+  };
+
+  if (saved) {
+    return (
+      <div className="min-h-screen bg-paper text-ink flex flex-col"><Navbar />
+        <main className="flex-1 flex items-center justify-center px-6">
+          <div className="text-center max-w-sm">
+            <CheckCircle size={40} className="text-green-500 mx-auto mb-4" />
+            <h2 className="font-black uppercase tracking-tighter text-xl mb-2">Guide Submitted!</h2>
+            <p className="text-sm text-muted-foreground mb-6">Your updated guide has been submitted for admin review.</p>
+            <button onClick={() => router.push("/profile")} className="px-5 py-2.5 bg-primary text-white text-xs font-bold hover:brightness-110 transition-all">Back to Profile</button>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   const thumbDisplaySrc = thumbPreview || existingThumbUrl || "/no-thumbnail.png";
-  const isDraft = origGuideStatus === "draft";
-  const isApprovedOrRejected = origGuideStatus === "approved" || origGuideStatus === "rejected";
-
-  const CancelBtn = () => (
-    <button onClick={handleCancelEdit} className="flex items-center gap-1.5 px-4 py-2.5 border border-border text-xs font-bold hover:bg-red-50 hover:border-red-300 hover:text-red-600 transition-colors">
-      <X size={12} /> Cancel Edit
-    </button>
-  );
 
   return (
     <div className="min-h-screen bg-paper text-ink flex flex-col animate-fade-in">
@@ -423,11 +371,10 @@ export default function EditGuidePage() {
         <div className="mb-8">
           <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mb-1">Edit Guide</p>
           <h1 className="font-black uppercase tracking-tighter text-2xl">Update Repair Guide</h1>
-          {isApprovedOrRejected && <p className="text-xs text-muted-foreground mt-1">Editing an {origGuideStatus} guide. Use <strong>Turn to Draft</strong> to save changes — guide will require re-review.</p>}
-          {isDraft && <p className="text-xs text-muted-foreground mt-1">Editing a draft. Use <strong>Save Draft</strong> to keep changes or <strong>Submit for Review</strong> to publish.</p>}
+          <p className="text-xs text-muted-foreground mt-1">Editing an approved guide will require re-review before it is republished.</p>
         </div>
 
-        {/* Wizard indicator */}
+        {/* Wizard steps */}
         <div className="flex items-center gap-3 mb-8">
           {[1,2,3].map((s) => (
             <div key={s} className="flex items-center gap-2">
@@ -448,9 +395,10 @@ export default function EditGuidePage() {
           </div>
         )}
 
-        {/* ── WIZARD STEP 1: Info ── */}
+        {/* STEP 1: Guide Info */}
         {wizardStep === 1 && (
           <div className="space-y-5">
+            {/* Brand */}
             <div>
               <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block mb-2">Brand *</label>
               <div className="grid grid-cols-4 gap-2">
@@ -463,10 +411,13 @@ export default function EditGuidePage() {
               </div>
             </div>
 
+            {/* Model */}
             {brandId && (
               <div>
                 <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block mb-2">Model *</label>
-                {loadingMods ? <div className="text-xs text-muted-foreground animate-pulse">Loading models...</div> : (
+                {loadingMods ? (
+                  <div className="text-xs text-muted-foreground animate-pulse">Loading models...</div>
+                ) : (
                   <select value={modelId} onChange={(e) => { const m = models.find((x) => x.id === e.target.value); setModelId(e.target.value); setModelName(m?.name ?? ""); }}
                     className="w-full border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:border-primary">
                     <option value="">Select a model...</option>
@@ -476,45 +427,50 @@ export default function EditGuidePage() {
               </div>
             )}
 
+            {/* Title */}
             <div>
               <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block mb-2">Title *</label>
               <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. How to Replace Brake Pads"
                 className="w-full border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:border-primary" />
             </div>
 
-            {/* Thumbnail — local preview until confirmed */}
+            {/* SECTION 5.1: Thumbnail upload/update */}
             <div>
               <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block mb-2 flex items-center gap-1.5">
                 <ImageIcon size={10} /> Thumbnail <span className="font-normal normal-case tracking-normal">(16:9, optional)</span>
               </label>
               <div className="flex items-start gap-4">
-                <div className="relative border border-dashed border-border overflow-hidden bg-secondary/30" style={{ width: 160, aspectRatio: "16/9" }}>
+                <div className="relative border border-dashed border-border overflow-hidden bg-secondary/30"
+                  style={{ width: 160, aspectRatio: "16/9" }}>
                   <img src={thumbDisplaySrc} alt="Thumbnail" className="w-full h-full object-cover"
                     onError={(e) => { (e.target as HTMLImageElement).src = "/no-thumbnail.png"; }} />
                   {(thumbPreview || existingThumbUrl) && (
-                    <button onClick={() => { setPendingThumb(null); setThumbPreview(""); setExistingThumbUrl(null); }}
+                    <button onClick={() => { setThumbnail(null); setThumbPreview(""); setExistingThumbUrl(null); }}
                       className="absolute top-1 right-1 bg-ink/70 text-white p-0.5 rounded hover:bg-ink"><X size={10} /></button>
                   )}
-                  {pendingThumb && <div className="absolute bottom-0 left-0 right-0 bg-yellow-500/80 text-white text-[8px] font-bold text-center py-0.5">Pending upload</div>}
                 </div>
                 <div className="space-y-2 mt-1">
                   <button onClick={() => thumbInputRef.current?.click()}
                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold border border-border hover:bg-secondary transition-colors">
                     <Upload size={12} /> {existingThumbUrl ? "Replace thumbnail" : "Upload thumbnail"}
                   </button>
-                  <p className="text-[10px] text-muted-foreground max-w-[160px] leading-relaxed">Cropped to 16:9. Uploaded only when you save/submit.</p>
+                  <p className="text-[10px] text-muted-foreground max-w-[160px] leading-relaxed">
+                    Will be cropped to 16:9 ratio.
+                  </p>
                   <input type="file" accept="image/*" className="hidden" ref={thumbInputRef}
                     onChange={(e) => { const f = e.target.files?.[0]; if (f) handleThumbnailFileSelect(f); e.target.value = ""; }} />
                 </div>
               </div>
             </div>
 
+            {/* Summary */}
             <div>
               <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block mb-2">Summary *</label>
               <textarea value={summary} onChange={(e) => setSummary(e.target.value)} rows={2} placeholder="Brief overview..."
                 className="w-full border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:border-primary resize-none" />
             </div>
 
+            {/* Note (renamed from Introduction) */}
             <div>
               <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block mb-2">
                 Note <span className="font-normal text-muted-foreground normal-case tracking-normal">(optional)</span>
@@ -523,6 +479,7 @@ export default function EditGuidePage() {
                 className="w-full border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:border-primary resize-none" />
             </div>
 
+            {/* Difficulty */}
             <div>
               <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block mb-2">Difficulty *</label>
               <div className="flex gap-2">
@@ -535,6 +492,7 @@ export default function EditGuidePage() {
               </div>
             </div>
 
+            {/* Time Required */}
             <div>
               <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block mb-2">
                 <Clock size={10} className="inline mr-1" /> Time Required *
@@ -543,6 +501,7 @@ export default function EditGuidePage() {
                 className="w-full border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:border-primary" />
             </div>
 
+            {/* Tools */}
             <div>
               <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block mb-2">
                 <Wrench size={10} className="inline mr-1" /> Tools Needed
@@ -564,17 +523,14 @@ export default function EditGuidePage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-3 pt-2 flex-wrap">
-              <CancelBtn />
-              <button onClick={handleNextToSteps}
-                className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white text-xs font-bold hover:brightness-110 transition-all">
-                Next <ChevronRight size={12} />
-              </button>
-            </div>
+            <button onClick={handleSaveIntro} disabled={saving || uploadingThumb}
+              className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white text-xs font-bold hover:brightness-110 transition-all disabled:opacity-50">
+              {saving ? <><RefreshCw size={12} className="animate-spin" /> Saving...</> : <>Save & Continue <ChevronRight size={12} /></>}
+            </button>
           </div>
         )}
 
-        {/* ── WIZARD STEP 2: Steps ── */}
+        {/* STEP 2: Steps */}
         {wizardStep === 2 && (
           <div className="space-y-4">
             {steps.map((step, si) => (
@@ -596,14 +552,16 @@ export default function EditGuidePage() {
                     <div className="grid grid-cols-3 gap-2">
                       {[0,1,2].map((sl) => {
                         const preview = step.imagePreviews[sl] || step.images[sl];
-                        const isPending = !!pendingStepFiles.current[`${si}-${sl}`];
+                        const slotKey = `${si}-${sl}`;
+                        const isUploading = !!uploadingSlots[slotKey];
                         return (
-                          <div key={sl} className={`relative aspect-video border border-dashed flex items-center justify-center overflow-hidden ${isPending ? "border-yellow-400 bg-yellow-50/50" : "border-border bg-secondary"}`}>
-                            {preview ? (
+                          <div key={sl} className={`relative aspect-video border border-dashed flex items-center justify-center overflow-hidden ${isUploading ? "border-primary/60 bg-primary/5" : "border-border bg-secondary"}`}>
+                            {isUploading ? (
+                              <div className="flex flex-col items-center gap-1"><RefreshCw size={13} className="animate-spin text-primary" /><span className="text-[9px] text-primary">Uploading...</span></div>
+                            ) : preview ? (
                               <>
                                 <img src={preview} alt="" className="w-full h-full object-cover" loading="lazy"
                                   onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-                                {isPending && <div className="absolute bottom-0 left-0 right-0 bg-yellow-500/80 text-white text-[8px] font-bold text-center py-0.5">Pending</div>}
                                 <button onClick={() => removeImage(si, sl)} className="absolute top-0.5 right-0.5 w-4 h-4 bg-red-500 text-white flex items-center justify-center rounded-full"><X size={8} /></button>
                               </>
                             ) : (
@@ -637,37 +595,40 @@ export default function EditGuidePage() {
             <button onClick={addStep} className="w-full border border-dashed border-border py-2.5 text-xs font-bold text-muted-foreground hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-1.5">
               <Plus size={12} /> Add Step
             </button>
-            <div className="flex items-center gap-3 mt-2 flex-wrap">
-              <CancelBtn />
+            <div className="flex items-center gap-3 mt-2">
               <button onClick={() => setWizardStep(1)} className="flex items-center gap-1.5 px-4 py-2.5 border border-border text-xs font-bold hover:bg-secondary transition-colors"><ChevronLeft size={12} /> Back</button>
-              <button onClick={handleNextToReview} className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white text-xs font-bold hover:brightness-110 transition-all">
-                Next <ChevronRight size={12} />
+              <button onClick={handleSaveSteps} disabled={saving} className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white text-xs font-bold hover:brightness-110 transition-all disabled:opacity-50">
+                {saving ? <><RefreshCw size={12} className="animate-spin" /> Saving...</> : <>Save & Continue <ChevronRight size={12} /></>}
               </button>
             </div>
           </div>
         )}
 
-        {/* ── WIZARD STEP 3: Review + Confirm Action ── */}
+        {/* SECTION 5.2: STEP 3: Full Review — all data clearly shown */}
         {wizardStep === 3 && (
           <div className="space-y-5">
-            <div className="border border-blue-200 bg-blue-50 p-4 flex items-start gap-3">
-              <CheckCircle size={16} className="text-blue-600 shrink-0 mt-0.5" />
+            <div className="border border-green-200 bg-green-50 p-4 flex items-start gap-3">
+              <CheckCircle size={16} className="text-green-600 shrink-0 mt-0.5" />
               <div>
-                <p className="text-xs font-bold text-blue-700">Review your changes</p>
-                <p className="text-xs text-blue-600 mt-0.5">Nothing has been saved yet. Choose an action below to confirm.</p>
+                <p className="text-xs font-bold text-green-700">Guide updated — review before submitting</p>
+                <p className="text-xs text-green-600 mt-0.5">Check everything below. Submit for admin review to publish.</p>
               </div>
             </div>
 
             <div className="border border-border bg-background p-5 space-y-4">
+              {/* Thumbnail first */}
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Thumbnail</p>
                 <div className="w-full max-w-md overflow-hidden border border-border rounded" style={{ aspectRatio: "16/9" }}>
                   <img src={thumbDisplaySrc} alt="Thumbnail" className="w-full h-full object-cover"
                     onError={(e) => { (e.target as HTMLImageElement).src = "/no-thumbnail.png"; }} />
                 </div>
-                {pendingThumb && <p className="text-[10px] text-yellow-600 mt-1">⚠ New thumbnail — will be uploaded on confirm</p>}
               </div>
+
+              {/* Title */}
               <h3 className="font-black uppercase tracking-tighter text-lg">{title}</h3>
+
+              {/* Meta grid */}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
                 {[{l:"Brand",v:brandId},{l:"Model",v:modelName},{l:"Difficulty",v:difficulty},{l:"Time",v:timeReq},{l:"Steps",v:String(steps.length)}].map(r=>(
                   <div key={r.l} className="bg-secondary px-3 py-2">
@@ -676,9 +637,12 @@ export default function EditGuidePage() {
                   </div>
                 ))}
               </div>
+
               <div className="text-sm"><span className="font-bold">Summary:</span> {summary}</div>
               {intro && <div className="text-sm"><span className="font-bold">Note:</span> {intro}</div>}
               {tools.length > 0 && <div className="text-sm"><span className="font-bold">Tools:</span> {tools.join(", ")}</div>}
+
+              {/* Steps with images */}
               <div className="border-t border-border pt-4 space-y-3">
                 {steps.map((s) => (
                   <div key={s.step_number} className="border border-border overflow-hidden">
@@ -687,6 +651,7 @@ export default function EditGuidePage() {
                       {s.title && <p className="text-xs font-bold">{s.title}</p>}
                     </div>
                     <div className="p-4 space-y-2">
+                      {/* Images — large and clear */}
                       {(s.imagePreviews.some(Boolean) || s.images.some(Boolean)) && (
                         <div className="grid grid-cols-3 gap-2">
                           {[0,1,2].map((i) => {
@@ -708,27 +673,8 @@ export default function EditGuidePage() {
               </div>
             </div>
 
-            {/* Action buttons — based on guide status */}
-            <div className="flex items-center gap-3 flex-wrap">
-              <CancelBtn />
-              <button onClick={() => setWizardStep(2)} className="flex items-center gap-1.5 px-4 py-2.5 border border-border text-xs font-bold hover:bg-secondary transition-colors">
-                <ChevronLeft size={12} /> Back
-              </button>
-              {/* Spec 3.2: Draft — Save Draft button */}
-              {isDraft && (
-                <button onClick={handleSaveDraft} disabled={saving}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-secondary border border-border text-xs font-bold hover:bg-border transition-all disabled:opacity-50">
-                  {saving ? <><RefreshCw size={12} className="animate-spin" /> Saving...</> : <><Save size={12} /> Save Draft</>}
-                </button>
-              )}
-              {/* Spec 2.2: Approved/Rejected — Turn to Draft */}
-              {isApprovedOrRejected && (
-                <button onClick={handleTurnToDraft} disabled={saving}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-amber-500 text-white text-xs font-bold hover:brightness-110 transition-all disabled:opacity-50">
-                  {saving ? <><RefreshCw size={12} className="animate-spin" /> Saving...</> : <><FileEdit size={12} /> Turn to Draft</>}
-                </button>
-              )}
-              {/* Submit for Review — available for all */}
+            <div className="flex items-center gap-3">
+              <button onClick={() => setWizardStep(2)} className="flex items-center gap-1.5 px-4 py-2.5 border border-border text-xs font-bold hover:bg-secondary transition-colors"><ChevronLeft size={12} /> Back</button>
               <button onClick={handleSubmit} disabled={saving}
                 className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white text-xs font-bold hover:brightness-110 transition-all disabled:opacity-50 shadow-[3px_3px_0_0_rgba(0,0,0,0.15)]">
                 {saving ? <><RefreshCw size={12} className="animate-spin" /> Submitting...</> : <><Save size={12} /> Submit for Review</>}

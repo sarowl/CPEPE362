@@ -23,7 +23,6 @@ export default function BrandModelsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
-  const [guideCounts, setGuideCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
     if (!brandId) return;
@@ -35,21 +34,6 @@ export default function BrandModelsPage() {
         if (!res.ok) throw new Error("Brand not found");
         const data = await res.json();
         setModels(data.models);
-
-        // 6.1: Fetch approved guide counts per model
-        const counts: Record<string, number> = {};
-        await Promise.all(
-          (data.models as CarModel[]).map(async (m) => {
-            try {
-              const r = await fetch(`/api/guides/by-model?model_id=${m.id}`);
-              const d = await r.json();
-              counts[m.id] = (d.guides ?? []).length;
-            } catch {
-              counts[m.id] = 0;
-            }
-          })
-        );
-        setGuideCounts(counts);
       } catch (err: any) {
         setError(err.message);
       } finally {
@@ -232,8 +216,6 @@ export default function BrandModelsPage() {
               }}
               brandId={brandId}
               brandName={brandName}
-              guideCount={guideCounts[model.id] ?? 0}
-              forumCount={0}
             />
           ))}
         </div>

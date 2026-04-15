@@ -174,8 +174,8 @@ export default function GuideViewPage() {
     );
   }
 
-  // UPDATED 6.4: Only use fallback if thumbnail_url is genuinely absent
-  const thumbnailSrc = guide.thumbnail_url ?? "/no-thumbnail.png";
+  // UPDATED 6.4: Fallback thumbnail
+  const thumbnailSrc = guide.thumbnail_url || "/no-thumbnail.png";
 
   return (
     <div className="min-h-screen bg-paper text-ink flex flex-col animate-fade-in">
@@ -211,16 +211,7 @@ export default function GuideViewPage() {
               alt={guide.title}
               className="w-full h-full object-cover"
               // UPDATED 5: Correct loading, proper scaling, maintain aspect ratio
-              // Prevent infinite onError loop: only swap to fallback once
-              onError={(e) => {
-                const img = e.target as HTMLImageElement;
-                if (!img.dataset.errored) {
-                  img.dataset.errored = "1";
-                  img.src = "/no-thumbnail.png";
-                } else {
-                  img.style.display = "none";
-                }
-              }}
+              onError={(e) => { (e.target as HTMLImageElement).src = "/no-thumbnail.png"; }}
               loading="lazy"
             />
           </div>
@@ -282,26 +273,18 @@ export default function GuideViewPage() {
                 <span>{dislikes}</span>
               </button>
               {!isLoggedIn && <Link href="/login" className="text-[10px] text-muted-foreground hover:text-primary underline">Log in to react</Link>}
-              {/* Bookmark button — always visible when logged in and not own guide */}
+              {/* UPDATED 2.1: Custom bookmark icon */}
               {isLoggedIn && !isOwnGuide && (
                 <button
                   onClick={handleBookmark}
                   disabled={bookmarking}
                   title={bookmarked ? "Remove bookmark" : "Bookmark this guide"}
-                  className={`flex items-center justify-center w-9 h-9 border transition-all disabled:cursor-not-allowed ml-2 active:scale-90 ${bookmarked ? "bg-primary border-primary" : "bg-background border-border hover:border-primary"}`}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold border transition-all disabled:cursor-not-allowed ml-2 ${bookmarked ? "bg-primary text-white border-primary" : "bg-background border-border text-muted-foreground hover:border-primary hover:text-primary"}`}
                 >
-                  {bookmarking ? (
-                    <RefreshCw size={14} className="animate-spin text-muted-foreground" />
-                  ) : (
-                    <img
-                      src="/bookmark-icon-profile.png"
-                      alt={bookmarked ? "Bookmarked" : "Bookmark"}
-                      width={16}
-                      height={16}
-                      className="object-contain"
-                      style={{ filter: bookmarked ? "brightness(10)" : "opacity(0.4)" }}
-                    />
+                  {bookmarking ? <RefreshCw size={11} className="animate-spin" /> : (
+                    <img src="/bookmark-icon.png" alt="Bookmark" width={14} height={14} className="object-contain" style={{ filter: bookmarked ? "brightness(10)" : undefined }} />
                   )}
+                  {bookmarked ? "Bookmarked" : "Bookmark"}
                 </button>
               )}
             </div>

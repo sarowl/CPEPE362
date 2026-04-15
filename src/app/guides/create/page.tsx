@@ -331,37 +331,10 @@ function CreateGuideForm() {
     finally { setSaving(false); }
   };
 
-  const handleCancelCreation = async () => {
-    // If guide was partially created, delete it from DB and storage
-    if (guideId) {
-      await fetch(`/api/guides/${guideId}`, { method: "DELETE" }).catch(() => {});
-    }
-    router.push("/profile?tab=contributions");
-  };
-
-  const handleTurnToDraft = async () => {
-    if (!guideId) {
-      // No guide created yet — just go back
-      router.push("/profile?tab=contributions");
-      return;
-    }
-    // Save current step data if on step 2
-    if (wizardStep === 2 && steps.every((s) => s.instructions.trim())) {
-      setSaving(true);
-      try {
-        const payload = steps.map((s) => ({ step_number: s.step_number, title: s.title, instructions: s.instructions, images: s.images.filter(Boolean), video_url: s.video_url || null }));
-        await fetch(`/api/guides/${guideId}/steps`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ steps: payload }) });
-      } catch {} finally { setSaving(false); }
-    }
-    router.push("/profile?tab=contributions");
-  };
-
   const handleSubmit = async () => {
     if (!guideId) return;
     setError(""); setSubmitting(true);
     try {
-      // Spec 6: Enforce storage structure before submitting
-      await fetch("/api/guides-storage-cleanup", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({guide_id:guideId}) });
       const res  = await fetch("/api/guides-submit", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({guide_id:guideId}) });
       const json = await res.json();
       if (!res.ok) { setError(json.error??"Submit failed."); return; }
@@ -379,7 +352,7 @@ function CreateGuideForm() {
             <h1 className="font-black uppercase tracking-tighter text-2xl mb-2">Guide Submitted!</h1>
             <p className="text-sm text-muted-foreground mb-6 leading-relaxed">Your guide has been submitted for admin review. You'll be notified once it's approved or if any changes are needed.</p>
             <div className="flex gap-3 justify-center">
-              <button onClick={()=>router.push("/profile?tab=contributions")} className="px-5 py-2 bg-primary text-white text-xs font-bold hover:brightness-110">View My Contributions</button>
+              <button onClick={()=>router.push("/profile")} className="px-5 py-2 bg-primary text-white text-xs font-bold hover:brightness-110">View My Guides</button>
               <button onClick={()=>router.push("/car-makers")} className="px-5 py-2 border border-border text-xs font-bold hover:bg-secondary">Browse Guides</button>
             </div>
           </div>
@@ -403,36 +376,9 @@ function CreateGuideForm() {
 
         {/* Page header */}
         <div className="mb-8 border-b border-border pb-6">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mb-1">Fix it / Repair Guides</p>
-              <h1 className="font-black uppercase tracking-tighter text-3xl">Create a <span className="text-primary">Guide</span></h1>
-              <p className="text-sm text-muted-foreground mt-2 max-w-xl leading-relaxed">Share your repair knowledge with the community. Guides are reviewed by admins before publishing.</p>
-            </div>
-            <div className="flex items-center gap-2 shrink-0 mt-1">
-              {/* Turn to Draft — saves current progress as draft */}
-              {guideId && (
-                <button
-                  onClick={handleTurnToDraft}
-                  disabled={saving}
-                  className="flex items-center gap-1.5 px-3 py-2 border border-border text-xs font-bold hover:bg-secondary transition-colors disabled:opacity-60"
-                  title="Save as draft and return to contributions"
-                >
-                  {saving ? <RefreshCw size={11} className="animate-spin" /> : null}
-                  Turn to Draft
-                </button>
-              )}
-              {/* Cancel Creation — deletes all data and files */}
-              <button
-                onClick={handleCancelCreation}
-                disabled={saving}
-                className="flex items-center gap-1.5 px-3 py-2 border border-red-300 text-red-600 text-xs font-bold hover:bg-red-50 transition-colors disabled:opacity-60"
-                title="Cancel creation — no data will be saved"
-              >
-                <X size={11} /> Cancel
-              </button>
-            </div>
-          </div>
+          <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mb-1">Fix it / Repair Guides</p>
+          <h1 className="font-black uppercase tracking-tighter text-3xl">Create a <span className="text-primary">Guide</span></h1>
+          <p className="text-sm text-muted-foreground mt-2 max-w-xl leading-relaxed">Share your repair knowledge with the community. Guides are reviewed by admins before publishing.</p>
         </div>
 
         {/* Progress bar */}

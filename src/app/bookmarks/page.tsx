@@ -7,11 +7,11 @@
 // - SECTION 2.1: Uses bookmark-icon-profile.png for page header icon
 // ================================================================
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
-import { RefreshCw, ArrowLeft, Wrench, Search, X } from "lucide-react";
+import { RefreshCw, ArrowLeft, Wrench } from "lucide-react";
 
 type BookmarkedGuide = {
   guide_id: string;
@@ -38,17 +38,6 @@ export default function BookmarksPage() {
   const [guides, setGuides]   = useState<BookmarkedGuide[]>([]);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-
-  // 4.1: Expanded searchable fields for bookmarks
-  const filteredGuides = useMemo(() => {
-    if (!searchQuery.trim()) return guides;
-    const keywords = searchQuery.toLowerCase().split(/\s+/).filter(Boolean);
-    return guides.filter((g) => {
-      const hay = [g.title, g.brand_id, g.model_name, g.difficulty, g.time_required].join(" ").toLowerCase();
-      return keywords.every((k) => hay.includes(k));
-    });
-  }, [guides, searchQuery]);
 
   useEffect(() => {
     fetch("/api/guides-likes/mine")
@@ -107,38 +96,14 @@ export default function BookmarksPage() {
           </div>
         ) : (
           <>
-            <p className="text-xs text-muted-foreground font-mono mb-3">
-              {filteredGuides.length} bookmarked guide{filteredGuides.length !== 1 ? "s" : ""}
+            <p className="text-xs text-muted-foreground font-mono mb-4">
+              {guides.length} bookmarked guide{guides.length !== 1 ? "s" : ""}
             </p>
-
-            {/* 4.1: Search bar */}
-            <div className="mb-5 flex items-center gap-2 border border-border bg-background px-3 h-10">
-              <Search size={14} className="text-muted-foreground shrink-0" />
-              <input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search by title, brand, model, difficulty, time..."
-                className="h-full flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-              />
-              {searchQuery && (
-                <button onClick={() => setSearchQuery("")} className="text-muted-foreground hover:text-ink">
-                  <X size={13} />
-                </button>
-              )}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {guides.map((guide) => (
+                <BookmarkCard key={guide.guide_id} guide={guide} />
+              ))}
             </div>
-
-            {filteredGuides.length === 0 ? (
-              <div className="py-10 text-center text-muted-foreground text-sm border border-dashed border-border">
-                No bookmarks match your search.{" "}
-                <button onClick={() => setSearchQuery("")} className="text-primary underline">Clear</button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredGuides.map((guide) => (
-                  <BookmarkCard key={guide.guide_id} guide={guide} />
-                ))}
-              </div>
-            )}
           </>
         )}
 
@@ -160,8 +125,8 @@ export default function BookmarksPage() {
 function BookmarkCard({ guide }: { guide: BookmarkedGuide }) {
   const diffColor = DIFFICULTY_COLORS[guide.difficulty] ?? "bg-secondary text-muted-foreground border-border";
   const href = `/guides/${guide.brand_id}/${guide.model_id}/${guide.guide_id}`;
-  // SECTION 6: Use actual thumbnail if available; only fallback if genuinely absent
-  const thumbnailSrc = guide.thumbnail_url ?? "/no-thumbnail.png";
+  // SECTION 6: Use actual thumbnail if available, fallback otherwise
+  const thumbnailSrc = guide.thumbnail_url || "/no-thumbnail.png";
 
   return (
     <Link href={href} className="block h-full group">
@@ -173,10 +138,7 @@ function BookmarkCard({ guide }: { guide: BookmarkedGuide }) {
             alt={guide.title}
             className="w-full h-full object-cover"
             loading="lazy"
-            onError={(e) => {
-                const img = e.target as HTMLImageElement;
-                if (!img.dataset.errored) { img.dataset.errored = "1"; img.src = "/no-thumbnail.png"; } else { img.style.display = "none"; }
-              }}
+            onError={(e) => { (e.target as HTMLImageElement).src = "/no-thumbnail.png"; }}
           />
         </div>
         <div className="p-4 flex flex-col gap-2 flex-1">

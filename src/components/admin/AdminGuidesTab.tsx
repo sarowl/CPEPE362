@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   CheckCircle, XCircle, ChevronRight, BookOpen,
   RefreshCw, Clock, User, ArrowLeft, History,
-  Trash2, Eye, AlertCircle, X,
+  Trash2, Eye, AlertCircle,
 } from "lucide-react";
 
 const REJECTION_REASONS = [
@@ -97,9 +97,6 @@ export default function AdminGuidesTab({
   const [historyView,    setHistoryView]    = useState<{ guide: FullGuide; steps: Step[] } | null>(null);
   const [deletingHist,   setDeletingHist]   = useState<string | null>(null);
   const [confirmDelHist, setConfirmDelHist] = useState<string | null>(null);
-  // Spec 5: Search + filter for history
-  const [historySearch,    setHistorySearch]    = useState("");
-  const [historyStatusFilter, setHistoryStatusFilter] = useState<"all" | "approved" | "rejected">("all");
 
   // ── Fetch pending guides ──────────────────────────────────────
   const fetchPending = useCallback(async () => {
@@ -209,14 +206,11 @@ export default function AdminGuidesTab({
         {/* UPDATED 6.1: Thumbnail immediately after title */}
         <div className="mb-4 w-full overflow-hidden border border-border rounded" style={{ aspectRatio: "16/9" }}>
           <img
-            src={guide.thumbnail_url ?? "/no-thumbnail.png"}
+            src={guide.thumbnail_url || "/no-thumbnail.png"}
             alt={guide.title}
             className="w-full h-full object-cover"
             loading="lazy"
-            onError={(e) => {
-                const img = e.target as HTMLImageElement;
-                if (!img.dataset.errored) { img.dataset.errored = "1"; img.src = "/no-thumbnail.png"; } else { img.style.display = "none"; }
-              }}
+            onError={(e) => { (e.target as HTMLImageElement).src = "/no-thumbnail.png"; }}
           />
         </div>
         <div className="flex flex-wrap gap-4 text-xs text-muted-foreground mb-4">
@@ -438,102 +432,43 @@ export default function AdminGuidesTab({
             </button>
           </div>
 
-          {/* Spec 5.1: Search Bar */}
-          <div className="mb-3">
-            <input
-              type="text"
-              value={historySearch}
-              onChange={(e) => setHistorySearch(e.target.value)}
-              placeholder="Search by title, creator, brand, model, difficulty, time required, date..."
-              className="w-full border border-border bg-background px-3 py-2 text-xs focus:outline-none focus:border-primary"
-            />
-          </div>
-
-          {/* Spec 5.2: Filter Tabs */}
-          <div className="flex items-center gap-2 mb-4">
-            {(["all", "approved", "rejected"] as const).map((f) => (
-              <button
-                key={f}
-                onClick={() => setHistoryStatusFilter(f)}
-                className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest border transition-all ${
-                  historyStatusFilter === f
-                    ? f === "approved" ? "bg-green-600 text-white border-green-600"
-                    : f === "rejected" ? "bg-red-600 text-white border-red-600"
-                    : "bg-primary text-white border-primary"
-                    : "bg-background border-border text-muted-foreground hover:border-primary"
-                }`}
-              >
-                {f === "all" ? "All" : f === "approved" ? "Approved" : "Rejected"}
-              </button>
-            ))}
-            {(historySearch || historyStatusFilter !== "all") && (
-              <button
-                onClick={() => { setHistorySearch(""); setHistoryStatusFilter("all"); }}
-                className="ml-auto px-2 py-1.5 text-[10px] text-muted-foreground hover:text-ink border border-border hover:bg-secondary transition-colors flex items-center gap-1"
-              >
-                <X size={10} /> Clear
-              </button>
-            )}
-          </div>
-
           {loadingHist ? (
             <div className="flex items-center justify-center gap-2 py-14 text-xs text-muted-foreground">
               <RefreshCw size={13} className="animate-spin" /> Loading history...
             </div>
-          ) : (() => {
-            const q = historySearch.trim().toLowerCase();
-            const filtered = historyGuides.filter((g) => {
-              if (historyStatusFilter !== "all" && g.status !== historyStatusFilter) return false;
-              if (!q) return true;
-              const dateStr = g.reviewed_at ? new Date(g.reviewed_at).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" }).toLowerCase() : "";
-              return (
-                g.title.toLowerCase().includes(q) ||
-                g.user_name.toLowerCase().includes(q) ||
-                g.brand_id.toLowerCase().includes(q) ||
-                g.model_name.toLowerCase().includes(q) ||
-                g.difficulty.toLowerCase().includes(q) ||
-                g.time_required.toLowerCase().includes(q) ||
-                dateStr.includes(q)
-              );
-            });
-            return filtered.length === 0 ? (
-              <div className="border border-dashed border-border bg-background flex flex-col items-center justify-center py-20 gap-3">
-                <History size={32} className="text-border" />
-                <p className="text-sm font-bold text-muted-foreground">{historyGuides.length === 0 ? "No reviewed guides yet" : "No results found"}</p>
-                <p className="text-xs text-muted-foreground text-center max-w-xs">
-                  {historyGuides.length === 0 ? "Approved and rejected guides will appear here." : "Try adjusting your search or filter."}
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {filtered.map((guide) => (
-                  <div key={guide.guide_id} className="border border-border bg-background p-4 flex items-start gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 border ${
-                          guide.status === "approved" ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-600 border-red-200"
-                        }`}>
-                          {guide.status === "approved" ? "Approved" : "Rejected"}
-                        </span>
-                        <span className="text-[10px] font-mono text-muted-foreground">
-                          {guide.reviewed_at ? new Date(guide.reviewed_at).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" }) : "—"}
-                        </span>
-                      </div>
-                      <p className="font-bold text-sm truncate">{guide.title}</p>
-                      <p className="text-[10px] text-muted-foreground mt-0.5">
-                        <span className="capitalize">{guide.brand_id}</span> · {guide.model_name} · by {guide.user_name}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground mt-0.5">
-                        {guide.difficulty} · {guide.time_required}
-                      </p>
-                      {guide.status === "rejected" && guide.rejection && (
-                        <p className="text-[10px] text-red-500 mt-1">
-                          Reason: {guide.rejection.reason}
-                          {guide.rejection.note && ` — ${guide.rejection.note}`}
-                        </p>
-                      )}
+          ) : historyGuides.length === 0 ? (
+            <div className="border border-dashed border-border bg-background flex flex-col items-center justify-center py-20 gap-3">
+              <History size={32} className="text-border" />
+              <p className="text-sm font-bold text-muted-foreground">No reviewed guides yet</p>
+              <p className="text-xs text-muted-foreground text-center max-w-xs">Approved and rejected guides will appear here.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {historyGuides.map((guide) => (
+                <div key={guide.guide_id} className="border border-border bg-background p-4 flex items-start gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 border ${
+                        guide.status === "approved" ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-600 border-red-200"
+                      }`}>
+                        {guide.status === "approved" ? "Approved" : "Rejected"}
+                      </span>
+                      <span className="text-[10px] font-mono text-muted-foreground">
+                        {guide.reviewed_at ? new Date(guide.reviewed_at).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" }) : "—"}
+                      </span>
                     </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
+                    <p className="font-bold text-sm truncate">{guide.title}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      <span className="capitalize">{guide.brand_id}</span> · {guide.model_name} · by {guide.user_name}
+                    </p>
+                    {guide.status === "rejected" && guide.rejection && (
+                      <p className="text-[10px] text-red-500 mt-1">
+                        Reason: {guide.rejection.reason}
+                        {guide.rejection.note && ` — ${guide.rejection.note}`}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
                     <button onClick={() => openGuide(guide.guide_id, true)} disabled={reviewing}
                       title="View guide"
                       className="p-1.5 hover:bg-secondary border border-border transition-colors disabled:opacity-50">
@@ -546,10 +481,9 @@ export default function AdminGuidesTab({
                     </button>
                   </div>
                 </div>
-                ))}
-              </div>
-            );
-          })()}
+              ))}
+            </div>
+          )}
 
           {/* Confirm soft-delete overlay */}
           {confirmDelHist && (

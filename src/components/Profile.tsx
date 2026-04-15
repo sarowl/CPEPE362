@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import Navbar from "./Navbar";
 import { ExperienceType, Profiletype } from "@/lib/types";
 import ProfileContributionsTab from "@/components/ProfileContributionsTab";
@@ -31,8 +30,7 @@ export default function Profile() {
   const [experience, setExperience] = useState<ExperienceType[]>([]);
   const [certifications, setCertifications] = useState<CertificationItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const searchParams = useSearchParams();
-  const [activeTab, setActiveTab] = useState(() => searchParams.get("tab") ?? "about");
+  const [activeTab, setActiveTab] = useState("about");
   const [guideCount, setGuideCount] = useState(0);
 
   const [isEditingAbout, setIsEditingAbout] = useState(false);

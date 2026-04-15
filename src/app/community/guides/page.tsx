@@ -58,14 +58,7 @@ export default function CommunityGuidesPage() {
   const filtered = useMemo(() => {
     if (!keywords.length) return guides;
     return guides.filter((g) => {
-      const hay = [
-        g.title,
-        g.model_name,
-        g.brand_id,
-        g.summary,
-        g.difficulty,
-        g.time_required,
-      ].join(" ").toLowerCase();
+      const hay = `${g.title} ${g.model_name} ${g.brand_id} ${g.summary} ${g.difficulty}`.toLowerCase();
       return keywords.every((k) => hay.includes(k));
     });
   }, [guides, keywords]);
@@ -157,21 +150,19 @@ export default function CommunityGuidesPage() {
 function GuideCard({ guide, isLoggedIn }: { guide: Guide; isLoggedIn: boolean }) {
   const diffColor = DIFFICULTY_COLORS[guide.difficulty] ?? "bg-secondary text-muted-foreground border-border";
   const href = `/guides/${guide.brand_id}/${guide.model_id}/${guide.guide_id}`;
-  // UPDATED 6.4: Only fallback to /no-thumbnail.png when thumbnail_url is truly absent
-  const thumbnailSrc = guide.thumbnail_url ?? "/no-thumbnail.png";
+  // UPDATED 6.4: Fallback to /no-thumbnail.png
+  const thumbnailSrc = guide.thumbnail_url || "/no-thumbnail.png";
 
   const inner = (
     <div className="border border-border bg-background hover:border-primary/50 transition-colors group flex flex-col h-full overflow-hidden">
-      {/* Thumbnail — full 16:9 aspect ratio, no cropping */}
-      <div className="relative w-full overflow-hidden" style={{ aspectRatio: "16/9" }}>
+      {/* UPDATED 6.3: Thumbnail cropped to show half — overflow hidden, aspect 2:1 so only half shows */}
+      <div className="relative w-full overflow-hidden" style={{ height: "80px" }}>
         <img
           src={thumbnailSrc}
           alt={guide.title}
-          className="w-full h-full object-cover"
-          onError={(e) => {
-                const img = e.target as HTMLImageElement;
-                if (!img.dataset.errored) { img.dataset.errored = "1"; img.src = "/no-thumbnail.png"; } else { img.style.display = "none"; }
-              }}
+          className="w-full h-full object-cover object-top"
+          onError={(e) => { (e.target as HTMLImageElement).src = "/no-thumbnail.png"; }}
+          style={{ minHeight: "160px", marginTop: "-40px" }}
         />
       </div>
       <div className="p-5 flex flex-col gap-2 flex-1">

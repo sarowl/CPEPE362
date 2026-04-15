@@ -59,48 +59,26 @@ export async function POST(req: Request) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer      = Buffer.from(arrayBuffer);
 
-    // For thumbnails: delete any existing thumbnail files before uploading the new one
-    // This ensures stale cached files don't interfere with the new public URL
-    if (isThumbnail) {
-      const thumbFolder = `Guides/${userId}/${guide_id}/thumbnail`;
-      const { data: existingFiles } = await supabase.storage
-        .from(BUCKET)
-        .list(thumbFolder);
-      if (existingFiles && existingFiles.length > 0) {
-        const toRemove = existingFiles
-          .filter((f) => f.name !== ".keep")
-          .map((f) => `${thumbFolder}/${f.name}`);
-        if (toRemove.length > 0) {
-          await supabase.storage.from(BUCKET).remove(toRemove);
-        }
-      }
-    }
-
-    // Use upsert: true for thumbnails so re-uploading the same filename doesn't fail
     const { error: uploadError } = await supabase.storage
       .from(BUCKET)
-      .upload(storagePath, buffer, { contentType: file.type, upsert: isThumbnail });
+      .upload(storagePath, buffer, { contentType: file.type, upsert: false });
 
     if (uploadError) {
       return NextResponse.json({ error: uploadError.message }, { status: 500 });
     }
 
-    // Build the public URL using the Supabase project URL directly to ensure
-    // it always resolves correctly regardless of client-side env config
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!.replace(/\/$/, "");
-    const publicUrl   = `${supabaseUrl}/storage/v1/object/public/${BUCKET}/${storagePath}`;
+    const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(storagePath);
+    const publicUrl = urlData.publicUrl;
 
     // SECTION 6: Auto-update thumbnail_url in DB when uploading thumbnail
-    // Append a cache-busting timestamp so browsers always load the latest image
-    const finalUrl = isThumbnail ? `${publicUrl}?t=${Date.now()}` : publicUrl;
     if (isThumbnail) {
       await supabase
         .from("guides")
-        .update({ thumbnail_url: finalUrl })
+        .update({ thumbnail_url: publicUrl })
         .eq("guide_id", guide_id);
     }
 
-    return NextResponse.json({ url: finalUrl, path: storagePath }, { status: 201 });
+    return NextResponse.json({ url: publicUrl, path: storagePath }, { status: 201 });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
