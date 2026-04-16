@@ -34,7 +34,34 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ posts }, { status: 200 });
+    // Fetch likes/dislikes for all forum posts
+    const forumIds = posts.map((p) => p.forum_id);
+    let votesByPost: Record<string, { likes: number; dislikes: number }> = {};
+    if (forumIds.length > 0) {
+      const { data: votes, error: votesError } = await supabase
+        .from("ForumVote")
+        .select("target_id, vote")
+        .in("target_id", forumIds)
+        .eq("target_type", "post");
+      if (!votesError && votes) {
+        forumIds.forEach((id) => {
+          const v = votes.filter((x) => x.target_id === id);
+          votesByPost[id] = {
+            likes: v.filter((x) => x.vote === 1).length,
+            dislikes: v.filter((x) => x.vote === -1).length,
+          };
+        });
+      }
+    }
+
+    // Attach likes/dislikes to each post
+    const postsWithVotes = posts.map((p) => ({
+      ...p,
+      likes: votesByPost[p.forum_id]?.likes || 0,
+      dislikes: votesByPost[p.forum_id]?.dislikes || 0,
+    }));
+
+    return NextResponse.json({ posts: postsWithVotes }, { status: 200 });
   } catch (error) {
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
