@@ -1,11 +1,3 @@
-// ============================================================
-// AIRepairFlow/Screens/PostRepairScreen.tsx — IMPORTED FROM Folder_B
-//
-// Final step of the AI repair flow shown after repair is complete.
-// Displays a success confirmation and options to:
-//  - Start a new repair diagnosis
-//  - Return to the home page
-// ============================================================
 import { useEffect, useState, useRef } from "react";
 import { CheckCircle2, Calendar, RotateCcw, ChevronRight, Loader2, AlertTriangle } from "lucide-react";
 import Image from "next/image";

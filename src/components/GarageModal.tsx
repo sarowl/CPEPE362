@@ -1,12 +1,3 @@
-// ============================================================
-// GarageModal.tsx — IMPORTED FROM Folder_B
-//
-// Modal dialog used by the AI Repair Flow (ProblemEntryScreen) to let the
-// user select a vehicle from their garage.
-// Exports the Vehicle interface used throughout RepairFlow and its screens.
-// Interface: Vehicle { id: number, model: string, year: number | string }
-// ============================================================
-// src/components/GarageModal.tsx
 import React from "react";
 import { X, Logs, Loader2 } from "lucide-react";
 

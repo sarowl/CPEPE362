@@ -1,14 +1,3 @@
-// ============================================================
-// garagemodel.tsx — IMPORTED FROM Folder_B
-//
-// Modal form for adding a new vehicle to My Garage.
-// Exports: GarageModal (default) and NewVehicleInput type.
-// Collects: make, model, year, color, VIN, plate, engine number,
-//           chassis number, owner, OR/CR numbers, gross/net weight,
-//           classification (private/public/government/electric),
-//           and an optional vehicle photo.
-// On submit: calls /api/mygarge/save to persist the vehicle.
-// ============================================================
 "use client";
 
 import { useEffect, useMemo, useState } from "react";

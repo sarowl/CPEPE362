@@ -1,10 +1,3 @@
-// ============================================================
-// AIRepairFlow/ProgressIndicator.tsx — IMPORTED FROM Folder_B
-//
-// Displays a step progress bar at the top of the AI repair flow.
-// Props: currentStep (number), totalSteps (number), label (string)
-// Shown during: diagnosis and repair steps (hidden on problem/complete).
-// ============================================================
 interface ProgressIndicatorProps {
   currentStep: number;
   totalSteps: number;

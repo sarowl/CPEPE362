@@ -1,15 +1,3 @@
-// ============================================================
-// AIRepairFlow/Screens/RepairModeScreen.tsx — IMPORTED FROM Folder_B
-//
-// Step 3 of the AI repair flow: step-by-step repair guide.
-// Features:
-//  - Calls /api/repair_procedure (Gemini AI) for vehicle-specific steps
-//  - Caches the procedure to avoid re-fetching on escalation round-trips
-//  - Shows ToolsAndPartsScreen sub-view for required tools/parts
-//  - "I can't fix it" escalation path leads to EscalationScreen
-//  - "Done" completes the flow and leads to PostRepairScreen
-// ============================================================
-// src/components/AIRepairFlow/Screens/RepairModeScreen.tsx
 import { useState, useEffect } from "react";
 import {
   AlertTriangle,

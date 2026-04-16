@@ -1,18 +1,5 @@
 "use client";
 
-// ============================================================
-// (main)/page.tsx — MERGED Home Page from Folder_A (base) + Folder_B
-//
-// Key merge changes:
-//  1. [FROM A] Retained search logic navigating to /search with query param.
-//  2. [FROM A] Shows 7 most recent guides (Folder_B used 5; A's value kept).
-//  3. [FROM A] Community FeatureCard links to /forum (Folder_B used /community).
-//  4. [FROM B] Footer CTA "START DIAGNOSING" now points to /ai-repair
-//     (Folder_B's full multi-step AI repair flow page) instead of /ai-assistant.
-//  5. [MERGED] Both pages were structurally identical; differences above are the
-//     only divergences; Folder_A's UI/UX is fully preserved.
-// ============================================================
-
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Search, ChevronRight } from "lucide-react";
