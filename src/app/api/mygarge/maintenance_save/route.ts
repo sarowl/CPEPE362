@@ -1,3 +1,11 @@
+// ============================================================
+// api/mygarge/maintenance_save/route.ts — IMPORTED FROM Folder_B
+//
+// POST endpoint: saves a new maintenance log entry for a vehicle.
+// If a reminder date is set, also triggers /api/notification/save
+// so the user gets a notification reminder in the Navbar bell.
+// Used by: Mygarage component maintenance form.
+// ============================================================
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 

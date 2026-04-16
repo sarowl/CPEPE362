@@ -1,3 +1,14 @@
+// ============================================================
+// AIRepairFlow/Screens/ProblemEntryScreen.tsx — IMPORTED FROM Folder_B
+//
+// Step 1 of the AI repair flow: user describes their car problem.
+// Features:
+//  - Optional garage vehicle selector (calls /api/mygarge/fetch)
+//  - Free-text problem description
+//  - Dynamic Q&A follow-up questions from AI
+//  - On submit: calls /api/problem_entry_screen (Gemini AI) to get diagnoses
+//  - Passes diagnoses + selected vehicle to parent RepairFlow component
+// ============================================================
 import { useState } from "react";
 import { Search, ArrowRight, Loader2, Logs } from "lucide-react";
 import GarageModal, { Vehicle } from "@/components/GarageModal";

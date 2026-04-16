@@ -1,3 +1,10 @@
+// ============================================================
+// AIRepairFlow/Screens/DiagnosisScreen.tsx — IMPORTED FROM Folder_B
+//
+// Step 2 of the AI repair flow: displays AI-generated diagnoses.
+// User selects the most likely diagnosis to proceed to repair.
+// Each diagnosis card shows: title, description, urgency level.
+// ============================================================
 //src\components\AIRepairFlow\Screens\DiagnosisScreen.tsx
 import { useState } from "react";
 import {

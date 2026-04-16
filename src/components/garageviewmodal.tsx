@@ -1,3 +1,10 @@
+// ============================================================
+// garageviewmodal.tsx — IMPORTED FROM Folder_B
+//
+// Read-only modal that displays full details of a selected vehicle.
+// Shows: all vehicle fields + brand logo + photo if uploaded.
+// Triggered by clicking a vehicle card in the Mygarage grid.
+// ============================================================
 "use client";
 
 import { CarFront, X } from "lucide-react";

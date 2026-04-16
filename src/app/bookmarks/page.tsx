@@ -1,17 +1,10 @@
 "use client";
-// ================================================================
-// - Fetches bookmarked guides via GET /api/guides-likes/mine
-// - Displays guide cards matching the community guides card style
-// - Shows thumbnail (full aspect ratio) above each card
-// - Falls back to /no-thumbnail.png when no thumbnail
-// - SECTION 2.1: Uses bookmark-icon-profile.png for page header icon
-// ================================================================
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
-import { RefreshCw, ArrowLeft, Wrench } from "lucide-react";
+import { RefreshCw, ArrowLeft, Wrench, Search, X } from "lucide-react";
 
 type BookmarkedGuide = {
   guide_id: string;
@@ -24,6 +17,7 @@ type BookmarkedGuide = {
   time_required: string;
   created_at: string;
   thumbnail_url?: string | null;
+  required_parts?: string[];
 };
 
 const DIFFICULTY_COLORS: Record<string, string> = {
@@ -38,6 +32,17 @@ export default function BookmarksPage() {
   const [guides, setGuides]   = useState<BookmarkedGuide[]>([]);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // 4.1: Expanded searchable fields for bookmarks
+  const filteredGuides = useMemo(() => {
+    if (!searchQuery.trim()) return guides;
+    const keywords = searchQuery.toLowerCase().split(/\s+/).filter(Boolean);
+    return guides.filter((g) => {
+      const hay = [g.title, g.brand_id, g.model_name, g.difficulty, g.time_required, ...(g.required_parts ?? [])].join(" ").toLowerCase();
+      return keywords.every((k) => hay.includes(k));
+    });
+  }, [guides, searchQuery]);
 
   useEffect(() => {
     fetch("/api/guides-likes/mine")
@@ -96,14 +101,38 @@ export default function BookmarksPage() {
           </div>
         ) : (
           <>
-            <p className="text-xs text-muted-foreground font-mono mb-4">
-              {guides.length} bookmarked guide{guides.length !== 1 ? "s" : ""}
+            <p className="text-xs text-muted-foreground font-mono mb-3">
+              {filteredGuides.length} bookmarked guide{filteredGuides.length !== 1 ? "s" : ""}
             </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {guides.map((guide) => (
-                <BookmarkCard key={guide.guide_id} guide={guide} />
-              ))}
+
+            {/* 4.1: Search bar */}
+            <div className="mb-5 flex items-center gap-2 border border-border bg-background px-3 h-10">
+              <Search size={14} className="text-muted-foreground shrink-0" />
+              <input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by title, brand, model, difficulty, time..."
+                className="h-full flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              />
+              {searchQuery && (
+                <button onClick={() => setSearchQuery("")} className="text-muted-foreground hover:text-ink">
+                  <X size={13} />
+                </button>
+              )}
             </div>
+
+            {filteredGuides.length === 0 ? (
+              <div className="py-10 text-center text-muted-foreground text-sm border border-dashed border-border">
+                No bookmarks match your search.{" "}
+                <button onClick={() => setSearchQuery("")} className="text-primary underline">Clear</button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredGuides.map((guide) => (
+                  <BookmarkCard key={guide.guide_id} guide={guide} />
+                ))}
+              </div>
+            )}
           </>
         )}
 
@@ -125,8 +154,9 @@ export default function BookmarksPage() {
 function BookmarkCard({ guide }: { guide: BookmarkedGuide }) {
   const diffColor = DIFFICULTY_COLORS[guide.difficulty] ?? "bg-secondary text-muted-foreground border-border";
   const href = `/guides/${guide.brand_id}/${guide.model_id}/${guide.guide_id}`;
-  // SECTION 6: Use actual thumbnail if available, fallback otherwise
-  const thumbnailSrc = guide.thumbnail_url || "/no-thumbnail.png";
+  // SECTION 6: Use actual thumbnail if available; only fallback if genuinely absent
+  const hasThumbnail = !!guide.thumbnail_url;
+  const thumbnailSrc = guide.thumbnail_url ?? "/no-thumbnail.png";
 
   return (
     <Link href={href} className="block h-full group">
@@ -136,9 +166,12 @@ function BookmarkCard({ guide }: { guide: BookmarkedGuide }) {
           <img
             src={thumbnailSrc}
             alt={guide.title}
-            className="w-full h-full object-cover"
+            className={`w-full h-full object-cover${!hasThumbnail ? " opacity-80" : ""}`}
             loading="lazy"
-            onError={(e) => { (e.target as HTMLImageElement).src = "/no-thumbnail.png"; }}
+            onError={(e) => {
+                const img = e.target as HTMLImageElement;
+                if (!img.dataset.errored) { img.dataset.errored = "1"; img.src = "/no-thumbnail.png"; } else { img.style.display = "none"; }
+              }}
           />
         </div>
         <div className="p-4 flex flex-col gap-2 flex-1">
@@ -152,6 +185,16 @@ function BookmarkCard({ guide }: { guide: BookmarkedGuide }) {
           </div>
           <h3 className="text-sm font-bold leading-snug line-clamp-2">{guide.title}</h3>
           <p className="text-xs text-muted-foreground leading-relaxed flex-1 line-clamp-2">{guide.summary}</p>
+          {guide.required_parts && guide.required_parts.length > 0 && (
+            <div className="flex flex-wrap gap-1 pt-1">
+              {guide.required_parts.slice(0, 3).map((p, i) => (
+                <span key={i} className="text-[9px] bg-blue-50 border border-blue-200 text-blue-700 px-1.5 py-0.5 font-medium">{p}</span>
+              ))}
+              {guide.required_parts.length > 3 && (
+                <span className="text-[9px] text-muted-foreground">+{guide.required_parts.length - 3} more</span>
+              )}
+            </div>
+          )}
           <div className="pt-2 border-t border-border mt-auto flex items-center justify-between">
             <span className="text-[10px] font-mono text-muted-foreground">{guide.time_required}</span>
             <span className="text-[10px] font-bold text-primary group-hover:underline tracking-wide">VIEW GUIDE →</span>

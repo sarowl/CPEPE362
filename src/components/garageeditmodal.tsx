@@ -1,3 +1,11 @@
+// ============================================================
+// garageeditmodal.tsx — IMPORTED FROM Folder_B
+//
+// Edit modal for updating an existing vehicle in My Garage.
+// Pre-populates all fields with the current vehicle data.
+// On submit: calls /api/mygarge/update to persist changes.
+// Also supports photo re-upload which updates Autobot_Storage.
+// ============================================================
 "use client";
 
 import { useEffect, useState } from "react";

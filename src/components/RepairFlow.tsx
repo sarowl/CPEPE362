@@ -1,3 +1,18 @@
+// ============================================================
+// RepairFlow.tsx — IMPORTED FROM Folder_B
+//
+// Orchestrates the full multi-step Autobot AI repair flow.
+// Steps: problem → diagnosis → repair → [escalation] → complete
+//
+// Key integration points:
+//  1. [FROM B] ProgressIndicator shows step progress at top during repair steps.
+//  2. [FROM B] ProblemEntryScreen: user describes issue + selects vehicle from My Garage.
+//  3. [FROM B] DiagnosisScreen: displays AI-generated diagnosis options.
+//  4. [FROM B] RepairModeScreen: step-by-step AI repair guide.
+//  5. [FROM B] EscalationScreen: shown if repair fails; suggests professional help.
+//  6. [FROM B] PostRepairScreen: post-repair confirmation and feedback.
+//  7. [FROM B] cachedProcedure: prevents redundant Gemini API calls during escalation.
+// ============================================================
 // src/components/RepairFlow.tsx
 import { useState } from "react";
 import ProgressIndicator from "./AIRepairFlow/ProgressIndicator";

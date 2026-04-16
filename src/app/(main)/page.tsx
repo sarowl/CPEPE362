@@ -1,14 +1,27 @@
 "use client";
 
+// ============================================================
+// (main)/page.tsx — MERGED Home Page from Folder_A (base) + Folder_B
+//
+// Key merge changes:
+//  1. [FROM A] Retained search logic navigating to /search with query param.
+//  2. [FROM A] Shows 7 most recent guides (Folder_B used 5; A's value kept).
+//  3. [FROM A] Community FeatureCard links to /forum (Folder_B used /community).
+//  4. [FROM B] Footer CTA "START DIAGNOSING" now points to /ai-repair
+//     (Folder_B's full multi-step AI repair flow page) instead of /ai-assistant.
+//  5. [MERGED] Both pages were structurally identical; differences above are the
+//     only divergences; Folder_A's UI/UX is fully preserved.
+// ============================================================
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Search, ChevronRight } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
 
-const heroBg      = "/hero-bg.jpg";
-const cardGuides  = "/card-guides.jpg";
-const cardAi      = "/card-ai.jpg";
+const heroBg        = "/hero-bg.jpg";
+const cardGuides    = "/card-guides.jpg";
+const cardAi        = "/card-ai.jpg";
 const cardCommunity = "/card-community.jpg";
 
 type RecentGuide = {
@@ -29,6 +42,7 @@ export default function HomePage() {
   const [recentGuides, setRecent]   = useState<RecentGuide[]>([]);
   const [loadingGuides, setLoading] = useState(true);
 
+  // [FROM A] Auth listener — determines login state for conditional UI
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
@@ -39,19 +53,21 @@ export default function HomePage() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Fetch 5 most recent approved guides
+  // [FROM A] Fetch 7 most recent approved guides from the API
+  // Folder_B used 5; kept Folder_A's value of 7 as the primary base
   useEffect(() => {
     fetch("/api/guides")
       .then((r) => r.json())
       .then((d) => {
         const all: RecentGuide[] = d.guides ?? [];
-        // Already sorted by created_at desc from API; take first 5
-        setRecent(all.slice(0, 5));
+        // API already sorts by created_at desc; take first 7
+        setRecent(all.slice(0, 7));
         setLoading(false);
       })
       .catch(() => setLoading(false));
   }, []);
 
+  // [FROM A] Search submit handler — preserves Folder_A's search navigation logic
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (search.trim()) {
@@ -63,7 +79,7 @@ export default function HomePage() {
 
   return (
     <div className="flex flex-col animate-fade-in">
-      {/* HERO */}
+      {/* HERO — unchanged from Folder_A */}
       <section
         className="relative flex flex-col items-center justify-center text-center px-6 py-28 md:py-40"
         style={{
@@ -81,7 +97,7 @@ export default function HomePage() {
             for every car, written by real mechanics
           </p>
 
-          {/* Search bar — navigates to /search */}
+          {/* [FROM A] Search bar — navigates to /search with query param */}
           <form
             onSubmit={handleSearchSubmit}
             className="w-full max-w-lg flex items-center bg-background rounded-sm overflow-hidden shadow-lg border border-border"
@@ -114,7 +130,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* VALUE PROPS */}
+      {/* VALUE PROPS — [FROM A] structure; AI card updated to /ai-repair */}
       <section className="py-16 px-6 max-w-6xl mx-auto w-full">
         <h2 className="text-2xl md:text-3xl font-extrabold text-center mb-3 tracking-tight">
           Never take broken for an answer
@@ -124,6 +140,7 @@ export default function HomePage() {
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* [FROM A] Step-by-Step Guides card */}
           <FeatureCard
             image={cardGuides}
             title="Step-by-Step Guides"
@@ -131,24 +148,26 @@ export default function HomePage() {
             linkTo="/community/guides"
             linkLabel="Find a Guide"
           />
+          {/* [MERGED] AI card: uses /ai-repair (Folder_B's full repair flow) */}
           <FeatureCard
             image={cardAi}
             title="AI Repair Assistant"
             description="Describe your symptoms and let our AI diagnose the issue, suggest parts, and walk you through the fix."
-            linkTo={user ? "/ai-assistant" : "/login"}
+            linkTo={user ? "/ai-repair" : "/login"}
             linkLabel={user ? "Ask the AI" : "Login to Use AI"}
           />
+          {/* [FROM A] Community card links to /forum (Folder_A route) */}
           <FeatureCard
             image={cardCommunity}
             title="A Community of Fixers"
             description="No one knows how to fix everything, but everyone knows how to fix something. Join the conversation."
-            linkTo="/community"
-            linkLabel="Join the Community"
+            linkTo="/forum"
+            linkLabel="Join the Community →"
           />
         </div>
       </section>
 
-      {/* RECENT REPAIR GUIDES — 5 most recent approved, horizontal scroll */}
+      {/* RECENT REPAIR GUIDES — [FROM A] 7 most recent, horizontal scroll carousel */}
       <section className="bg-secondary/30 py-16 px-6 border-y border-border">
         <div className="max-w-6xl mx-auto">
           <div className="flex items-center justify-between mb-8">
@@ -177,7 +196,7 @@ export default function HomePage() {
               )}
             </div>
           ) : (
-            /* Horizontal scrollable carousel */
+            // [FROM A] Horizontal scrollable carousel with snap behaviour
             <div className="flex gap-4 overflow-x-auto pb-4 -mx-2 px-2 snap-x snap-mandatory scrollbar-thin scrollbar-thumb-border">
               {recentGuides.map((guide) => (
                 <div
@@ -215,7 +234,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* FOOTER CTA */}
+      {/* FOOTER CTA — [MERGED] button links to /ai-repair (Folder_B's AI flow) */}
       <section className="bg-ink py-16 px-6 text-center">
         <h2 className="text-xl md:text-2xl font-extrabold text-primary-foreground mb-3">
           Ready to fix it yourself?
@@ -223,6 +242,7 @@ export default function HomePage() {
         <p className="font-mono text-xs text-primary-foreground/60 mb-6 max-w-md mx-auto">
           Join thousands of DIY mechanics using Autobot to diagnose, repair, and maintain their vehicles.
         </p>
+        {/* [FROM B] Logged-in users go to /ai-repair for the full Autobot AI repair flow */}
         <Link
           href={user ? "/ai-repair" : "/signup"}
           className="inline-block bg-primary text-primary-foreground font-mono text-sm font-bold px-8 py-3 tracking-wide hover:opacity-90 transition-opacity"
@@ -234,6 +254,7 @@ export default function HomePage() {
   );
 }
 
+// [FROM A] FeatureCard sub-component — unchanged
 function FeatureCard({
   image, title, description, linkTo, linkLabel,
 }: {

@@ -1,3 +1,11 @@
+// ============================================================
+// api/mygarge/delete/route.ts — IMPORTED FROM Folder_B
+//
+// DELETE endpoint: removes a vehicle and its associated
+// maintenance logs from the database.
+// Also deletes the vehicle photo from Autobot_Storage if present.
+// Used by: Mygarage component delete button.
+// ============================================================
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 

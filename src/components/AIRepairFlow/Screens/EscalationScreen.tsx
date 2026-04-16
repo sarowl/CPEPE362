@@ -1,3 +1,12 @@
+// ============================================================
+// AIRepairFlow/Screens/EscalationScreen.tsx — IMPORTED FROM Folder_B
+//
+// Escalation path in the AI repair flow when user cannot self-repair.
+// Features:
+//  - Calls /api/find_mechanics (Geoapify) to suggest nearby mechanics
+//  - Displays a list of nearby service centers with addresses
+//  - Option to go back and retry the repair
+// ============================================================
 import { useState } from "react";
 import {
   ShieldAlert,

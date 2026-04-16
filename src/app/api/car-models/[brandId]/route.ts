@@ -12,7 +12,7 @@ export async function GET(
 
   const { data: models, error } = await supabase
     .from("car_models")
-    .select("id, name, slug, category, years")
+    .select("id, name, slug, category, years, model_img, info")
     .eq("brand_id", brandId)
     .order("name");
 
@@ -24,9 +24,5 @@ export async function GET(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  if (!models || models.length === 0) {
-    return NextResponse.json({ error: "Brand not found" }, { status: 404 });
-  }
-
-  return NextResponse.json({ models });
+  return NextResponse.json({ models: models ?? [] });
 }

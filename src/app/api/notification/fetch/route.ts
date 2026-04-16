@@ -1,3 +1,11 @@
+// ============================================================
+// api/notification/fetch/route.ts — IMPORTED FROM Folder_B
+//
+// GET endpoint: fetches all notifications for the authenticated user.
+// Requires Bearer token in Authorization header (Supabase JWT).
+// Used by: Navbar notification bell (polls every 30s + on panel open).
+// Returns: { notifications: Array<{id, user_id, title, message, is_read, created_at}> }
+// ============================================================
 import { supabase } from "@/lib/supabase";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -5,6 +13,7 @@ export async function GET(req: NextRequest) {
   try {
     const authHeader = req.headers.get("authorization");
 
+    // [FROM B] Reject requests missing the Authorization header
     if (!authHeader) {
       return NextResponse.json(
         { error: "Missing authorization header" },
@@ -14,7 +23,7 @@ export async function GET(req: NextRequest) {
 
     const token = authHeader.replace("Bearer ", "");
 
-    // Get user from token
+    // [FROM B] Validate token and resolve the requesting user
     const {
       data: { user },
       error: userError,
@@ -27,12 +36,12 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Fetch notifications for this user
+    // [FROM B] Fetch all notifications for this user, newest first
     const { data, error } = await supabase
       .from("notification")
       .select("id, user_id, title, message, is_read, created_at")
       .eq("user_id", user.id)
-      .order("created_at", { ascending: false }); // optional
+      .order("created_at", { ascending: false });
 
     if (error) {
       return NextResponse.json(

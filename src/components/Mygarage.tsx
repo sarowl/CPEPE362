@@ -1,3 +1,15 @@
+// ============================================================
+// Mygarage.tsx — IMPORTED FROM Folder_B
+//
+// Full vehicle management and maintenance log component.
+// Key features:
+//  1. [FROM B] Vehicle CRUD: add/view/edit/delete vehicles via modal dialogs.
+//  2. [FROM B] Maintenance log: per-vehicle activity tracking with reminders.
+//  3. [FROM B] Notification integration: calls /api/notification/save when
+//     maintenance reminder dates are set, so the Navbar bell shows alerts.
+//  4. [FROM B] Brand logo: auto-resolves car-maker logos from /public/car-makers/.
+//  5. [FROM B] Photo support: vehicle photos uploaded to Autobot_Storage bucket.
+// ============================================================
 "use client";
 
 import { useState, useEffect } from "react";

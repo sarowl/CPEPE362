@@ -1,3 +1,10 @@
+// ============================================================
+// api/maintenance_log/route.ts — IMPORTED FROM Folder_B
+//
+// GET endpoint: fetches all maintenance log entries for a specific vehicle.
+// Used as a utility endpoint for maintenance history queries.
+// Query param: car_id (UUID of the vehicle)
+// ============================================================
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 

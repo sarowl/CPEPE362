@@ -1,3 +1,9 @@
+// ============================================================
+// api/mygarge/update/route.ts — IMPORTED FROM Folder_B
+//
+// PUT/PATCH endpoint: updates an existing vehicle record.
+// Used by: garageeditmodal.tsx (Edit Vehicle form).
+// ============================================================
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { encrypt } from "@/lib/encryption";

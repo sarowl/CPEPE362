@@ -84,7 +84,7 @@ export async function PATCH(req: Request, { params }: Params) {
     // UPDATED: Added thumbnail_url to allowed fields for edit flow (Section 5.1)
     const allowedFields = [
       "title", "summary", "introduction", "difficulty",
-      "time_required", "tools", "brand_id", "model_id", "model_name",
+      "time_required", "tools", "required_parts", "brand_id", "model_id", "model_name",
       "thumbnail_url",
     ];
     const updates: Record<string, unknown> = {};
