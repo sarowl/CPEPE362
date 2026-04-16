@@ -602,13 +602,13 @@ function GuidePreviewModal({
                     </div>
                   </div>
                 )}
-                {guide.required_parts?.length > 0 && (
+               {(guide.required_parts?.length ?? 0) > 0 && (
                   <div className="mt-3">
                     <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1.5 flex items-center gap-1">
                       <Package size={10} /> Required Parts
                     </p>
                     <div className="flex flex-wrap gap-1.5">
-                      {guide.required_parts.map((p, i) => (
+                      {guide.required_parts?.map((p, i) => (
                         <span key={i} className="text-xs bg-blue-50 border border-blue-200 text-blue-700 px-2 py-0.5">{p}</span>
                       ))}
                     </div>

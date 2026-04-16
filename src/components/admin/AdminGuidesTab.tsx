@@ -223,7 +223,7 @@ export default function AdminGuidesTab({
           <span>Difficulty: <strong className="text-ink">{guide.difficulty}</strong></span>
           <span>Time: <strong className="text-ink">{guide.time_required}</strong></span>
           {guide.tools?.length > 0 && <span>Tools: <strong className="text-ink">{guide.tools.join(", ")}</strong></span>}
-          {guide.required_parts?.length > 0 && <span>Parts: <strong className="text-ink">{guide.required_parts.join(", ")}</strong></span>}
+         {(guide.required_parts?.length ?? 0) > 0 && <span>Parts: <strong className="text-ink">{guide.required_parts?.join(", ")}</strong></span>}
         </div>
         <div className="border-t border-border pt-4">
           {/* UPDATED 4.3: label is now "Note" */}

@@ -4,14 +4,14 @@
 // Navbar.tsx — MERGED from Folder_A (base) + Folder_B (features)
 //
 // Key merge changes:
-//  1. [FROM B] Added profile cache (fetchProfileOnce / invalidateProfileCache)
+//  1. Added profile cache (fetchProfileOnce / invalidateProfileCache)
 //     so repeated renders don't fire redundant /api/profile_fetch requests.
-//  2. [FROM B] Added Bell (notification) button between Bookmark and user avatar.
+//  2. Added Bell (notification) button between Bookmark and user avatar.
 //     Includes: fetch on open, auto-poll every 30 s, mark-read on open, unread badge.
-//  3. [FROM A] Kept the dual-image Auto Hub icon-swap logic in the Fix It dropdown.
-//  4. [FROM A] Kept /ai-assistant href now updated to /ai-repair (Folder_B's full AI repair flow).
-//  5. [FROM A] Kept /forum shortcut in Community dropdown alongside /community/forum.
-//  6. [FROM B] Added useRef to safely reference `user` inside the poll interval
+//  3. Kept the dual-image Auto Hub icon-swap logic in the Fix It dropdown.
+//  4. Kept /ai-assistant href now updated to /ai-repair (Folder_B's full AI repair flow).
+//  5. Kept /forum shortcut in Community dropdown alongside /community/forum.
+//  6. Added useRef to safely reference `user` inside the poll interval
 //     without stale-closure issues.
 // ============================================================
 
