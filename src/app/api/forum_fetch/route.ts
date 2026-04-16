@@ -8,11 +8,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const brandId = searchParams.get("brandId");
 
-    if (!brandId) {
-      return NextResponse.json({ error: "Missing brandId" }, { status: 400 });
-    }
-
-    const { data: posts, error } = await supabase
+    let query = supabase
       .from("ForumPost")
       .select(`
         forum_id,
@@ -26,8 +22,13 @@ export async function GET(req: Request) {
           name
         )
       `)
-      .eq("brand_id", brandId)
       .order("created_at", { ascending: false });
+
+    if (brandId) {
+      query = query.eq("brand_id", brandId);
+    }
+
+    const { data: posts, error } = await query;
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
