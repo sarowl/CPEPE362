@@ -1,22 +1,6 @@
 // ================================================================
 // Storage Auto-Sync — Car Models
 //
-// POST /api/car-models-storage-sync
-//
-// On admin login or when accessing the Admin page:
-//   1. Fetch all records from car_models table
-//   2. Check existing folders in Car_Models/
-//   3. For each car_model_id in DB:
-//      - If folder EXISTS  → skip (do nothing)
-//      - If folder MISSING → create it (upload .keep placeholder)
-//   4. For each folder in storage:
-//      - If matching DB record EXISTS → keep it
-//      - If NO matching DB record     → delete the orphan folder
-//
-// A folder is "created" by uploading a tiny .keep placeholder file,
-// since Supabase Storage has no explicit mkdir — folders are implicit
-// path prefixes that only exist when they contain at least one file.
-//
 // Admin-only endpoint (x-admin-email header required).
 // ================================================================
 

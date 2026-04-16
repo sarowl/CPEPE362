@@ -1,32 +1,3 @@
-// ================================================================
-// Guide model_id Migration
-//
-// POST /api/guides-model-id-fix
-//
-// One-time (safe to re-run) fix for guides whose model_id no longer
-// matches the current car_models table because the car_models rows
-// were recreated and received new UUIDs.
-//
-// Logic:
-//   1. Fetch every guide (any status) — we want to fix ALL of them,
-//      not just approved ones, so future approvals also work.
-//   2. Fetch every car_models row.
-//   3. Build a lookup map:  brand_id + model_name  →  current UUID
-//      Matching is case-insensitive and trims whitespace to be
-//      resilient to minor data inconsistencies.
-//   4. For each guide whose stored model_id doesn't match the lookup,
-//      UPDATE guides SET model_id = <correct uuid>.
-//   5. Return a summary: { checked, fixed, skipped, unmatched }
-//      - fixed    : guides whose model_id was stale and has been updated
-//      - skipped  : guides whose model_id was already correct
-//      - unmatched: guides where no car_models row could be found by
-//                   brand_id + model_name (data quality issue — logged
-//                   but not touched so nothing is accidentally broken)
-//
-// Admin-only endpoint (x-admin-email header required).
-// Safe to call multiple times — subsequent runs will report 0 fixed.
-// ================================================================
-
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { isAdminEmail } from "@/lib/adminAccounts";
