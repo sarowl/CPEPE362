@@ -255,6 +255,21 @@ const ProblemEntryScreen = ({ onSubmit }: Props) => {
           </button>
         </div>
 
+        <div className="flex justify-center">
+          <button
+            onClick={handleOpenGarage}
+            disabled={garageLoading}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white border border-slate-200 text-slate-900 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium shadow-sm"
+          >
+            {garageLoading ? (
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-200 border-t-slate-900" />
+            ) : (
+              <Logs className="w-4 h-4" />
+            )}
+            {garageLoading ? "Loading..." : "Select Vehicle"}
+          </button>
+        </div>
+
         <GarageModal
           isOpen={isGarageOpen}
           onClose={() => setIsGarageOpen(false)}
