@@ -15,7 +15,7 @@ export async function GET(req: Request) {
     const { data: guides, error } = await supabase
       .from("guides")
       .select(
-        "guide_id, title, summary, brand_id, model_name, model_id, difficulty, time_required, required_parts, status, reviewed_at, reviewed_by, user_id, submitted_at"
+        "guide_id, title, summary, brand_id, model_name, model_id, difficulty, time_required, status, reviewed_at, reviewed_by, user_id, submitted_at"
       )
       .in("status", ["approved", "rejected"])
       .order("reviewed_at", { ascending: false, nullsFirst: false });

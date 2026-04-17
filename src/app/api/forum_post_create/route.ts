@@ -13,7 +13,7 @@ export async function POST(req: Request) {
     const { brand_id, model_id, title, content } = await req.json();
 
     if (!brand_id || !title || !content) {
-      return NextResponse.json({ error: "Missing required fields: brand, title, and content are required" }, { status: 400 });
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
     const { data: post, error } = await supabase

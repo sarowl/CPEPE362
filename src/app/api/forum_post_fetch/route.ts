@@ -18,7 +18,6 @@ export async function GET(req: Request) {
       .select(`
         forum_id,
         brand_id,
-        model_id,
         title,
         content,
         created_at,
@@ -38,40 +37,6 @@ export async function GET(req: Request) {
     if (!post) {
       return NextResponse.json({ error: "Post not found" }, { status: 404 });
     }
-
-    let model_name: string | null = null;
-    if (post.model_id) {
-      const { data: modelData, error: modelError } = await supabase
-        .from("car_models")
-        .select("name")
-        .eq("id", post.model_id)
-        .single();
-
-      if (!modelError && modelData) {
-        model_name = modelData.name;
-      }
-    }
-
-    let myReaction: "like" | "dislike" | null = null;
-    const { data: authData, error: authError } = await supabase.auth.getUser();
-    if (!authError && authData.user) {
-      const { data: existingVote, error: voteError } = await supabase
-        .from("ForumVote")
-        .select("vote")
-        .eq("user_id", authData.user.id)
-        .eq("target_id", postId)
-        .eq("target_type", "post")
-        .single();
-
-      if (!voteError && existingVote) {
-        myReaction = existingVote.vote === 1 ? "like" : existingVote.vote === -1 ? "dislike" : null;
-      }
-    }
-
-    const enrichedPost = {
-      ...post,
-      model_name,
-    };
 
     // Fetch comments
     const { data: comments, error: commentsError } = await supabase
@@ -134,7 +99,7 @@ export async function GET(req: Request) {
       });
     }
 
-    return NextResponse.json({ post: enrichedPost, comments, postVotes, commentVotes, myReaction }, { status: 200 });
+    return NextResponse.json({ post, comments, postVotes, commentVotes }, { status: 200 });
   } catch (error) {
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }

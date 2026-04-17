@@ -25,10 +25,10 @@ export async function GET() {
     if (guideIds.length === 0)
       return NextResponse.json({ guides: [] });
 
-    // UPDATED: include thumbnail_url and required_parts for card display
+    // UPDATED: include thumbnail_url for card display
     const { data: guides, error: guidesError } = await adminClient
       .from("guides")
-      .select("guide_id, title, summary, brand_id, model_id, model_name, difficulty, time_required, created_at, thumbnail_url, required_parts")
+      .select("guide_id, title, summary, brand_id, model_id, model_name, difficulty, time_required, created_at, thumbnail_url")
       .in("guide_id", guideIds)
       .eq("status", "approved")
       .order("created_at", { ascending: false });

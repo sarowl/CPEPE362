@@ -57,9 +57,6 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: "Model not found." }, { status: 404 });
     }
 
-    // NOTE: On update, do NOT delete or recreate the storage folder —
-    // only the row data changes. The existing folder and image are preserved.
-
     return NextResponse.json({ model: data });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
@@ -83,19 +80,24 @@ export async function DELETE(req: Request) {
 
     const supabase = createAdminClient();
 
-    // ── Clean up storage folder: Car_Models/{model_id}/ ──────────────────
-    // Storage path is keyed by model_id (UUID), NOT brand_id/slug.
-    const folderPrefix = `Car_Models/${model_id}`;
-    const { data: objects } = await supabase.storage
-      .from(BUCKET)
-      .list(folderPrefix);
+    const { data: model } = await supabase
+      .from("car_models")
+      .select("brand_id, slug")
+      .eq("id", model_id)
+      .maybeSingle();
 
-    if (objects && objects.length > 0) {
-      const paths = objects.map((o) => `${folderPrefix}/${o.name}`);
-      await supabase.storage.from(BUCKET).remove(paths);
+    if (model) {
+      const folderPrefix = `Car_Models/${model.brand_id}/${model.slug}/`;
+      const { data: objects } = await supabase.storage
+        .from(BUCKET)
+        .list(`Car_Models/${model.brand_id}/${model.slug}`);
+
+      if (objects && objects.length > 0) {
+        const paths = objects.map((o) => `${folderPrefix}${o.name}`);
+        await supabase.storage.from(BUCKET).remove(paths);
+      }
     }
 
-    // ── Delete the database row ───────────────────────────────────────────
     const { error } = await supabase
       .from("car_models")
       .delete()
