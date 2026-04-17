@@ -124,8 +124,30 @@ function SearchPageComponent() {
     });
   }, [guides, query, keywords]);
 
+
+  // List of known brands (add more as needed)
+  const KNOWN_BRANDS = [
+    "nissan",
+    "mitsubishi",
+    "toyota",
+    "honda",
+    "ford",
+    "mazda",
+    "hyundai",
+    "chevrolet",
+    "kia",
+    "isuzu",
+    // ...add more brands as needed
+  ];
+
   const filteredForum = useMemo(() => {
     if (!keywords.length) return forums;
+    // If the query matches a known brand, filter strictly by brand_id
+    const brandQuery = keywords.find((k) => KNOWN_BRANDS.includes(k));
+    if (brandQuery) {
+      return forums.filter((item) => item.brand_id.toLowerCase() === brandQuery);
+    }
+    // Otherwise, do a broad search
     return forums.filter((item) => {
       const haystack = `${item.title} ${item.content} ${item.brand_id}`.toLowerCase();
       return keywords.every((k) => haystack.includes(k));
@@ -276,7 +298,10 @@ function SearchPageComponent() {
                         <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-orange-100 to-orange-200 text-orange-600 border border-orange-200 shadow-sm group-hover:scale-105 transition-transform duration-300">
                           <MessageCircle size={26} />
                         </div>
-                        <div className="min-w-0 flex-1 flex flex-col gap-2">
+                        <div className="min-w-0 flex-1 flex flex-col gap-2 relative">
+                          <span className="absolute right-0 top-0 text-xs text-muted-foreground font-mono">
+                            {post.created_at ? new Date(post.created_at).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : ""}
+                          </span>
                           <div className="flex flex-wrap items-center gap-2 mb-1">
                             <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-[11px] uppercase tracking-widest text-muted-foreground font-bold">
                               <Tag size={11} /> Forum
@@ -289,15 +314,21 @@ function SearchPageComponent() {
                                 <User2 size={12} className="text-gray-400" /> by {post.Users.name}
                               </span>
                             )}
-                            <span className="inline-flex items-center gap-1 rounded-full bg-green-50 border border-green-200 px-2 py-0.5 text-[11px] text-green-700 font-semibold ml-2">
-                              <ThumbsUp size={12} className="text-green-400" /> {post.likes}
-                            </span>
-                            <span className="inline-flex items-center gap-1 rounded-full bg-red-50 border border-red-200 px-2 py-0.5 text-[11px] text-red-700 font-semibold ml-1">
-                              <ThumbsDown size={12} className="text-red-400" /> {post.dislikes}
-                            </span>
                           </div>
                           <p className="text-lg font-extrabold leading-snug line-clamp-2 mb-1 group-hover:text-orange-700 transition-colors">{post.title}</p>
                           <p className="text-[15px] text-muted-foreground line-clamp-3">{post.content}</p>
+                          <div className="border-t border-border mt-2 mb-1 w-full" />
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-green-50 border border-green-200 px-2 py-0.5 text-[11px] text-green-700 font-semibold">
+                              <ThumbsUp size={12} className="text-green-400" /> {post.likes}
+                            </span>
+                            <span className="inline-flex items-center gap-1 rounded-full bg-red-50 border border-red-200 px-2 py-0.5 text-[11px] text-red-700 font-semibold">
+                              <ThumbsDown size={12} className="text-red-400" /> {post.dislikes}
+                            </span>
+                            <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 border border-blue-200 px-2 py-0.5 text-[11px] text-blue-700 font-semibold">
+                              <MessageCircle size={12} className="text-blue-400" /> {post.commentCount ?? 0}
+                            </span>
+                          </div>
                         </div>
                       </Link>
                     ))
