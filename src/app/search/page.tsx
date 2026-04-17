@@ -23,6 +23,7 @@ type ForumResult = {
   };
   likes: number;
   dislikes: number;
+  commentCount?: number;
 };
 
 type RealGuide = {
