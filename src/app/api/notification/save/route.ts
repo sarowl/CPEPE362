@@ -1,5 +1,4 @@
 // ============================================================
-// api/notification/save/route.ts — IMPORTED FROM Folder_B
 //
 // POST endpoint: saves a new notification for the authenticated user.
 // Deduplicates: if an identical title+message already exists for the
@@ -47,7 +46,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // [FROM B] Deduplication check: avoid saving the same notification twice
     const { data: existing, error: existingError } = await supabase
       .from("notification")
       .select("id")
@@ -71,7 +69,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // [FROM B] Insert new notification with is_read defaulting to false
     const { data, error } = await supabase
       .from("notification")
       .insert([{ user_id: user.id, title, message, is_read: false }])
@@ -97,3 +94,4 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+

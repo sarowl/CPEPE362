@@ -1,5 +1,4 @@
 // ============================================================
-// api/problem_entry_screen/route.ts — IMPORTED FROM Folder_B
 //
 // POST endpoint: drives the AI problem entry and Q&A flow using Gemini AI.
 // Two call types:

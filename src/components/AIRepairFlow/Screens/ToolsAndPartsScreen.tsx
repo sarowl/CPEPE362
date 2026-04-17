@@ -1,5 +1,4 @@
 // ============================================================
-// AIRepairFlow/Screens/ToolsAndPartsScreen.tsx — IMPORTED FROM Folder_B
 //
 // Sub-screen within RepairModeScreen showing the tools and parts
 // required for the repair procedure. Displayed before the step-by-step

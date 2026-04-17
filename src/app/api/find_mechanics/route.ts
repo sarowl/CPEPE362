@@ -1,5 +1,4 @@
 // ============================================================
-// api/find_mechanics/route.ts — IMPORTED FROM Folder_B
 //
 // POST endpoint: uses the Geoapify Places API to find nearby
 // auto repair shops based on the user's coordinates.

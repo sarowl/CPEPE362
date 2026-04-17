@@ -1,5 +1,4 @@
 // ============================================================
-// api/notification/mark-read/route.ts — IMPORTED FROM Folder_B
 //
 // PATCH endpoint: marks a list of notification IDs as read for the
 // authenticated user. Called automatically 300ms after the notification
@@ -22,7 +21,6 @@ export async function PATCH(req: NextRequest) {
 
     const token = authHeader.replace("Bearer ", "");
 
-    // [FROM B] Validate the session token
     const {
       data: { user },
       error: userError,
@@ -38,7 +36,6 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json();
     const notificationIds = body.ids ?? [];
 
-    // [FROM B] Validate that ids array is present and non-empty
     if (!Array.isArray(notificationIds) || notificationIds.length === 0) {
       return NextResponse.json(
         { error: "ids array is required" },
@@ -46,7 +43,6 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    // [FROM B] Bulk-update is_read to true for all provided notification IDs
     const { error } = await supabase
       .from("notification")
       .update({ is_read: true })
@@ -73,3 +69,4 @@ export async function PATCH(req: NextRequest) {
     );
   }
 }
+

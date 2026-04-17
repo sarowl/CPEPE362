@@ -1,5 +1,4 @@
 // ============================================================
-// api/mygarge/delete/route.ts — IMPORTED FROM Folder_B
 //
 // DELETE endpoint: removes a vehicle and its associated
 // maintenance logs from the database.

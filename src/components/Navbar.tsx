@@ -13,7 +13,6 @@ import {
 import { supabase } from "@/lib/supabase";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 
-// ── [FROM B] Profile cache: avoids redundant API calls across renders ──────────
 const profileCache: { data: any | null; fetchedAt: number | null } = {
   data: null,
   fetchedAt: null,
@@ -48,21 +47,17 @@ export default function Navbar() {
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [profilePicture, setProfilePicture] = useState<string | null>(null);
 
-  // ── [FROM A] Auto Hub icon hover swap state ────────────────────────────────
   const [autoHubHovered, setAutoHubHovered] = useState(false);
 
-  // ── [FROM B] Notification state ───────────────────────────────────────────
   const [notifications, setNotifications] = useState<any[]>([]);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
 
-  // [FROM B] Ref keeps the poll interval from capturing a stale `user` closure
   const userRef = useRef<SupabaseUser | null>(null);
   userRef.current = user;
 
   // ── Auth listener ─────────────────────────────────────────────────────────
   useEffect(() => {
-    // [FROM A] Initial session check on mount
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
     });
@@ -76,11 +71,10 @@ export default function Navbar() {
   useEffect(() => {
     if (!user) {
       setProfilePicture(null);
-      setNotifications([]); // [FROM B] clear notifications on sign-out
+      setNotifications([]);
       return;
     }
 
-    // [FROM B] Use cached profile fetch to avoid extra network requests
     fetchProfileOnce()
       .then((data) => {
         if (data?.user?.profile_picture) {
@@ -89,13 +83,11 @@ export default function Navbar() {
       })
       .catch(() => {});
 
-    // [FROM B] Fetch notifications immediately, then poll every 30 s
     fetchNotifications();
     const interval = setInterval(fetchNotifications, 30_000);
     return () => clearInterval(interval);
   }, [user?.id]); // depend on user id so effect re-runs only on actual user change
 
-  // ── [FROM B] Fetch notifications via /api/notification/fetch ─────────────
   const fetchNotifications = async () => {
     if (!userRef.current) return; // guard against stale closure
     setNotificationsLoading(true);
@@ -116,7 +108,6 @@ export default function Navbar() {
     }
   };
 
-  // ── [FROM B] Mark unread notifications as read via /api/notification/mark-read
   const markNotificationsAsRead = async () => {
     if (!user || notifications.length === 0) return;
     try {
@@ -143,17 +134,15 @@ export default function Navbar() {
 
   // ── Sign-out ──────────────────────────────────────────────────────────────
   const handleSignOut = async () => {
-    invalidateProfileCache(); // [FROM B] bust the profile cache on sign-out
+    invalidateProfileCache();
     await supabase.auth.signOut();
     router.push("/");
   };
 
-  // [FROM B] Derived: count of unread notifications for badge display
   const unreadCount = notifications.filter((n) => !n.is_read).length;
 
   return (
     <nav className="bg-ink flex items-center px-6 h-14 shrink-0 sticky top-0 z-50 border-b border-white/10">
-      {/* Logo — unchanged from Folder_A */}
       <Link href="/" className="font-display text-lg font-bold tracking-wide text-primary-foreground mr-8">
         <span className="text-primary">AUTO</span>BOT
       </Link>
@@ -161,7 +150,6 @@ export default function Navbar() {
       {/* Desktop nav links */}
       <div className="hidden md:flex items-center gap-2 h-full">
 
-        {/* Fix It dropdown — [FROM A] layout with dual-image Auto Hub icon swap */}
         <div className="group relative h-full flex items-center">
           <button className={`flex items-center gap-1 px-4 h-full font-mono text-sm transition-colors ${
             pathname.startsWith("/car-makers") || pathname.startsWith("/guides")
@@ -172,7 +160,6 @@ export default function Navbar() {
           </button>
 
           <div className="absolute top-14 left-0 w-[500px] flex flex-row bg-ink border border-white/10 shadow-xl rounded-b-md transition-all duration-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible translate-y-2 group-hover:translate-y-0 overflow-hidden">
-            {/* [FROM A] Auto Hub entry with hover icon-swap using two layered Images */}
             <Link
               href="/car-makers"
               className="flex-1 flex flex-col items-center text-center p-6 hover:bg-white/5 transition-colors group/item"
@@ -207,7 +194,6 @@ export default function Navbar() {
 
             <div className="w-[1px] bg-white/10 self-stretch" />
 
-            {/* [FROM B] Autobot AI — links to /ai-repair (Folder_B's full AI repair flow) */}
             <HorizontalDropdownItem
               href="/ai-repair"
               icon={<Cpu size={20} />}
@@ -218,7 +204,6 @@ export default function Navbar() {
           </div>
         </div>
 
-        {/* Community dropdown — [FROM A] kept /forum shortcut + full community routes */}
         <div className="group relative h-full flex items-center">
           <button className={`flex items-center gap-1 px-4 h-full font-mono text-sm transition-colors ${
             pathname.startsWith("/community") || pathname.startsWith("/forum")
@@ -228,13 +213,10 @@ export default function Navbar() {
             Community <ChevronDown size={14} className="group-hover:rotate-180 transition-transform" />
           </button>
           <div className="absolute top-14 left-0 w-[700px] flex flex-row bg-ink border border-white/10 shadow-xl rounded-b-md transition-all duration-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible translate-y-2 group-hover:translate-y-0 overflow-hidden">
-            {/* [FROM A] Be Involved — contribute to the database */}
             <HorizontalDropdownItem href="/community/contribute" icon={<Users size={20} />} title="Be Involved" subtitle="Contribute to the database" />
             <div className="w-[1px] bg-white/10 self-stretch" />
-            {/* [FROM A] Forums — uses /forum path (Folder_A route retained) */}
             <HorizontalDropdownItem href="/forum" icon={<MessageSquare size={20} />} title="Forums" subtitle="Get help from the community" />
             <div className="w-[1px] bg-white/10 self-stretch" />
-            {/* [FROM A] Guides */}
             <HorizontalDropdownItem href="/community/guides" icon={<BookOpen size={20} />} title="Guides" subtitle="Step-by-step manuals" />
           </div>
         </div>
@@ -243,7 +225,6 @@ export default function Navbar() {
       {/* Right-side action icons */}
       <div className="ml-auto flex items-center gap-5">
 
-        {/* Search — unchanged from Folder_A */}
         <button
           onClick={() => router.push("/search")}
           className="text-primary-foreground/70 hover:text-primary-foreground transition-colors"
@@ -254,7 +235,6 @@ export default function Navbar() {
 
         {user && (
           <>
-            {/* Bookmarks — [FROM A] active-state highlight preserved */}
             <Link
               href="/bookmarks"
               className={`text-primary-foreground/70 hover:text-primary-foreground transition-colors ${
@@ -265,7 +245,6 @@ export default function Navbar() {
               <Bookmark size={20} />
             </Link>
 
-            {/* ── [FROM B] Notification Bell — placed beside Bookmark as specified ── */}
             <div className="relative">
               <button
                 onClick={() => {
@@ -352,7 +331,7 @@ export default function Navbar() {
                     src={profilePicture}
                     alt="Profile"
                     className="w-full h-full object-cover"
-                    onError={() => setProfilePicture(null)} // [FROM B] cleaner error handler
+                    onError={() => setProfilePicture(null)}
                   />
                 ) : (
                   <User size={18} className="text-primary" />
@@ -367,7 +346,6 @@ export default function Navbar() {
                 <p className="text-xs truncate font-medium text-primary-foreground/90">{user.email}</p>
               </div>
               <ProfileLink href="/profile" icon={<User size={14} />} label="My Profile" />
-              {/* [FROM B] My Garage links to /garage page (new Folder_B page) */}
               <ProfileLink href="/garage" icon={<Car size={14} />} label="My Garage" />
               <ProfileLink href="/settings" icon={<Settings size={14} />} label="Settings" />
               <button
@@ -391,7 +369,6 @@ export default function Navbar() {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-// [FROM A] HorizontalDropdownItem — unchanged structure, used in both dropdowns
 function HorizontalDropdownItem({
   href, title, subtitle, icon, isPro,
 }: {
@@ -417,7 +394,6 @@ function HorizontalDropdownItem({
   );
 }
 
-// [FROM A] ProfileLink — unchanged
 function ProfileLink({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) {
   return (
     <Link href={href} className="flex items-center gap-3 px-4 py-2.5 text-xs font-mono text-primary-foreground/70 hover:text-primary-foreground hover:bg-white/5 transition-colors">
@@ -425,3 +401,4 @@ function ProfileLink({ href, icon, label }: { href: string; icon: React.ReactNod
     </Link>
   );
 }
+

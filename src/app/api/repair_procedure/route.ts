@@ -1,5 +1,4 @@
 // ============================================================
-// api/repair_procedure/route.ts — IMPORTED FROM Folder_B
 //
 // POST endpoint: generates a step-by-step repair procedure using Gemini AI.
 // Input: selected diagnosis + vehicle info + problem context

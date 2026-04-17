@@ -1,5 +1,4 @@
 // ============================================================
-// api/notification/fetch/route.ts — IMPORTED FROM Folder_B
 //
 // GET endpoint: fetches all notifications for the authenticated user.
 // Requires Bearer token in Authorization header (Supabase JWT).
@@ -13,7 +12,6 @@ export async function GET(req: NextRequest) {
   try {
     const authHeader = req.headers.get("authorization");
 
-    // [FROM B] Reject requests missing the Authorization header
     if (!authHeader) {
       return NextResponse.json(
         { error: "Missing authorization header" },
@@ -23,7 +21,6 @@ export async function GET(req: NextRequest) {
 
     const token = authHeader.replace("Bearer ", "");
 
-    // [FROM B] Validate token and resolve the requesting user
     const {
       data: { user },
       error: userError,
@@ -36,7 +33,6 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // [FROM B] Fetch all notifications for this user, newest first
     const { data, error } = await supabase
       .from("notification")
       .select("id, user_id, title, message, is_read, created_at")
@@ -60,3 +56,4 @@ export async function GET(req: NextRequest) {
     );
   }
 }
+

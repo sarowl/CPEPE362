@@ -1,5 +1,4 @@
 // ============================================================
-// api/mygarge/save/route.ts — IMPORTED FROM Folder_B
 //
 // POST endpoint: saves a new vehicle to the user's garage.
 // Handles optional photo upload path reference.

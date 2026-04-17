@@ -1,5 +1,4 @@
 // ============================================================
-// api/mygarge/maintenance_save/route.ts — IMPORTED FROM Folder_B
 //
 // POST endpoint: saves a new maintenance log entry for a vehicle.
 // If a reminder date is set, also triggers /api/notification/save
@@ -91,5 +90,6 @@ export async function POST(req: NextRequest) {
 		);
 	}
 }
+
 
 

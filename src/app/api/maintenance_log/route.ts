@@ -1,5 +1,4 @@
 // ============================================================
-// api/maintenance_log/route.ts — IMPORTED FROM Folder_B
 //
 // GET endpoint: fetches all maintenance log entries for a specific vehicle.
 // Used as a utility endpoint for maintenance history queries.
