@@ -3,24 +3,25 @@
 import { useEffect, useMemo, useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Search, X, MessageCircle, Tag, RefreshCw, BookOpen, FileText, ThumbsUp, ThumbsDown } from "lucide-react";
+import { Search, X, Wrench, MessageCircle, Tag, RefreshCw, User2, ThumbsUp, ThumbsDown, Clock3 } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import Navbar from "@/components/Navbar";
 
-type ForumPost = {
+
+type ForumResult = {
   forum_id: string;
   brand_id: string;
-  model_id?: string | null;
-  model_name?: string | null;
   title: string;
   content: string;
   created_at: string;
+  updated_at: string;
   user_id: string;
+  Users?: {
+    name: string;
+  };
   likes: number;
   dislikes: number;
-  comment_count: number;
-  Users: { name: string };
 };
 
 type RealGuide = {
@@ -38,6 +39,8 @@ type RealGuide = {
   tools?: string[];
   required_parts?: string[];
 };
+
+
 
 const DIFFICULTY_COLORS: Record<string, string> = {
   Beginner:     "bg-green-50 text-green-700 border-green-200",
@@ -65,6 +68,7 @@ const BRANDS = [
 ];
 
 function SearchPageComponent() {
+    const [filter, setFilter] = useState<'all' | 'guide' | 'forum'>('all');
   const params = useSearchParams();
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
@@ -72,9 +76,9 @@ function SearchPageComponent() {
   const [selectedBrand, setSelectedBrand] = useState(params.get("brand") ?? "");
   const [notice, setNotice] = useState("");
   const [guides, setGuides] = useState<RealGuide[]>([]);
-  const [forumPosts, setForumPosts] = useState<ForumPost[]>([]);
+  const [forums, setForums] = useState<ForumResult[]>([]);
   const [loading, setLoading] = useState(false);
-  const [contentType, setContentType] = useState<ContentTypeFilter>("all");
+  const [loadingForums, setLoadingForums] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -86,9 +90,28 @@ function SearchPageComponent() {
     return () => subscription.unsubscribe();
   }, []);
 
+
   useEffect(() => {
     setQuery(params.get("q") ?? "");
     setSelectedBrand(params.get("brand") ?? "");
+  }, [params]);
+
+  // Fetch all forums or filter by search query
+  useEffect(() => {
+    async function fetchForums() {
+      setLoadingForums(true);
+      const q = params.get("q") ?? "";
+      let url = "/api/forum_fetch";
+      try {
+        const res = await fetch(url);
+        const data = await res.json();
+        setForums(Array.isArray(data.posts) ? data.posts : []);
+      } catch (err) {
+        setForums([]);
+      }
+      setLoadingForums(false);
+    }
+    fetchForums();
   }, [params]);
 
   useEffect(() => {
@@ -147,16 +170,12 @@ function SearchPageComponent() {
   }, [guides, query, keywords, selectedBrand]);
 
   const filteredForum = useMemo(() => {
-    let results = forumPosts;
-    if (selectedBrand) {
-      results = results.filter((item) => item.brand_id === selectedBrand);
-    }
-    if (!keywords.length) return results;
-    return results.filter((item) => {
-      const haystack = `${item.title} ${item.content} ${item.brand_id} ${item.model_name || item.model_id || ""} ${item.Users?.name ?? ""}`.toLowerCase();
+    if (!keywords.length) return forums;
+    return forums.filter((item) => {
+      const haystack = `${item.title} ${item.content} ${item.brand_id}`.toLowerCase();
       return keywords.every((k) => haystack.includes(k));
     });
-  }, [forumPosts, keywords, selectedBrand]);
+  }, [forums, keywords]);
 
   const handleSearch = (value: string) => {
     setQuery(value);
@@ -197,59 +216,48 @@ function SearchPageComponent() {
       <Navbar />
       <main className="bg-secondary/40 flex-1 px-4 py-8 md:px-8">
         <section className="mx-auto w-full max-w-6xl rounded-2xl border border-border bg-background p-5 shadow-sm md:p-8">
-          <h1 className="text-3xl font-extrabold tracking-tight">Search</h1>
+          <h1 className="text-5xl font-black tracking-tight text-orange-600 drop-shadow-sm">Search</h1>
 
-          {/* Search bar */}
-          <div className="mt-5 flex items-center gap-2 rounded-lg border border-border bg-background px-3 h-11">
-            <Search size={16} className="text-muted-foreground" />
+          <div className="mt-6 flex items-center gap-2 rounded-xl border border-border bg-white px-4 h-14 shadow-sm focus-within:border-orange-400 transition-all">
+            <Search size={20} className="text-orange-400 mr-2" />
             <input
               value={query}
               onChange={(e) => handleSearch(e.target.value)}
-              placeholder="Search by title, brand, model, difficulty, tools, time..."
-              className="h-full flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              placeholder="Search guides, forums, car model, brand..."
+              className="h-full flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground font-medium"
             />
             {query ? (
               <button
                 type="button"
                 onClick={() => handleSearch("")}
-                className="rounded p-1 text-muted-foreground hover:bg-secondary"
+                className="rounded-full p-2 text-muted-foreground hover:bg-orange-50 transition-colors"
                 aria-label="Clear search"
               >
-                <X size={14} />
+                <X size={16} />
               </button>
             ) : null}
           </div>
 
-          {/* Content Type Filter */}
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <label className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-              <span>Brand:</span>
-              <select
-                value={selectedBrand}
-                onChange={(e) => handleBrandChange(e.target.value)}
-                className="text-xs font-bold border border-border bg-background px-3 py-1.5 focus:outline-none"
-              >
-                {BRANDS.map((brand) => (
-                  <option key={brand.id} value={brand.id}>
-                    {brand.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mr-1">Show:</span>
-            {TYPE_FILTERS.map((f) => (
-              <button
-                key={f.value}
-                onClick={() => setContentType(f.value)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold border transition-colors ${
-                  contentType === f.value
-                    ? "bg-primary text-white border-primary"
-                    : "bg-background border-border text-muted-foreground hover:border-primary hover:text-primary"
-                }`}
-              >
-                {f.icon} {f.label}
-              </button>
-            ))}
+          {/* Filter Buttons */}
+          <div className="mt-4 flex gap-2">
+            <button
+              className={`px-4 py-2 rounded-full border text-sm font-semibold transition-colors ${filter === 'all' ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-orange-600 border-orange-300 hover:bg-orange-50'}`}
+              onClick={() => setFilter('all')}
+            >
+              All
+            </button>
+            <button
+              className={`px-4 py-2 rounded-full border text-sm font-semibold transition-colors ${filter === 'guide' ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-orange-600 border-orange-300 hover:bg-orange-50'}`}
+              onClick={() => setFilter('guide')}
+            >
+              Guide
+            </button>
+            <button
+              className={`px-4 py-2 rounded-full border text-sm font-semibold transition-colors ${filter === 'forum' ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-orange-600 border-orange-300 hover:bg-orange-50'}`}
+              onClick={() => setFilter('forum')}
+            >
+              Forum
+            </button>
           </div>
 
           {notice ? (
@@ -261,111 +269,123 @@ function SearchPageComponent() {
             </div>
           ) : null}
 
-          {/* Guides Section */}
-          {showGuides && (
-            <section className="mt-8">
-              <div className="mb-4 flex items-end justify-between">
-                <h2 className="text-3xl font-extrabold tracking-tight">Guides</h2>
-                <span className="text-sm text-primary">
-                  {loading ? "Loading..." : `${filteredGuides.length} result${filteredGuides.length !== 1 ? "s" : ""}`}
-                </span>
-              </div>
+          {/* Guides & Forums Sections */}
+          <div>
+            {(filter === 'all' || filter === 'guide') && (
+              <section className="mt-8">
+                <div className="mb-4 flex items-end justify-between">
+                  <h2 className="text-3xl font-extrabold tracking-tight">Guides</h2>
+                  <span className="text-sm text-primary">
+                    {loading ? "Loading..." : `${filteredGuides.length} result${filteredGuides.length !== 1 ? "s" : ""}`}
+                  </span>
+                </div>
 
-              {loading ? (
-                <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
-                  <RefreshCw size={14} className="animate-spin" /> Loading guides...
+                {loading ? (
+                  <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
+                    <RefreshCw size={14} className="animate-spin" /> Loading guides...
+                  </div>
+                ) : filteredGuides.length === 0 ? (
+                  <div className="py-10 text-center text-muted-foreground text-sm">
+                    {query ? "No guides found for your search." : "No approved guides yet."}
+                  </div>
+                ) : (
+                  // UPDATED 7: Same card structure as community/guides — 3-col grid, thumbnail above
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {filteredGuides.map((guide) => (
+                      <SearchGuideCard
+                        key={guide.guide_id}
+                        guide={guide}
+                        isLoggedIn={!!user}
+                        onProtectedClick={handleProtectedClick}
+                      />
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
+            {/* Forums Section */}
+            {(filter === 'all' || filter === 'forum') && (
+              <section className="mt-10">
+                <div className="mb-4 flex items-end justify-between">
+                  <h2 className="text-3xl font-extrabold tracking-tight">Forums</h2>
+                  <span className="text-sm text-primary flex items-center min-w-[60px] justify-end">
+                    {loadingForums ? (
+                      <>Loading...</>
+                    ) : (
+                      <>
+                        {filteredForum.length} result{filteredForum.length !== 1 ? "s" : ""}
+                      </>
+                    )}
+                  </span>
                 </div>
-              ) : filteredGuides.length === 0 ? (
-                <div className="py-10 text-center text-muted-foreground text-sm">
-                  {query ? "No guides found for your search." : "No approved guides yet."}
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filteredGuides.map((guide) => (
-                    <SearchGuideCard
-                      key={guide.guide_id}
-                      guide={guide}
-                      isLoggedIn={!!user}
-                      onProtectedClick={handleProtectedClick}
-                    />
-                  ))}
-                </div>
-              )}
-            </section>
-          )}
-
-          {/* Forums Section */}
-          {showForums && (
-            <section className="mt-10">
-              <div className="mb-4 flex items-end justify-between">
-                <h2 className="text-3xl font-extrabold tracking-tight">Forum Posts</h2>
-                <span className="text-sm text-primary">
-                  {loading ? "Loading..." : `${filteredForum.length} result${filteredForum.length !== 1 ? "s" : ""}`}
-                </span>
-              </div>
-              {loading ? (
-                <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
-                  <RefreshCw size={14} className="animate-spin" /> Loading forum posts...
-                </div>
-              ) : filteredForum.length === 0 ? (
-                <div className="py-10 text-center text-muted-foreground text-sm border border-dashed border-border rounded">
-                  <MessageCircle size={28} className="mx-auto mb-2 opacity-30" />
-                  {query ? "No forum posts found for your search." : "No forum posts yet."}
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {filteredForum.map((post) => (
-                    <Link
-                      key={post.forum_id}
-                      href={user ? `/community/forum/${post.brand_id}/${post.forum_id}` : "/login"}
-                      onClick={handleProtectedClick}
-                      className="group block overflow-hidden rounded-2xl border border-border bg-background transition-all hover:border-primary/50"
-                    >
-                      <div className="p-5">
-                        <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground mb-2">
-                          <span className="font-semibold text-primary capitalize">{post.brand_id}</span>
-                          {post.model_name ? (
-                            <>
-                              <span>·</span>
-                              <span className="capitalize">{post.model_name}</span>
-                            </>
-                          ) : null}
-                          <span>·</span>
-                          <span>{post.Users?.name || "Unknown"}</span>
-                          <span>·</span>
-                          <span>{new Date(post.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
+                <div className="flex flex-col gap-4 min-h-[80px] w-full">
+                  {loadingForums ? (
+                    <div className="flex items-center justify-center gap-2 text-muted-foreground text-sm w-full">
+                      <RefreshCw className="animate-spin" size={16} /> Loading forums...
+                    </div>
+                  ) : (
+                    filteredForum.map((post, idx) => (
+                      <Link
+                        key={post.forum_id}
+                        href={`/community/forum/${post.brand_id}/${post.forum_id}`}
+                        onClick={handleProtectedClick}
+                        className={
+                          `group flex items-start gap-5 rounded-2xl border border-border bg-white w-full p-7 shadow-md 
+                          transition-all duration-300 ease-out 
+                          hover:shadow-xl hover:-translate-y-1 hover:border-orange-400 
+                          opacity-0 animate-fade-in`}
+                        style={{ maxWidth: '100%', animationDelay: `${idx * 60}ms`, animationFillMode: 'forwards' }}
+                      >
+                        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-orange-100 to-orange-200 text-orange-600 border border-orange-200 shadow-sm group-hover:scale-105 transition-transform duration-300">
+                          <MessageCircle size={26} />
                         </div>
-                        <h3 className="text-base font-bold leading-snug mb-2 line-clamp-2">{post.title}</h3>
-                        <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3">{post.content}</p>
-                      </div>
-                      <div className="border-t border-border px-5 pb-5 pt-3 flex flex-wrap gap-4 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1"><ThumbsUp size={11} /> {post.likes}</span>
-                        <span className="flex items-center gap-1"><ThumbsDown size={11} /> {post.dislikes}</span>
-                        <span className="flex items-center gap-1"><MessageCircle size={11} /> {post.comment_count}</span>
-                      </div>
-                    </Link>
-                  ))}
+                        <div className="min-w-0 flex-1 flex flex-col gap-2">
+                          <div className="flex flex-wrap items-center gap-2 mb-1">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-[11px] uppercase tracking-widest text-muted-foreground font-bold">
+                              <Tag size={11} /> Forum
+                            </span>
+                            <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 border border-orange-300 px-2 py-0.5 text-[11px] uppercase tracking-widest text-orange-700 font-bold">
+                              {post.brand_id}
+                            </span>
+                            {post.Users?.name && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 border border-gray-300 px-2 py-0.5 text-[11px] tracking-widest text-gray-700 font-semibold ml-2">
+                                <User2 size={12} className="text-gray-400" /> by {post.Users.name}
+                              </span>
+                            )}
+                            <span className="inline-flex items-center gap-1 rounded-full bg-green-50 border border-green-200 px-2 py-0.5 text-[11px] text-green-700 font-semibold ml-2">
+                              <ThumbsUp size={12} className="text-green-400" /> {post.likes}
+                            </span>
+                            <span className="inline-flex items-center gap-1 rounded-full bg-red-50 border border-red-200 px-2 py-0.5 text-[11px] text-red-700 font-semibold ml-1">
+                              <ThumbsDown size={12} className="text-red-400" /> {post.dislikes}
+                            </span>
+                          </div>
+                          <p className="text-lg font-extrabold leading-snug line-clamp-2 mb-1 group-hover:text-orange-700 transition-colors">{post.title}</p>
+                          <p className="text-[15px] text-muted-foreground line-clamp-3">{post.content}</p>
+                        </div>
+                      </Link>
+                    ))
+                  )}
                 </div>
-              )}
-            </section>
-          )}
-
-          {/* Documents Section */}
-          {showDocuments && (
-            <section className="mt-10">
-              <div className="mb-4 flex items-end justify-between">
-                <h2 className="text-3xl font-extrabold tracking-tight">Documents</h2>
-                <span className="text-sm text-primary">0 results</span>
-              </div>
-              <div className="py-10 text-center text-muted-foreground text-sm border border-dashed border-border rounded">
-                <FileText size={28} className="mx-auto mb-2 opacity-30" />
-                No documents available yet.
-              </div>
-            </section>
-          )}
+              </section>
+            )}
+          </div>
         </section>
       </main>
     </div>
+  );
+}
+
+// UPDATED 7: Search Guide Card matching Community Guides card exactly
+// - thumbnail above, cropped half-preview
+// - UPDATED 6.2 (Auto Hub / Guide Search): full aspect ratio shown (mostly visible)
+
+
+
+export default function SearchPage() {
+  return (
+    <Suspense>
+      <SearchPageComponent />
+    </Suspense>
   );
 }
 
@@ -380,64 +400,45 @@ function SearchGuideCard({
 }) {
   const diffColor = DIFFICULTY_COLORS[guide.difficulty] ?? "bg-secondary text-muted-foreground border-border";
   const href = `/guides/${guide.brand_id}/${guide.model_id}/${guide.guide_id}`;
-  const hasThumbnail = !!guide.thumbnail_url;
-  const thumbnailSrc = guide.thumbnail_url ?? "/no-thumbnail.png";
-
+  const thumbnailSrc = guide.thumbnail_url || "/no-thumbnail.png";
   return (
     <Link
       href={isLoggedIn ? href : "/login"}
       onClick={onProtectedClick}
-      className="block h-full"
+      className={"group block h-full animate-fade-in"}
     >
-      <div className="border border-border bg-background hover:border-primary/50 transition-colors group flex flex-col h-full overflow-hidden rounded-lg">
+      <div className="border border-border bg-white hover:border-orange-400 hover:shadow-xl shadow-md transition-all duration-300 flex flex-col h-full overflow-hidden rounded-2xl">
         <div className="relative w-full overflow-hidden" style={{ aspectRatio: "16/9" }}>
           <img
             src={thumbnailSrc}
             alt={guide.title}
-            className={`w-full h-full object-cover${!hasThumbnail ? " opacity-80" : ""}`}
-            onError={(e) => {
-              const img = e.target as HTMLImageElement;
-              if (!img.dataset.errored) { img.dataset.errored = "1"; img.src = "/no-thumbnail.png"; } else { img.style.display = "none"; }
-            }}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            onError={(e) => { (e.target as HTMLImageElement).src = "/no-thumbnail.png"; }}
           />
         </div>
-        <div className="p-4 flex flex-col gap-2 flex-1">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground capitalize">
+        <div className="p-5 flex flex-col gap-2 flex-1">
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <span className="text-[11px] font-mono uppercase tracking-widest text-orange-700 bg-orange-50 border border-orange-200 rounded px-2 py-0.5">
               {guide.brand_id} · {guide.model_name}
             </span>
-            <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 border rounded ${diffColor}`}>
+            <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 border rounded ${diffColor}`}>
               {guide.difficulty}
             </span>
           </div>
-          <h3 className="text-sm font-bold leading-snug line-clamp-2">{guide.title}</h3>
-          <p className="text-xs text-muted-foreground leading-relaxed flex-1 line-clamp-2">{guide.summary}</p>
-          {guide.required_parts && guide.required_parts.length > 0 && (
-            <div className="flex flex-wrap gap-1 pt-1">
-              {guide.required_parts.slice(0, 3).map((p, i) => (
-                <span key={i} className="text-[9px] bg-blue-50 border border-blue-200 text-blue-700 px-1.5 py-0.5 font-medium">{p}</span>
-              ))}
-              {guide.required_parts.length > 3 && (
-                <span className="text-[9px] text-muted-foreground">+{guide.required_parts.length - 3} more</span>
-              )}
-            </div>
-          )}
-          <div className="pt-2 border-t border-border mt-auto flex items-center justify-between">
-            <span className="text-[10px] font-mono text-muted-foreground">{guide.time_required}</span>
-            <span className="text-[10px] font-bold text-primary group-hover:underline tracking-wide">
-              {isLoggedIn ? "VIEW GUIDE →" : "🔒 LOGIN TO VIEW"}
+          <h3 className="text-lg font-extrabold leading-snug line-clamp-2 mb-1 group-hover:text-orange-700 transition-colors">{guide.title}</h3>
+          <p className="text-[15px] text-muted-foreground line-clamp-3">{guide.summary}</p>
+          <div className="border-t border-border my-2 w-full" />
+          <div className="flex items-center justify-between mt-auto pt-2">
+            <span className="text-xs text-muted-foreground font-mono tracking-wide flex items-center gap-1">
+              <Clock3 size={14} className="inline-block mr-1 text-orange-400" />
+              {guide.time_required}
+            </span>
+            <span className="text-sm font-bold text-orange-600 group-hover:underline group-hover:text-orange-700 transition-colors cursor-pointer select-none">
+              VIEW GUIDE →
             </span>
           </div>
         </div>
       </div>
     </Link>
-  );
-}
-
-export default function SearchPage() {
-  return (
-    <Suspense fallback={<div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">Loading search...</div>}>
-      <SearchPageComponent />
-    </Suspense>
   );
 }
