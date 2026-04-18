@@ -20,7 +20,6 @@ export async function POST(req: Request) {
 
     const filePath = `Certification/${user_id}/${fileName}`;
 
-    // Convert File to ArrayBuffer for Supabase upload
     const fileBuffer = await file.arrayBuffer();
 
     const { error: uploadError } = await supabase.storage

@@ -1,8 +1,3 @@
-// ============================================================
-//
-// PUT/PATCH endpoint: updates an existing vehicle record.
-// Used by: garageeditmodal.tsx (Edit Vehicle form).
-// ============================================================
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { encrypt } from "@/lib/encryption";
@@ -70,7 +65,7 @@ export async function PUT(req: NextRequest) {
    
     // 🔥 UPDATE WITH ENCRYPTED SENSITIVE FIELDS
     const updatePayload: Record<string, unknown> = {
-      model,
+      model: encrypt(model),
       year,
       color,
       type,
@@ -83,7 +78,7 @@ export async function PUT(req: NextRequest) {
       enginenum: encrypt(enginenum),
       Grossweight,
       Netweight,
-      owner: owner || "",
+      owner: encrypt(owner || ""),
     };
 
     const incomingImage = typeof photoPath === "string" && photoPath.trim()

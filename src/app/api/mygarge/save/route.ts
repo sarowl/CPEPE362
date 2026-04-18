@@ -1,9 +1,3 @@
-// ============================================================
-//
-// POST endpoint: saves a new vehicle to the user's garage.
-// Handles optional photo upload path reference.
-// Used by: garagemodel.tsx (Add Vehicle form).
-// ============================================================
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { encrypt } from "@/lib/encryption";
@@ -31,7 +25,6 @@ export async function POST(req: NextRequest) {
       enginenum,
     } = body;
 
-    // ✅ Required fields
     if (!model || !year || !color) {
       return NextResponse.json(
         { message: "Missing required fields" },
@@ -91,13 +84,12 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 🔥 INSERT ALL FIELDS (encrypt sensitive data)
     const { data, error } = await supabase
       .from("User_cars")
       .insert([
         {
           user_id: user.id,
-          model,
+          model: encrypt(model),
           year,
           color,
           image_path: imageValue,
@@ -111,7 +103,7 @@ export async function POST(req: NextRequest) {
           Grossweight,
           Netweight,
           enginenum: encrypt(enginenum),
-          owner: body.owner || "", // Optional field
+          owner: encrypt(owner || ""),
         },
       ]);
 

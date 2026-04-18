@@ -5,20 +5,6 @@ import { isAdminEmail } from "@/lib/adminAccounts";
 const BUCKET = "Autobot_Storage";
 const GUIDES_PREFIX = "Guides";
 
-/**
- * POST /api/admin-guides-folder-cleanup
- *
- * Scans Autobot_Storage/Guides/ for top-level folders whose name (a UUID)
- * no longer exists in the public."Users" table, and deletes them along
- * with all their contents.
- *
- * Admin-only endpoint — requires x-admin-email header.
- *
- * Returns:
- *   { orphaned: string[], deleted: number, errors: string[] }
- */
-
-/** Recursively collect all file paths under a storage prefix. */
 async function listAllFiles(
   supabase: ReturnType<typeof createAdminClient>,
   prefix: string

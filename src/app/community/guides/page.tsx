@@ -201,7 +201,7 @@ function GuideCard({ guide, isLoggedIn }: { guide: Guide; isLoggedIn: boolean })
         <div className="pt-2 border-t border-border mt-auto flex items-center justify-between">
           <span className="text-[10px] font-mono text-muted-foreground">{guide.time_required}</span>
           <span className="text-[10px] font-bold text-primary group-hover:underline tracking-wide">
-            {isLoggedIn ? "VIEW GUIDE →" : "🔒 LOGIN TO VIEW"}
+            {isLoggedIn ? "VIEW GUIDE →" : "LOGIN TO VIEW"}
           </span>
         </div>
       </div>

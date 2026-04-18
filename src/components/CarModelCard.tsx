@@ -5,14 +5,13 @@ import Link from "next/link";
 import { Plus, ImageIcon } from "lucide-react";
 import { resolveCarModelImage, getCarTypeImage } from "@/lib/carTypeImage";
 
-// ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface CarModel {
   id: string;
   name: string;
   years: string;
   category: string;
-  model_img?: string | null; // NEW: Supabase Storage public URL (Admin Fix #4)
+  model_img?: string | null; 
 }
 
 interface CarModelCardProps {
@@ -26,10 +25,7 @@ interface CarModelCardProps {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function CarModelCard({ model, brandId, brandName, guideCount = 0, forumCount = 0 }: CarModelCardProps) {
-  // Image source priority:
-  //   1. model_img from Supabase Storage (uploaded via admin) — if available
-  //   2. Default image based on car type/category (e.g. /Car Types/sedan.png)
-  //   3. /no-thumbnail.png — last-resort fallback for unknown categories
+  
   const hasUploadedImage = !!model.model_img;
   const imgSrc = resolveCarModelImage(model.model_img, model.category);
 

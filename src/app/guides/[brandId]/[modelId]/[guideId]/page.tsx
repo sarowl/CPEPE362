@@ -210,8 +210,6 @@ export default function GuideViewPage() {
               src={thumbnailSrc}
               alt={guide.title}
               className="w-full h-full object-cover"
-              // UPDATED 5: Correct loading, proper scaling, maintain aspect ratio
-              // Prevent infinite onError loop: only swap to fallback once
               onError={(e) => {
                 const img = e.target as HTMLImageElement;
                 if (!img.dataset.errored) {

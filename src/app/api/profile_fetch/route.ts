@@ -1,16 +1,3 @@
-// ================================================================
-// FIX (V2 Req #5): Route now accepts an optional ?user_id=xxx query
-// parameter. When present, it returns that specific user's public
-// profile data WITHOUT requiring the caller to be logged in.
-// When absent, it falls back to the current authenticated user
-// (original behaviour for the Profile page).
-//
-// This fixes "wrong creator displayed" — the guide view page calls
-//   /api/profile_fetch?user_id=<guide.user_id>
-// but the old code ignored the param and always returned the
-// currently-logged-in user's profile.
-// ================================================================
-
 import { createClient } from "@/lib/supabase-server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { NextResponse } from "next/server";

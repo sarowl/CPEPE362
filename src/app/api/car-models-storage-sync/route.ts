@@ -1,9 +1,3 @@
-// ================================================================
-// Storage Auto-Sync — Car Models
-//
-// Admin-only endpoint (x-admin-email header required).
-// ================================================================
-
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { isAdminEmail } from "@/lib/adminAccounts";

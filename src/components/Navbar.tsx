@@ -225,14 +225,6 @@ export default function Navbar() {
       {/* Right-side action icons */}
       <div className="ml-auto flex items-center gap-5">
 
-        <button
-          onClick={() => router.push("/search")}
-          className="text-primary-foreground/70 hover:text-primary-foreground transition-colors"
-          title="Search"
-        >
-          <Search size={20} />
-        </button>
-
         {user && (
           <>
             <Link

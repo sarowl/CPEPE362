@@ -47,23 +47,25 @@ export async function GET(req: NextRequest) {
       const decrypted = {
         ...vehicle,
         // Map encrypted fields and decrypt them
+        model: decrypt(vehicle?.model || ''),
+        owner: decrypt(vehicle?.owner || ''),
         Platenumber: decrypt(vehicle?.platenum || ''),
         vin: decrypt(vehicle?.vin || ''),
         chasisnumber: decrypt(vehicle?.chasis || ''),
         ORnumber: decrypt(vehicle?.ORnum || ''),
         CRnumber: decrypt(vehicle?.CRnum || ''),
         enginenumber: decrypt(
-          vehicle?.enginenum ?? 
-          vehicle?.enginenumber ?? 
-          vehicle?.engine_number ?? 
-          vehicle?.engine ?? 
+          vehicle?.enginenum ??
+          vehicle?.enginenumber ??
+          vehicle?.engine_number ??
+          vehicle?.engine ??
           ''
         ),
       };
       return decrypted;
     });
 
-  
+
     const { data: maintenance, error: maintenanceError } = await supabase
       .from("Maintenance_History")
       .select("*")
@@ -74,10 +76,18 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ message: "Maintenance fetch failed" }, { status: 500 });
     }
 
-   
+    // Decrypt maintenance fields
+    const decryptedMaintenance = (maintenance ?? []).map((entry) => ({
+      ...entry,
+      activity: decrypt(entry?.activity || ''),
+      notes: decrypt(entry?.notes || ''),
+      date: decrypt(entry?.date || ''),
+      reminder: decrypt(entry?.reminder || ''),
+    }));
+
     return NextResponse.json({
       vehicles: normalizedVehicles,
-      maintenance,
+      maintenance: decryptedMaintenance,
     });
 
   } catch (err) {

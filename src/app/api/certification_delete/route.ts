@@ -16,7 +16,6 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: "Missing certification id" }, { status: 400 });
     }
 
-    // Delete the DB record — enforce ownership via user_id in the where clause
     const { error: dbError } = await supabase
       .from("Certification")
       .delete()

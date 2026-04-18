@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
+import { supabase } from "@/lib/supabase";
 import {
   ChevronRight, ChevronLeft, Plus, Trash2, Upload, X,
   AlertCircle, CheckCircle, Clock, Wrench, BookOpen, Package,
@@ -30,8 +31,6 @@ function emptyStep(n: number): StepDraft {
   return { step_number: n, title: "", instructions: "", images: [], imageFiles: [null,null,null], imagePreviews: ["","",""], video_url: "" };
 }
 
-// ── Thumbnail Cropper ────────────────────────────────────────────
-// Fixed 16:9 aspect-ratio crop tool with zoom + pan.
 function ThumbnailCropper({
   src, onCropped, onCancel,
 }: { src: string; onCropped: (blob: Blob) => void; onCancel: () => void }) {
@@ -126,15 +125,16 @@ function CreateGuideForm() {
   const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
-    fetch("/api/guides")
-      .then((res) => {
-        if (res.status === 401) {
-          router.replace("/login?redirect=/guides/create");
-        } else { setAuthChecked(true); }
-      })
-      .catch(() => setAuthChecked(true));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        router.replace("/login?redirect=/guides/create");
+      } else {
+        setAuthChecked(true);
+      }
+    };
+    checkAuth();
+  }, [router]);
 
   const paramBrand = searchParams.get("brand") ?? "";
   const paramModel = searchParams.get("model") ?? "";
@@ -146,7 +146,7 @@ function CreateGuideForm() {
   const [loadingMods,setLoadingMods]= useState(false);
   const [title,      setTitle]      = useState("");
   const [summary,    setSummary]    = useState("");
-  const [note,       setNote]       = useState(""); // UPDATED 4.3: was "intro"
+  const [note,       setNote]       = useState(""); 
   const [difficulty, setDifficulty] = useState("");
   const [timeReq,    setTimeReq]    = useState("");
   const [toolInput,  setToolInput]  = useState("");
@@ -158,7 +158,6 @@ function CreateGuideForm() {
   const [thumbUrl,   setThumbUrl]   = useState("");
   const [uploadingThumb,setUploadingThumb] = useState(false);
   const thumbInputRef = useRef<HTMLInputElement|null>(null);
-  // UPDATED 4.2: Cropper state
   const [cropSrc,    setCropSrc]    = useState<string | null>(null);
   const [steps,      setSteps]      = useState<StepDraft[]>([emptyStep(1)]);
   const [guideId,    setGuideId]    = useState<string|null>(null);

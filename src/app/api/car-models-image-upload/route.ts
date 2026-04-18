@@ -1,12 +1,3 @@
-// ================================================================
-// Storage System - Car Model Images
-// Storage path: Car_Models/{model_id}/image.<ext>
-//   - No brand_id subfolder — path is flat: Car_Models/{model_id}/
-//   - Removes any existing image in folder before uploading (1 image only)
-//   - upsert:true as safety net
-//   - Returns public URL stored in car_models.model_img
-// ================================================================
-
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { isAdminEmail } from "@/lib/adminAccounts";
