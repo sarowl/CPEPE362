@@ -1,4 +1,3 @@
-// src/components/GarageModal.tsx
 import React from "react";
 import { X, Logs, Loader2 } from "lucide-react";
 

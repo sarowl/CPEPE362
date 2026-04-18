@@ -1,3 +1,11 @@
+// ============================================================
+//
+// POST endpoint: uses the Geoapify Places API to find nearby
+// auto repair shops based on the user's coordinates.
+// Called by EscalationScreen when user cannot self-repair.
+// Env var: GEOAPIFY_API_KEY (added to .env.local in this merge)
+// Body: { lat: number, lon: number, radius?: number }
+// ============================================================
 // src/app/api/find_mechanics/route.ts
 import { NextResponse } from "next/server";
 

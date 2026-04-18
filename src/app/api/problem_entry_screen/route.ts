@@ -1,3 +1,12 @@
+// ============================================================
+//
+// POST endpoint: drives the AI problem entry and Q&A flow using Gemini AI.
+// Two call types:
+//  - "qa": generates follow-up questions based on the initial problem description
+//  - "diagnose": analyzes problem + Q&A answers to return diagnosis options
+// Uses: GEMINI_API_KEY env var (gemini-3.1-flash-lite-preview model)
+// Includes retry logic for Gemini 503 errors (up to 3 retries).
+// ============================================================
 // src/app/api/problem_entry_screen/route.ts
 import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";

@@ -1,3 +1,10 @@
+// ============================================================
+//
+// PATCH endpoint: marks a list of notification IDs as read for the
+// authenticated user. Called automatically 300ms after the notification
+// panel opens in the Navbar, so the unread badge clears on view.
+// Body: { ids: string[] }
+// ============================================================
 import { supabase } from "@/lib/supabase";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -14,7 +21,6 @@ export async function PATCH(req: NextRequest) {
 
     const token = authHeader.replace("Bearer ", "");
 
-    // Get user from token
     const {
       data: { user },
       error: userError,
@@ -27,7 +33,6 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    // Get body data
     const body = await req.json();
     const notificationIds = body.ids ?? [];
 
@@ -38,7 +43,6 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    // Mark all notifications as read
     const { error } = await supabase
       .from("notification")
       .update({ is_read: true })
@@ -65,3 +69,4 @@ export async function PATCH(req: NextRequest) {
     );
   }
 }
+

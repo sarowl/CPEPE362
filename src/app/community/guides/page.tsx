@@ -21,6 +21,7 @@ type Guide = {
   user_id: string;
   created_at: string;
   thumbnail_url?: string | null;
+  required_parts?: string[];
 };
 
 const DIFFICULTY_COLORS: Record<string, string> = {
@@ -58,7 +59,15 @@ export default function CommunityGuidesPage() {
   const filtered = useMemo(() => {
     if (!keywords.length) return guides;
     return guides.filter((g) => {
-      const hay = `${g.title} ${g.model_name} ${g.brand_id} ${g.summary} ${g.difficulty}`.toLowerCase();
+      const hay = [
+        g.title,
+        g.model_name,
+        g.brand_id,
+        g.summary,
+        g.difficulty,
+        g.time_required,
+        ...(g.required_parts ?? []),
+      ].join(" ").toLowerCase();
       return keywords.every((k) => hay.includes(k));
     });
   }, [guides, keywords]);
@@ -150,19 +159,22 @@ export default function CommunityGuidesPage() {
 function GuideCard({ guide, isLoggedIn }: { guide: Guide; isLoggedIn: boolean }) {
   const diffColor = DIFFICULTY_COLORS[guide.difficulty] ?? "bg-secondary text-muted-foreground border-border";
   const href = `/guides/${guide.brand_id}/${guide.model_id}/${guide.guide_id}`;
-  // UPDATED 6.4: Fallback to /no-thumbnail.png
-  const thumbnailSrc = guide.thumbnail_url || "/no-thumbnail.png";
+  // UPDATED 6.4: Only fallback to /no-thumbnail.png when thumbnail_url is truly absent
+  const hasThumbnail = !!guide.thumbnail_url;
+  const thumbnailSrc = guide.thumbnail_url ?? "/no-thumbnail.png";
 
   const inner = (
     <div className="border border-border bg-background hover:border-primary/50 transition-colors group flex flex-col h-full overflow-hidden">
-      {/* UPDATED 6.3: Thumbnail cropped to show half — overflow hidden, aspect 2:1 so only half shows */}
-      <div className="relative w-full overflow-hidden" style={{ height: "80px" }}>
+      {/* Thumbnail — full 16:9 aspect ratio, no cropping */}
+      <div className="relative w-full overflow-hidden" style={{ aspectRatio: "16/9" }}>
         <img
           src={thumbnailSrc}
           alt={guide.title}
-          className="w-full h-full object-cover object-top"
-          onError={(e) => { (e.target as HTMLImageElement).src = "/no-thumbnail.png"; }}
-          style={{ minHeight: "160px", marginTop: "-40px" }}
+          className={`w-full h-full object-cover${!hasThumbnail ? " opacity-80" : ""}`}
+          onError={(e) => {
+                const img = e.target as HTMLImageElement;
+                if (!img.dataset.errored) { img.dataset.errored = "1"; img.src = "/no-thumbnail.png"; } else { img.style.display = "none"; }
+              }}
         />
       </div>
       <div className="p-5 flex flex-col gap-2 flex-1">
@@ -176,6 +188,16 @@ function GuideCard({ guide, isLoggedIn }: { guide: Guide; isLoggedIn: boolean })
         </div>
         <h3 className="text-sm font-bold leading-snug line-clamp-2">{guide.title}</h3>
         <p className="text-xs text-muted-foreground leading-relaxed flex-1 line-clamp-3">{guide.summary}</p>
+        {guide.required_parts && guide.required_parts.length > 0 && (
+          <div className="flex flex-wrap gap-1 pt-1">
+            {guide.required_parts.slice(0, 3).map((p, i) => (
+              <span key={i} className="text-[9px] bg-blue-50 border border-blue-200 text-blue-700 px-1.5 py-0.5 font-medium">{p}</span>
+            ))}
+            {guide.required_parts.length > 3 && (
+              <span className="text-[9px] text-muted-foreground">+{guide.required_parts.length - 3} more</span>
+            )}
+          </div>
+        )}
         <div className="pt-2 border-t border-border mt-auto flex items-center justify-between">
           <span className="text-[10px] font-mono text-muted-foreground">{guide.time_required}</span>
           <span className="text-[10px] font-bold text-primary group-hover:underline tracking-wide">

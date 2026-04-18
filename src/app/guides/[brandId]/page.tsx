@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import CarModelCard from "@/components/CarModelCard";
-import { ChevronRight, ArrowLeft, Plus } from "lucide-react";
+import { ChevronRight, ArrowLeft, Plus, MessageCircle } from "lucide-react";
 
 interface CarModel {
   id: string;
@@ -13,6 +13,8 @@ interface CarModel {
   slug: string;
   category: string;
   years: string;
+  model_img?: string | null;
+  info?: string | null;
 }
 
 export default function BrandModelsPage() {
@@ -23,6 +25,8 @@ export default function BrandModelsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [guideCounts, setGuideCounts] = useState<Record<string, number>>({});
+  const [forumCounts, setForumCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
     if (!brandId) return;
@@ -34,6 +38,30 @@ export default function BrandModelsPage() {
         if (!res.ok) throw new Error("Brand not found");
         const data = await res.json();
         setModels(data.models);
+
+        // Fetch guide counts and forum counts per model in parallel
+        const guideCts: Record<string, number> = {};
+        const forumCts: Record<string, number> = {};
+
+        await Promise.all(
+          (data.models as CarModel[]).map(async (m) => {
+            try {
+              const [guideRes, forumRes] = await Promise.all([
+                fetch(`/api/guides/by-model?model_id=${m.id}`),
+                fetch(`/api/forum_posts_all?modelId=${m.id}`),
+              ]);
+              const guideData = await guideRes.json();
+              const forumData = await forumRes.json();
+              guideCts[m.id] = (guideData.guides ?? []).length;
+              forumCts[m.id] = (forumData.posts ?? []).length;
+            } catch {
+              guideCts[m.id] = 0;
+              forumCts[m.id] = 0;
+            }
+          })
+        );
+        setGuideCounts(guideCts);
+        setForumCounts(forumCts);
       } catch (err: any) {
         setError(err.message);
       } finally {
@@ -53,7 +81,6 @@ export default function BrandModelsPage() {
     ? models.filter((m) => m.category === activeCategory)
     : models;
 
-  // ── Loading ──────────────────────────────────────────────────────────────
   if (loading) {
     return (
       <div className="min-h-screen bg-paper text-ink flex flex-col animate-fade-in">
@@ -74,7 +101,6 @@ export default function BrandModelsPage() {
     );
   }
 
-  // ── Error / Not Found ────────────────────────────────────────────────────
   if (error || models.length === 0) {
     return (
       <div className="min-h-screen bg-paper text-ink flex flex-col animate-fade-in">
@@ -84,10 +110,7 @@ export default function BrandModelsPage() {
             <h1 className="text-4xl font-black uppercase tracking-tighter mb-4">
               Brand Not Found
             </h1>
-            <Link
-              href="/car-makers"
-              className="text-primary font-mono text-xs uppercase tracking-widest hover:underline"
-            >
+            <Link href="/car-makers" className="text-primary font-mono text-xs uppercase tracking-widest hover:underline">
               ← Back to Directory
             </Link>
           </div>
@@ -96,7 +119,6 @@ export default function BrandModelsPage() {
     );
   }
 
-  // ── Page ─────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-paper text-ink flex flex-col animate-fade-in">
       <Navbar />
@@ -105,7 +127,7 @@ export default function BrandModelsPage() {
 
         {/* BREADCRUMB */}
         <nav className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground mb-8">
-          <Link href="/guides" className="hover:text-primary transition-colors">
+          <Link href="/car-makers" className="hover:text-primary transition-colors">
             Directory
           </Link>
           <ChevronRight size={10} />
@@ -129,7 +151,7 @@ export default function BrandModelsPage() {
                   {brandName}
                 </h1>
                 <div className="flex items-center gap-3">
-                  <span className="h-px w-8 bg-orange-500" />
+                  <span className="h-px w-8 bg-primary" />
                   <p className="font-mono text-[11px] text-muted-foreground uppercase tracking-[0.2em] font-bold">
                     {models.length} Units Cataloged
                   </p>
@@ -138,9 +160,8 @@ export default function BrandModelsPage() {
             </div>
 
             <p className="text-sm md:text-base text-muted-foreground leading-relaxed max-w-2xl font-medium mt-4">
-              Browse repair guides, diagnostics, and maintenance manuals for all{" "}
-              {brandName} models. Select a model below to access
-              manufacturer-grade documentation.
+              Browse repair guides, community forum posts, and maintenance manuals for all{" "}
+              {brandName} models. Select a model below to access documentation and discussions.
             </p>
 
             <div className="mt-6 flex flex-wrap gap-4 items-center">
@@ -148,16 +169,21 @@ export default function BrandModelsPage() {
                 href="/car-makers"
                 className="flex items-center gap-2 border border-border px-4 py-2 font-mono text-xs font-bold uppercase tracking-widest hover:border-ink transition-all"
               >
-                <ArrowLeft size={12} />
-                Back to Directory
+                <ArrowLeft size={12} /> Back to Directory
               </Link>
 
-              {/* ✅ FIX: pre-selects this brand in the create guide form */}
               <Link
                 href={`/guides/create?brand=${brandId}`}
-                className="flex items-center gap-2 bg-orange-500 text-white px-6 py-2 font-mono text-xs font-bold uppercase tracking-widest hover:brightness-110 transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
+                className="flex items-center gap-2 bg-primary text-white px-6 py-2 font-mono text-xs font-bold uppercase tracking-widest hover:brightness-110 transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
               >
                 <Plus size={13} /> Create a Guide
+              </Link>
+
+              <Link
+                href={`/community/forum/create?brand=${brandId}&source=autohub`}
+                className="flex items-center gap-2 border border-primary text-primary px-6 py-2 font-mono text-xs font-bold uppercase tracking-widest hover:bg-primary hover:text-white transition-all"
+              >
+                <MessageCircle size={13} /> Create a Post
               </Link>
             </div>
           </div>
@@ -169,7 +195,7 @@ export default function BrandModelsPage() {
             onClick={() => setActiveCategory(null)}
             className={`font-mono text-[10px] uppercase tracking-widest px-3 py-1 border font-bold transition-all ${
               activeCategory === null
-                ? "text-orange-600 border-orange-500 bg-orange-50 shadow-[0_0_12px_rgba(249,115,22,0.15)]"
+                ? "text-primary border-primary bg-primary/5 shadow-[0_0_12px_rgba(var(--primary),0.15)]"
                 : "text-zinc-500 border-zinc-200 bg-zinc-50 hover:border-zinc-400"
             }`}
           >
@@ -181,7 +207,7 @@ export default function BrandModelsPage() {
               onClick={() => setActiveCategory(cat)}
               className={`font-mono text-[10px] uppercase tracking-widest px-3 py-1 border font-bold transition-all ${
                 activeCategory === cat
-                  ? "text-orange-600 border-orange-500 bg-orange-50 shadow-[0_0_12px_rgba(249,115,22,0.15)]"
+                  ? "text-primary border-primary bg-primary/5"
                   : "text-zinc-500 border-zinc-200 bg-zinc-50 hover:border-zinc-400"
               }`}
             >
@@ -196,7 +222,7 @@ export default function BrandModelsPage() {
             <h2 className="text-xl font-black uppercase tracking-tighter">
               Model Directory
             </h2>
-            <div className="h-1 w-12 bg-orange-500 mt-1" />
+            <div className="h-1 w-12 bg-primary mt-1" />
           </div>
           <span className="font-mono text-[10px] text-muted-foreground font-bold uppercase tracking-widest">
             {filteredModels.length} Models Displayed
@@ -213,9 +239,12 @@ export default function BrandModelsPage() {
                 name: model.name,
                 years: model.years,
                 category: model.category,
+                model_img: model.model_img ?? null,
               }}
               brandId={brandId}
               brandName={brandName}
+              guideCount={guideCounts[model.id] ?? 0}
+              forumCount={forumCounts[model.id] ?? 0}
             />
           ))}
         </div>

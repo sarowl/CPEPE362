@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { isAdminEmail } from "@/lib/adminAccounts";
 
+const BUCKET = "Autobot_Storage";
+const KEEP_CONTENT = new Uint8Array(0); // zero-byte placeholder
+
 export async function POST(req: Request) {
   try {
     // Verify admin identity first
@@ -51,6 +54,24 @@ export async function POST(req: Request) {
         );
       }
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // ── Create storage folder for the new model ──────────────────────────
+    // Supabase Storage has no explicit mkdir; folders are implicit path
+    // prefixes that exist only when they contain at least one file.
+    // Upload a zero-byte .keep placeholder to establish the folder.
+    const keepPath = `Car_Models/${data.id}/.keep`;
+    const { error: storageError } = await supabase.storage
+      .from(BUCKET)
+      .upload(keepPath, KEEP_CONTENT, {
+        contentType: "application/octet-stream",
+        upsert: false,
+      });
+
+    if (storageError && !storageError.message.includes("already exists")) {
+      // Storage folder creation failed — log but don't block the response.
+      // The storage-sync endpoint can recover this on the next admin login.
+      console.error(`Failed to create storage folder for model ${data.id}:`, storageError.message);
     }
 
     return NextResponse.json({ model: data }, { status: 201 });

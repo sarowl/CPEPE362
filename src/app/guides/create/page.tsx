@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import {
   ChevronRight, ChevronLeft, Plus, Trash2, Upload, X,
-  AlertCircle, CheckCircle, Clock, Wrench, BookOpen,
+  AlertCircle, CheckCircle, Clock, Wrench, BookOpen, Package,
   ImageIcon, Video, RefreshCw, Send, ZoomIn, ZoomOut, Move,
 } from "lucide-react";
 
@@ -151,6 +151,8 @@ function CreateGuideForm() {
   const [timeReq,    setTimeReq]    = useState("");
   const [toolInput,  setToolInput]  = useState("");
   const [tools,      setTools]      = useState<string[]>([]);
+  const [partsInput, setPartsInput] = useState("");
+  const [parts,      setParts]      = useState<string[]>([]);
   const [thumbnail,  setThumbnail]  = useState<File|null>(null);
   const [thumbPreview,setThumbPreview] = useState("");
   const [thumbUrl,   setThumbUrl]   = useState("");
@@ -166,6 +168,7 @@ function CreateGuideForm() {
   const [submitted,  setSubmitted]  = useState(false);
   const fileInputRefs = useRef<(HTMLInputElement|null)[][]>([]);
   const [uploadingSlots, setUploadingSlots] = useState<Record<string,boolean>>({});
+  const [showTurnToDraftModal, setShowTurnToDraftModal] = useState(false);
 
   useEffect(() => {
     if (!authChecked) return;
@@ -262,7 +265,7 @@ function CreateGuideForm() {
       const url    = guideId ? `/api/guides/${guideId}` : "/api/guides";
       const res    = await fetch(url, {
         method, headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brand_id: brandId, model_id: modelId, model_name: modelName, title, summary, introduction: note, difficulty, time_required: timeReq, tools }),
+        body: JSON.stringify({ brand_id: brandId, model_id: modelId, model_name: modelName, title, summary, introduction: note, difficulty, time_required: timeReq, tools, required_parts: parts }),
       });
       const json = await res.json();
       if (!res.ok) { setError(json.error ?? "Failed to save."); return; }
@@ -331,10 +334,46 @@ function CreateGuideForm() {
     finally { setSaving(false); }
   };
 
+  const handleCancelCreation = async () => {
+    // If guide was partially created, delete it from DB and storage
+    if (guideId) {
+      await fetch(`/api/guides/${guideId}`, { method: "DELETE" }).catch(() => {});
+    }
+    router.push("/profile?tab=contributions");
+  };
+
+  const handleTurnToDraft = () => {
+    setShowTurnToDraftModal(true);
+  };
+
+  const handleTurnToDraftLeave = async () => {
+    setShowTurnToDraftModal(false);
+    if (!guideId) {
+      router.push("/profile?tab=contributions");
+      return;
+    }
+    // Save current step data if on step 2
+    if (wizardStep === 2 && steps.every((s) => s.instructions.trim())) {
+      setSaving(true);
+      try {
+        const payload = steps.map((s) => ({ step_number: s.step_number, title: s.title, instructions: s.instructions, images: s.images.filter(Boolean), video_url: s.video_url || null }));
+        await fetch(`/api/guides/${guideId}/steps`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ steps: payload }) });
+      } catch {} finally { setSaving(false); }
+    }
+    router.push("/profile?tab=contributions");
+  };
+
+  const handleTurnToDraftContinue = () => {
+    setShowTurnToDraftModal(false);
+    // Stay on current page — user continues editing
+  };
+
   const handleSubmit = async () => {
     if (!guideId) return;
     setError(""); setSubmitting(true);
     try {
+      // Spec 6: Enforce storage structure before submitting
+      await fetch("/api/guides-storage-cleanup", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({guide_id:guideId}) });
       const res  = await fetch("/api/guides-submit", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({guide_id:guideId}) });
       const json = await res.json();
       if (!res.ok) { setError(json.error??"Submit failed."); return; }
@@ -352,7 +391,7 @@ function CreateGuideForm() {
             <h1 className="font-black uppercase tracking-tighter text-2xl mb-2">Guide Submitted!</h1>
             <p className="text-sm text-muted-foreground mb-6 leading-relaxed">Your guide has been submitted for admin review. You'll be notified once it's approved or if any changes are needed.</p>
             <div className="flex gap-3 justify-center">
-              <button onClick={()=>router.push("/profile")} className="px-5 py-2 bg-primary text-white text-xs font-bold hover:brightness-110">View My Guides</button>
+              <button onClick={()=>router.push("/profile?tab=contributions")} className="px-5 py-2 bg-primary text-white text-xs font-bold hover:brightness-110">View My Contributions</button>
               <button onClick={()=>router.push("/car-makers")} className="px-5 py-2 border border-border text-xs font-bold hover:bg-secondary">Browse Guides</button>
             </div>
           </div>
@@ -376,9 +415,34 @@ function CreateGuideForm() {
 
         {/* Page header */}
         <div className="mb-8 border-b border-border pb-6">
-          <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mb-1">Fix it / Repair Guides</p>
-          <h1 className="font-black uppercase tracking-tighter text-3xl">Create a <span className="text-primary">Guide</span></h1>
-          <p className="text-sm text-muted-foreground mt-2 max-w-xl leading-relaxed">Share your repair knowledge with the community. Guides are reviewed by admins before publishing.</p>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mb-1">Fix it / Repair Guides</p>
+              <h1 className="font-black uppercase tracking-tighter text-3xl">Create a <span className="text-primary">Guide</span></h1>
+              <p className="text-sm text-muted-foreground mt-2 max-w-xl leading-relaxed">Share your repair knowledge with the community. Guides are reviewed by admins before publishing.</p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0 mt-1">
+              {/* Turn to Draft — available immediately under Step 1 */}
+              <button
+                onClick={handleTurnToDraft}
+                disabled={saving}
+                className="flex items-center gap-1.5 px-3 py-2 border border-border text-xs font-bold hover:bg-secondary transition-colors disabled:opacity-60"
+                title="Save as draft and return to contributions"
+              >
+                {saving ? <RefreshCw size={11} className="animate-spin" /> : null}
+                Turn to Draft
+              </button>
+              {/* Cancel Creation — deletes all data and files */}
+              <button
+                onClick={handleCancelCreation}
+                disabled={saving}
+                className="flex items-center gap-1.5 px-3 py-2 border border-red-300 text-red-600 text-xs font-bold hover:bg-red-50 transition-colors disabled:opacity-60"
+                title="Cancel creation — no data will be saved"
+              >
+                <X size={11} /> Cancel
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Progress bar */}
@@ -492,6 +556,24 @@ function CreateGuideForm() {
                   <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block">Time Required <span className="text-primary">*</span></label>
                   <input type="text" value={timeReq} onChange={e=>setTimeReq(e.target.value)} placeholder='"30–45 minutes"' className="w-full border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:border-ink"/>
                 </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block"><Package size={11} className="inline mr-1"/> Required Parts</label>
+                <div className="flex gap-2">
+                  <input type="text" value={partsInput} onChange={e=>setPartsInput(e.target.value)}
+                    onKeyDown={e=>{if(e.key==="Enter"&&partsInput.trim()){e.preventDefault();setParts(t=>[...t,partsInput.trim()]);setPartsInput("");}}}
+                    placeholder="Type a part name and press Enter..." className="flex-1 border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:border-ink"/>
+                  <button type="button" onClick={()=>{if(partsInput.trim()){setParts(t=>[...t,partsInput.trim()]);setPartsInput("");}}} className="px-3 py-2 border border-border hover:bg-secondary transition-colors"><Plus size={14}/></button>
+                </div>
+                {parts.length>0&&(
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {parts.map((p,i)=>(
+                      <span key={i} className="inline-flex items-center gap-1.5 bg-secondary border border-border text-xs px-2 py-1 font-medium">
+                        {p}<button onClick={()=>setParts(prev=>prev.filter((_,j)=>j!==i))} className="hover:text-red-500"><X size={11}/></button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block"><Wrench size={11} className="inline mr-1"/> Required Tools</label>
@@ -630,6 +712,7 @@ function CreateGuideForm() {
                 {/* UPDATED 4.3: label is now "Note" */}
                 <div><span className="font-bold">Note:</span> {note.trim() || <span className="text-muted-foreground italic">None</span>}</div>
                 <div><span className="font-bold">Required Tools:</span> {tools.length > 0 ? tools.join(", ") : <span className="text-muted-foreground italic">None</span>}</div>
+                <div><span className="font-bold">Required Parts:</span> {parts.length > 0 ? parts.join(", ") : <span className="text-muted-foreground italic">None</span>}</div>
               </div>
 
               {/* UPDATED 4.4: Steps with large images */}
@@ -678,6 +761,32 @@ function CreateGuideForm() {
         )}
 
       </main>
+
+      {/* ── Turn to Draft Modal ── */}
+      {showTurnToDraftModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 backdrop-blur-sm px-4">
+          <div className="w-full max-w-sm bg-background border border-border shadow-[6px_6px_0_0_var(--ink)] p-6">
+            <h3 className="font-black uppercase tracking-tighter text-base mb-2">Turn to Draft</h3>
+            <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
+              Your progress will be saved as a draft. What would you like to do next?
+            </p>
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={handleTurnToDraftLeave}
+                className="w-full px-4 py-2.5 bg-ink text-white text-xs font-bold hover:bg-ink/80 transition-colors"
+              >
+                Leave Edit
+              </button>
+              <button
+                onClick={handleTurnToDraftContinue}
+                className="w-full px-4 py-2.5 border border-border text-xs font-bold hover:bg-secondary transition-colors"
+              >
+                Continue Editing
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,3 +1,9 @@
+// ============================================================
+//
+// PATCH endpoint: updates an existing maintenance log entry.
+// If reminder date changes, updates associated notification.
+// Used by: Mygarage component maintenance edit flow.
+// ============================================================
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
@@ -83,4 +89,5 @@ export async function PUT(req: NextRequest) {
 		);
 	}
 }
+
 

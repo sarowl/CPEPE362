@@ -29,6 +29,7 @@ export default function HomePage() {
   const [recentGuides, setRecent]   = useState<RecentGuide[]>([]);
   const [loadingGuides, setLoading] = useState(true);
 
+  // Auth listener with initial session check (from JANN)
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
@@ -39,19 +40,19 @@ export default function HomePage() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Fetch 5 most recent approved guides
+  // Fetch 7 most recent approved guides (from JANN)
   useEffect(() => {
     fetch("/api/guides")
       .then((r) => r.json())
       .then((d) => {
         const all: RecentGuide[] = d.guides ?? [];
-        // Already sorted by created_at desc from API; take first 5
-        setRecent(all.slice(0, 5));
+        setRecent(all.slice(0, 7));
         setLoading(false);
       })
       .catch(() => setLoading(false));
   }, []);
 
+  // Navigate to /search with query param (from JANN)
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (search.trim()) {
@@ -81,7 +82,7 @@ export default function HomePage() {
             for every car, written by real mechanics
           </p>
 
-          {/* Search bar — navigates to /search */}
+          {/* Search bar — navigates to /search with query param */}
           <form
             onSubmit={handleSearchSubmit}
             className="w-full max-w-lg flex items-center bg-background rounded-sm overflow-hidden shadow-lg border border-border"
@@ -131,24 +132,26 @@ export default function HomePage() {
             linkTo="/community/guides"
             linkLabel="Find a Guide"
           />
+          {/* AI card links to /ai-repair (merged from JANN) */}
           <FeatureCard
             image={cardAi}
             title="AI Repair Assistant"
             description="Describe your symptoms and let our AI diagnose the issue, suggest parts, and walk you through the fix."
-            linkTo={user ? "/ai-assistant" : "/login"}
+            linkTo={user ? "/ai-repair" : "/login"}
             linkLabel={user ? "Ask the AI" : "Login to Use AI"}
           />
+          {/* Community card links to /forum (merged from JANN) */}
           <FeatureCard
             image={cardCommunity}
             title="A Community of Fixers"
             description="No one knows how to fix everything, but everyone knows how to fix something. Join the conversation."
-            linkTo="/community"
-            linkLabel="Join the Community"
+            linkTo="/forum"
+            linkLabel="Join the Community →"
           />
         </div>
       </section>
 
-      {/* RECENT REPAIR GUIDES — 5 most recent approved, horizontal scroll */}
+      {/* RECENT REPAIR GUIDES — 7 most recent, horizontal scroll carousel */}
       <section className="bg-secondary/30 py-16 px-6 border-y border-border">
         <div className="max-w-6xl mx-auto">
           <div className="flex items-center justify-between mb-8">
@@ -177,7 +180,7 @@ export default function HomePage() {
               )}
             </div>
           ) : (
-            /* Horizontal scrollable carousel */
+            /* Horizontal scrollable carousel with snap behavior */
             <div className="flex gap-4 overflow-x-auto pb-4 -mx-2 px-2 snap-x snap-mandatory scrollbar-thin scrollbar-thumb-border">
               {recentGuides.map((guide) => (
                 <div
@@ -215,7 +218,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* FOOTER CTA */}
+      {/* FOOTER CTA — links to /ai-repair for logged-in users */}
       <section className="bg-ink py-16 px-6 text-center">
         <h2 className="text-xl md:text-2xl font-extrabold text-primary-foreground mb-3">
           Ready to fix it yourself?
@@ -234,6 +237,7 @@ export default function HomePage() {
   );
 }
 
+// FeatureCard sub-component — unchanged from development
 function FeatureCard({
   image, title, description, linkTo, linkLabel,
 }: {

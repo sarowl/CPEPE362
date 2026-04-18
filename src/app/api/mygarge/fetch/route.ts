@@ -1,4 +1,9 @@
-//src\app\api\mygarge\fetch\route.ts
+// ============================================================
+//
+// GET endpoint: retrieves all vehicles for the authenticated user.
+// Also returns associated maintenance logs for each vehicle.
+// Used by: Mygarage component on mount, ProblemEntryScreen garage selector.
+// ============================================================
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { decrypt } from "@/lib/encryption";
