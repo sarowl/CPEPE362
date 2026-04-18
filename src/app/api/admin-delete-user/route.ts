@@ -4,7 +4,6 @@ import { isAdminEmail } from "@/lib/adminAccounts";
 
 const BUCKET = "Autobot_Storage";
 
-/** Recursively list all file paths under a storage prefix. */
 async function listAllFiles(
   supabase: ReturnType<typeof createAdminClient>,
   prefix: string

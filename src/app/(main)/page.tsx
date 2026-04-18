@@ -207,7 +207,7 @@ export default function HomePage() {
                       </Link>
                     ) : (
                       <div className="font-mono text-[10px] text-muted-foreground italic">
-                        🔒 Login to view full guide
+                        Login to view full guide
                       </div>
                     )}
                   </div>

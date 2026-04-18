@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, ArrowRight, Loader2, Logs } from "lucide-react";
+import { ArrowRight, Loader2, Monitor, Plus, ChevronDown } from "lucide-react";
 import GarageModal, { Vehicle } from "@/components/GarageModal";
 import { supabase } from "@/lib/supabase";
 
@@ -14,7 +14,7 @@ type GeminiResult =
   | { type: "validation"; isValid: boolean };
 
 interface Props {
-  onSubmit: (problem: string, diagnoses: any[], vehicle: Vehicle | null) => void; 
+  onSubmit: (problem: string, diagnoses: any[], vehicle: Vehicle | null) => void;
 }
 
 async function getNextStep(
@@ -83,7 +83,7 @@ const ProblemEntryScreen = ({ onSubmit }: Props) => {
       const data = await res.json();
 
       const mapped: Vehicle[] = (data.vehicles ?? []).map((v: any) => ({
-        id: v.id,                          // ← now included
+        id: v.id,
         model: v.model ?? "Unknown model",
         year: v.year ?? "Unknown year",
       }));
@@ -132,7 +132,7 @@ const ProblemEntryScreen = ({ onSubmit }: Props) => {
         const result = await getNextStep("get-questions", enrichedProblem, []);
 
         if (result.type === "diagnosis") {
-          onSubmit(enrichedProblem, result.diagnoses, selectedVehicle); // ← pass vehicle
+          onSubmit(enrichedProblem, result.diagnoses, selectedVehicle);
         }
 
         if (result.type === "questions") {
@@ -170,7 +170,7 @@ const ProblemEntryScreen = ({ onSubmit }: Props) => {
         const result = await getNextStep("get-diagnosis", initialProblem, updated);
 
         if (result.type === "diagnosis") {
-          onSubmit(buildContext(updated), result.diagnoses, selectedVehicle); // ← pass vehicle
+          onSubmit(buildContext(updated), result.diagnoses, selectedVehicle);
         } else {
           setError("Unexpected response.");
           setPhase("followup");
@@ -190,6 +190,7 @@ const ProblemEntryScreen = ({ onSubmit }: Props) => {
     <div className="flex items-center justify-center min-h-[60vh] px-4">
       <div className="w-full max-w-lg space-y-6">
 
+        {/* Header */}
         <div className="text-center">
           <h1 className="text-xl font-bold">
             {phase === "initial" ? "What's the problem?" : "Follow-up"}
@@ -201,60 +202,90 @@ const ProblemEntryScreen = ({ onSubmit }: Props) => {
           </p>
         </div>
 
-        {selectedVehicle && (
-          <div className="text-sm bg-secondary px-3 py-2 rounded-lg">
-            {selectedVehicle.year} {selectedVehicle.model}
-          </div>
-        )}
-
+        {/* Follow-up question */}
         {currentQuestion && !loading && (
           <p className="text-sm font-medium">{currentQuestion}</p>
         )}
 
+        {/* Loading spinner */}
         {loading && (
           <div className="flex justify-center">
             <Loader2 className="animate-spin" />
           </div>
         )}
 
+        {/* Errors */}
         {error && <p className="text-sm text-red-500">{error}</p>}
-
         {garageFetchError && (
           <p className="text-xs text-amber-500 text-center">{garageFetchError}</p>
         )}
 
-        <div className="flex items-end gap-2 border rounded-lg px-3 py-2 focus-within:ring-2 focus-within:ring-ring">
-          <Search className="h-4 w-4 text-muted-foreground mb-2 flex-shrink-0" />
-          <textarea
-            value={input}
-            onChange={(e) => {
-              setInput(e.target.value);
-              e.target.style.height = "auto";
-              e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSubmit();
-              }
-            }}
-            disabled={loading}
-            rows={1}
-            placeholder="Describe your problem…"
-            className="flex-1 resize-none bg-transparent outline-none text-sm py-1.5 custom-scrollbar"
-            style={{ maxHeight: "200px", overflowY: "auto" }}
-          />
-          <button
-            onClick={handleSubmit}
-            disabled={!input.trim() || loading}
-            className="flex-shrink-0 mb-0.5 p-1.5 rounded-lg bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            {loading
-              ? <Loader2 className="h-4 w-4 animate-spin" />
-              : <ArrowRight className="h-4 w-4" />}
-          </button>
-        </div>
+        {/* ── Redesigned input box ── */}
+        <div className="rounded-2xl border border-border bg-background shadow-sm overflow-hidden">
 
+          {/* Textarea */}
+          <div className="px-4 pt-3 pb-1">
+            <textarea
+              value={input}
+              onChange={(e) => {
+                setInput(e.target.value);
+                e.target.style.height = "auto";
+                e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSubmit();
+                }
+              }}
+              disabled={loading}
+              rows={2}
+              placeholder="Describe your problem…"
+              className="w-full resize-none bg-transparent outline-none text-sm leading-relaxed text-foreground placeholder:text-muted-foreground custom-scrollbar"
+              style={{ maxHeight: "200px", overflowY: "auto" }}
+            />
+          </div>
+
+          {/* Toolbar row */}
+          <div className="flex items-center justify-between px-3 pb-3 pt-1">
+
+            {/* Left: + button + device selector */}
+            <div className="flex items-center gap-2">
+
+              {/* Device selector pill */}
+              <button
+                type="button"
+                onClick={handleOpenGarage}
+                className="h-8 flex items-center gap-1.5 rounded-full border border-border px-3 text-xs text-muted-foreground hover:bg-secondary transition-colors"
+              >
+                <Plus className="h-3.5 w-3.5 flex-shrink-0" />
+                <span className="max-w-[140px] truncate">
+                  {selectedVehicle
+                    ? `${selectedVehicle.year} ${selectedVehicle.model}`
+                    : "Select Vehicle"}
+                </span>
+                <ChevronDown className="h-3 w-3 flex-shrink-0" />
+              </button>
+
+            </div>
+
+            {/* Right: Submit button */}
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={!input.trim() || loading}
+              className="h-9 w-9 rounded-full bg-orange-500 text-white flex items-center justify-center hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+            >
+              {loading
+                ? <Loader2 className="h-4 w-4 animate-spin" />
+                : <ArrowRight className="h-4 w-4" />}
+            </button>
+
+          </div>
+        </div>
+        {/* ── End redesigned input box ── */}
+
+        {/* Garage modal */}
         <GarageModal
           isOpen={isGarageOpen}
           onClose={() => setIsGarageOpen(false)}
@@ -263,6 +294,7 @@ const ProblemEntryScreen = ({ onSubmit }: Props) => {
           isLoading={garageLoading}
         />
 
+        {/* Q&A history */}
         {history.length > 0 && (
           <div className="text-xs space-y-1">
             {history.map((q, i) => (
@@ -274,6 +306,7 @@ const ProblemEntryScreen = ({ onSubmit }: Props) => {
             ))}
           </div>
         )}
+
       </div>
     </div>
   );

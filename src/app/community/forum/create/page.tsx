@@ -4,6 +4,7 @@ import React, { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
+import { supabase } from "@/lib/supabase";
 import { ChevronRight } from "lucide-react";
 
 const BRANDS = [
@@ -32,6 +33,20 @@ interface CarModel {
 function ForumPostCreateForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [authChecked, setAuthChecked] = useState(false);
+
+  // Check authentication on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        router.replace("/login?redirect=/community/forum/create");
+      } else {
+        setAuthChecked(true);
+      }
+    };
+    checkAuth();
+  }, [router]);
 
   // Pre-select brand/model from URL query params (e.g. ?brand=toyota&model=<uuid>)
   const preselectedBrand = searchParams.get("brand") ?? "";
@@ -122,6 +137,18 @@ function ForumPostCreateForm() {
   return (
     <div className="min-h-screen bg-paper text-ink flex flex-col animate-fade-in">
       <Navbar />
+      {!authChecked && (
+        <main className="flex-1 flex items-center justify-center">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+            </svg>
+            Checking authentication...
+          </div>
+        </main>
+      )}
+      {authChecked && (
       <main className="flex-1 w-full max-w-4xl mx-auto px-6 py-8">
 
         {/* BREADCRUMB */}
@@ -241,6 +268,7 @@ function ForumPostCreateForm() {
           </p>
         </footer>
       </main>
+      )}
     </div>
   );
 }

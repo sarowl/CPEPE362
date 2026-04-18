@@ -14,8 +14,7 @@ import {
 
 import { resolveCarModelImage } from "@/lib/carTypeImage";
 
-// ── Car Model Image Cropper ───────────────────────────────────────
-// Fixed aspect-ratio crop tool (same ratio as car model card 16:9).
+
 function CarImageCropper({
   src, onCropped, onCancel,
 }: { src: string; onCropped: (blob: Blob) => void; onCancel: () => void }) {
