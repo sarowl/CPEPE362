@@ -13,6 +13,7 @@ export default function Settings() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [message, setMessage] = useState("");
+  const [isSavingChanges, setIsSavingChanges] = useState(false);
 
   useEffect(() => {
     const getUser = async () => {
@@ -32,7 +33,9 @@ export default function Settings() {
 
   const handleSaveChanges = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSavingChanges) return;
     setMessage("");
+    setIsSavingChanges(true);
 
     try {
       // Update user metadata (name)
@@ -62,6 +65,8 @@ export default function Settings() {
       }
     } catch (error) {
       setMessage("An error occurred");
+    } finally {
+      setIsSavingChanges(false);
     }
   };
 
@@ -170,14 +175,16 @@ export default function Settings() {
           <div className="flex gap-3 pt-2">
             <button
               type="submit"
-              className="px-6 py-3 bg-orange-600 hover:bg-orange-700 text-white font-medium rounded transition-colors"
+              disabled={isSavingChanges}
+              className="px-6 py-3 bg-orange-600 hover:bg-orange-700 text-white font-medium rounded transition-colors disabled:cursor-not-allowed disabled:opacity-70"
             >
-              Save Changes
+              {isSavingChanges ? "Saving..." : "Save Changes"}
             </button>
             <button
               type="button"
               onClick={handleReset}
-              className="px-6 py-3 bg-white hover:bg-gray-50 text-gray-700 font-medium rounded border border-gray-300 transition-colors"
+              disabled={isSavingChanges}
+              className="px-6 py-3 bg-white hover:bg-gray-50 text-gray-700 font-medium rounded border border-gray-300 transition-colors disabled:cursor-not-allowed disabled:opacity-70"
             >
               Reset
             </button>

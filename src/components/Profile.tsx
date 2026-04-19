@@ -41,6 +41,9 @@ export default function Profile() {
   const [experienceDraft, setExperienceDraft] = useState<string[]>([]);
   const [certificationsDraft, setCertificationsDraft] = useState<CertificationItem[]>([]);
   const [isUploadingProfilePicture, setIsUploadingProfilePicture] = useState(false);
+  const [isSavingAbout, setIsSavingAbout] = useState(false);
+  const [isSavingExperience, setIsSavingExperience] = useState(false);
+  const [isSavingCertifications, setIsSavingCertifications] = useState(false);
   const profilePictureInputRef = useRef<HTMLInputElement | null>(null);
   const [selectedCertImage, setSelectedCertImage] = useState<string | null>(null);
 
@@ -90,6 +93,8 @@ export default function Profile() {
   }, []);
 
   const handleAboutSave = async () => {
+  if (isSavingAbout) return;
+  setIsSavingAbout(true);
   try {
     const res = await fetch("/api/profile_update", {
       method: "POST",
@@ -120,13 +125,18 @@ export default function Profile() {
     setIsEditingAbout(false);
   } catch (error) {
     alert("Error updating about section");
+  } finally {
+    setIsSavingAbout(false);
   }
 };
  const handleExperienceSave = async () => {
+  if (isSavingExperience) return;
   const cleaned = experienceDraft
     .filter((item) => item != null)
     .map((item) => item.trim())
     .filter(Boolean);
+
+  setIsSavingExperience(true);
 
   try {
     const res = await fetch("/api/profile_update", {
@@ -157,6 +167,8 @@ export default function Profile() {
     setIsEditingExperience(false);
   } catch (error) {
     alert("Error updating experience");
+  } finally {
+    setIsSavingExperience(false);
   }
 };
 
@@ -175,6 +187,7 @@ export default function Profile() {
   };
 
   const handleCertificationsSave = async () => {
+  if (isSavingCertifications) return;
   if (!profile?.user_id) {
     alert("User not found");
     return;
@@ -199,6 +212,7 @@ export default function Profile() {
   }
 
   try {
+    setIsSavingCertifications(true);
     // Delete certifications that were removed from the draft
     const draftIds = new Set(certificationsDraft.map((c) => c.id).filter(Boolean));
     const deletedCerts = certifications.filter((c) => c.id && !draftIds.has(c.id));
@@ -278,6 +292,8 @@ export default function Profile() {
   } catch (error) {
     console.error(error);
     alert("Error saving certifications");
+  } finally {
+    setIsSavingCertifications(false);
   }
 };
 
@@ -317,7 +333,7 @@ export default function Profile() {
   };
 
   const handleProfilePictureUpload = async (file: File | null) => {
-    if (!file) return;
+    if (!file || isUploadingProfilePicture) return;
 
     const preview = URL.createObjectURL(file);
     setProfile((prev) => (prev ? { ...prev, profile_picture: preview } : prev));
@@ -500,9 +516,10 @@ export default function Profile() {
                   <button
                     type="button"
                     onClick={handleAboutSave}
-                    className="px-4 py-2 bg-gray-900 text-white rounded-md"
+                    disabled={isSavingAbout}
+                    className="px-4 py-2 bg-gray-900 text-white rounded-md disabled:cursor-not-allowed disabled:opacity-70"
                   >
-                    Save
+                    {isSavingAbout ? "Saving..." : "Save"}
                   </button>
                   <button
                     type="button"
@@ -510,7 +527,8 @@ export default function Profile() {
                       setAboutDraft(profile?.about || "");
                       setIsEditingAbout(false);
                     }}
-                    className="px-4 py-2 border border-gray-300 rounded-md"
+                    disabled={isSavingAbout}
+                    className="px-4 py-2 border border-gray-300 rounded-md disabled:cursor-not-allowed disabled:opacity-70"
                   >
                     Cancel
                   </button>
@@ -578,9 +596,10 @@ export default function Profile() {
                     <button
                       type="button"
                       onClick={handleExperienceSave}
-                      className="px-4 py-2 bg-gray-900 text-white rounded-md"
+                      disabled={isSavingExperience}
+                      className="px-4 py-2 bg-gray-900 text-white rounded-md disabled:cursor-not-allowed disabled:opacity-70"
                     >
-                      Save
+                      {isSavingExperience ? "Saving..." : "Save"}
                     </button>
                     <button
                       type="button"
@@ -590,7 +609,8 @@ export default function Profile() {
                         );
                         setIsEditingExperience(false);
                       }}
-                      className="px-4 py-2 border border-gray-300 rounded-md"
+                      disabled={isSavingExperience}
+                      className="px-4 py-2 border border-gray-300 rounded-md disabled:cursor-not-allowed disabled:opacity-70"
                     >
                       Cancel
                     </button>
@@ -703,9 +723,10 @@ export default function Profile() {
                     <button
                       type="button"
                       onClick={handleCertificationsSave}
-                      className="px-4 py-2 bg-gray-900 text-white rounded-md"
+                      disabled={isSavingCertifications}
+                      className="px-4 py-2 bg-gray-900 text-white rounded-md disabled:cursor-not-allowed disabled:opacity-70"
                     >
-                      Save
+                      {isSavingCertifications ? "Saving..." : "Save"}
                     </button>
                     <button
                       type="button"
@@ -717,7 +738,8 @@ export default function Profile() {
                         );
                         setIsEditingCertifications(false);
                       }}
-                      className="px-4 py-2 border border-gray-300 rounded-md"
+                      disabled={isSavingCertifications}
+                      className="px-4 py-2 border border-gray-300 rounded-md disabled:cursor-not-allowed disabled:opacity-70"
                     >
                       Cancel
                     </button>

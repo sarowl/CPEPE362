@@ -83,8 +83,8 @@ export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
   const [classification, setClassification] = useState<NewVehicleInput["classification"]>("private");
   const [ORnumber, setORnumber] = useState("");
   const [CRnumber, setCRnumber] = useState("");
-  const [Grossweight, setGrossweight] = useState(0);
-  const [Netweight, setNetweight] = useState(0);
+  const [Grossweight, setGrossweight] = useState("");
+  const [Netweight, setNetweight] = useState("");
   const [selectedPhotoFile, setSelectedPhotoFile] = useState<File | null>(null);
   const [selectedPhotoPreview, setSelectedPhotoPreview] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
@@ -111,8 +111,8 @@ export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
     setClassification("private");
     setORnumber("");
     setCRnumber("");
-    setGrossweight(0);
-    setNetweight(0);
+    setGrossweight("");
+    setNetweight("");
     setSelectedPhotoFile(null);
     setSelectedPhotoPreview(null);
     setValidationErrors({});
@@ -214,6 +214,8 @@ export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
       setStep("confirm");
     }
   };
+
+  const sanitizeNonNegativeNumberInput = (value: string) => value.replace(/[^\d]/g, "");
 
   return (
     <div
@@ -514,9 +516,11 @@ export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
                     Gross Weight
                   </label>
                   <input
-                    type="number"
+                    type="text"
                     value={Grossweight}
-                    onChange={(e) => setGrossweight(Number(e.target.value))}
+                    onChange={(e) => setGrossweight(sanitizeNonNegativeNumberInput(e.target.value))}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     placeholder="e.g. 1,850 kg"
                     className="h-10 w-full rounded-lg border border-slate-200 bg-slate-100 px-3.5 text-sm text-slate-700 outline-none transition focus:border-[#f26a2e]"
                   />
@@ -527,9 +531,11 @@ export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
                     Net Weight
                   </label>
                   <input
-                    type="number"
+                    type="text"
                     value={Netweight}
-                    onChange={(e) => setNetweight(Number(e.target.value))}
+                    onChange={(e) => setNetweight(sanitizeNonNegativeNumberInput(e.target.value))}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     placeholder="e.g. 1,520 kg"
                     className="h-10 w-full rounded-lg border border-slate-200 bg-slate-100 px-3.5 text-sm text-slate-700 outline-none transition focus:border-[#f26a2e]"
                   />
@@ -653,8 +659,8 @@ export default function GarageModal({ open, onClose, onAddVehicle }: Props) {
                     classification,
                     ORnumber,
                     CRnumber,
-                    Grossweight,
-                    Netweight,
+                    Grossweight: Number(Grossweight || 0),
+                    Netweight: Number(Netweight || 0),
                   }, selectedPhotoFile);
                 }}
                 className="h-10 w-full rounded-lg bg-[#f26a2e] text-sm font-semibold text-white transition hover:bg-[#d85720]"
