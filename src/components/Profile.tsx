@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Navbar from "./Navbar";
 import { ExperienceType, Profiletype } from "@/lib/types";
 import ProfileContributionsTab from "@/components/ProfileContributionsTab";
@@ -30,7 +31,8 @@ export default function Profile() {
   const [experience, setExperience] = useState<ExperienceType[]>([]);
   const [certifications, setCertifications] = useState<CertificationItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("about");
+  const searchParams = useSearchParams();
+  const [activeTab, setActiveTab] = useState(() => searchParams.get("tab") ?? "about");
   const [guideCount, setGuideCount] = useState(0);
 
   const [isEditingAbout, setIsEditingAbout] = useState(false);
@@ -457,15 +459,15 @@ export default function Profile() {
             <img src="/shifts-activity-svgrepo-com.svg" alt="Activity" className="w-5 h-5" />
             Activity
           </button>
-          {/* UPDATED SECTION 2.2: Use bookmark-icon-profile.png */}
+          {/* UPDATED SECTION 2.2: Use bookmark-icon-profile.png, renamed to My Bookmark */}
           <button
             onClick={() => setActiveTab("liked")}
             className={`w-full text-left px-6 py-3 flex items-center gap-2 ${
               activeTab === "liked" ? "bg-gray-100 font-semibold" : ""
             }`}
           >
-            <img src="/bookmark-icon-profile.png" alt="Bookmarks" className="w-5 h-5 object-contain" />
-            Bookmarks
+            <img src="/bookmark-icon-profile.png" alt="My Bookmark" className="w-5 h-5 object-contain" />
+            My Bookmark
           </button>
         </div>
       </div>
@@ -795,14 +797,16 @@ export default function Profile() {
   );
 }
 // ================================================================
-// UPDATED (Spec 2 - Section 3 + Section 6):
-// LikedGuidesTab — Profile → Bookmarks tab.
-// Now displays thumbnails matching the /bookmarks page layout.
-// Uses actual thumbnail_url from guide data (no forced fallback).
+// UPDATED (Spec 2 - Section 2 + Section 3 + Section 6):
+// LikedGuidesTab — Profile → My Bookmark tab.
+// - Renamed to "My Bookmark"
+// - Added search functionality across: Guide Title, Total Time Taken,
+//   Creator Name, Vehicle Brand, Vehicle Model, Difficulty, Time Required
 // ================================================================
 function LikedGuidesTab() {
   const [likedGuides, setLikedGuides] = useState<any[]>([]);
   const [loading, setLoading]         = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     fetch("/api/guides-likes/mine")
@@ -813,6 +817,19 @@ function LikedGuidesTab() {
       })
       .catch(() => setLoading(false));
   }, []);
+
+  const filteredGuides = likedGuides.filter((guide: any) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      (guide.title ?? "").toLowerCase().includes(q) ||
+      (guide.time_required ?? "").toLowerCase().includes(q) ||
+      (guide.creator_name ?? guide.author_name ?? "").toLowerCase().includes(q) ||
+      (guide.brand_id ?? "").toLowerCase().includes(q) ||
+      (guide.model_name ?? "").toLowerCase().includes(q) ||
+      (guide.difficulty ?? "").toLowerCase().includes(q)
+    );
+  });
 
   if (loading) {
     return (
@@ -825,10 +842,31 @@ function LikedGuidesTab() {
   return (
     <div>
       <div className="flex items-center gap-3 mb-2">
-        <img src="/bookmark-icon-profile.png" alt="Bookmarks" width={24} height={24} className="object-contain" />
-        <h1 className="text-3xl font-bold">Bookmarks</h1>
+        <img src="/bookmark-icon-profile.png" alt="My Bookmark" width={24} height={24} className="object-contain" />
+        <h1 className="text-3xl font-bold">My Bookmark</h1>
       </div>
-      <p className="text-gray-500 text-sm mb-6">Guides you've bookmarked — only visible to you.</p>
+      <p className="text-gray-500 text-sm mb-4">Guides you've bookmarked — only visible to you.</p>
+
+      {/* Search bar */}
+      {likedGuides.length > 0 && (
+        <div className="relative mb-6">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search by title, brand, model, difficulty, time, or creator..."
+            className="w-full border border-gray-300 rounded-lg px-4 py-2.5 pr-10 text-sm focus:outline-none focus:border-gray-500"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+      )}
 
       {likedGuides.length === 0 ? (
         <div className="border border-dashed border-gray-200 rounded-lg flex flex-col items-center justify-center py-16 gap-3">
@@ -838,10 +876,17 @@ function LikedGuidesTab() {
             Browse repair guides and bookmark the ones you find helpful.
           </p>
         </div>
+      ) : filteredGuides.length === 0 ? (
+        <div className="border border-dashed border-gray-200 rounded-lg flex flex-col items-center justify-center py-16 gap-3">
+          <p className="text-sm font-bold text-gray-500">No results found</p>
+          <p className="text-xs text-gray-400 text-center max-w-xs">
+            Try a different search term.
+          </p>
+        </div>
       ) : (
-        // SECTION 3: Same card layout as /bookmarks page
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {likedGuides.map((guide: any) => {
+          {filteredGuides.map((guide: any) => {
+            const hasThumbnail = !!guide.thumbnail_url;
             const thumbnailSrc = guide.thumbnail_url || "/no-thumbnail.png";
             return (
               <a
@@ -849,12 +894,11 @@ function LikedGuidesTab() {
                 href={`/guides/${guide.brand_id}/${guide.model_id}/${guide.guide_id}`}
                 className="group block border border-border bg-background hover:border-primary/50 transition-colors overflow-hidden rounded"
               >
-                {/* SECTION 6: Actual thumbnail, fallback only if none */}
                 <div className="w-full overflow-hidden" style={{ aspectRatio: "16/9" }}>
                   <img
                     src={thumbnailSrc}
                     alt={guide.title}
-                    className="w-full h-full object-cover"
+                    className={`w-full h-full object-cover${!hasThumbnail ? " opacity-80" : ""}`}
                     loading="lazy"
                     onError={(e) => { (e.target as HTMLImageElement).src = "/no-thumbnail.png"; }}
                   />

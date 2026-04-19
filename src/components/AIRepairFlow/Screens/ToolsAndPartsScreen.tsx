@@ -1,3 +1,9 @@
+// ============================================================
+//
+// Sub-screen within RepairModeScreen showing the tools and parts
+// required for the repair procedure. Displayed before the step-by-step
+// guide begins, so the user can gather everything they need first.
+// ============================================================
 // src/components/AIRepairFlow/Screens/ToolsAndPartsScreen.tsx
 import { Wrench, Package, ChevronRight, ArrowLeft } from "lucide-react";
 import { Diagnosis } from "./DiagnosisScreen";

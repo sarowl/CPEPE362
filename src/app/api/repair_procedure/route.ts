@@ -1,3 +1,12 @@
+// ============================================================
+//
+// POST endpoint: generates a step-by-step repair procedure using Gemini AI.
+// Input: selected diagnosis + vehicle info + problem context
+// Uses: REPAIR_MODE_API_KEY env var (gemini-3.1-flash-lite-preview model)
+// Returns: structured JSON with tools, parts, and ordered repair steps.
+// Called once per repair session; result is cached in RepairModeScreen
+// to avoid redundant calls if user navigates back from EscalationScreen.
+// ============================================================
 // src/app/api/repair_procedure/route.ts
 import { NextResponse } from "next/server";
 import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";

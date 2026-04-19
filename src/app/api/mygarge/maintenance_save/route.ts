@@ -1,5 +1,13 @@
+// ============================================================
+//
+// POST endpoint: saves a new maintenance log entry for a vehicle.
+// If a reminder date is set, also triggers /api/notification/save
+// so the user gets a notification reminder in the Navbar bell.
+// Used by: Mygarage component maintenance form.
+// ============================================================
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { encrypt } from "@/lib/encryption";
 
 const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -56,10 +64,10 @@ export async function POST(req: NextRequest) {
 				{
 					user_id: user.id,
 					car_id,
-					activity,
-					date,
-					notes: notes || "",
-					reminder: typeof reminder === "string" ? reminder.trim() : "",
+					activity: encrypt(activity),
+					date: encrypt(date),
+					notes: encrypt(notes || ""),
+					reminder: encrypt(typeof reminder === "string" ? reminder.trim() : ""),
 				},
 			]);
 
@@ -83,5 +91,6 @@ export async function POST(req: NextRequest) {
 		);
 	}
 }
+
 
 

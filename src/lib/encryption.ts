@@ -1,42 +1,54 @@
-import crypto from 'crypto';
+import { createCipheriv, createDecipheriv, randomBytes, createHash } from "crypto";
 
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'default-32-char-encryption-key!!';
-const IV_LENGTH = 16;
-const ALGORITHM = 'aes-256-cbc';
+const ENCRYPTION_KEY = process.env.MY_GARAGE_ENCRYPTION_KEY || process.env.ENCRYPTION_KEY || "default-encryption-key-32-bytes-long!";
+const KEY = createHash("sha256").update(ENCRYPTION_KEY).digest();
+const ALGORITHM = "aes-256-gcm";
+const IV_LENGTH = 12; // AES GCM standard
 
-export function encrypt(text: string): string {
-  if (!text) return '';
-  
-  const iv = crypto.randomBytes(IV_LENGTH);
-  const key = Buffer.from(ENCRYPTION_KEY.padEnd(32).slice(0, 32));
-  const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
-  
-  let encrypted = cipher.update(text, 'utf8', 'hex');
-  encrypted += cipher.final('hex');
-  
-  return iv.toString('hex') + ':' + encrypted;
+function encodeBase64(input: Buffer): string {
+  return input.toString("base64");
 }
 
-export function decrypt(text: string): string {
-  if (!text) return '';
-  
+function decodeBase64(input: string): Buffer {
+  return Buffer.from(input, "base64");
+}
+
+export function encrypt(value: string | null | undefined): string {
+  if (!value) {
+    return "";
+  }
+
+  const iv = randomBytes(IV_LENGTH);
+  const cipher = createCipheriv(ALGORITHM, KEY, iv);
+
+  const encrypted = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
+  const authTag = cipher.getAuthTag();
+
+  return `${encodeBase64(iv)}:${encodeBase64(encrypted)}:${encodeBase64(authTag)}`;
+}
+
+export function decrypt(value: string | null | undefined): string {
+  if (!value) {
+    return "";
+  }
+
+  const parts = value.split(":");
+  if (parts.length !== 3) {
+    return value;
+  }
+
   try {
-    const parts = text.split(':');
-    if (parts.length !== 2) return text; // Return as-is if not encrypted
-    
-    const iv = Buffer.from(parts[0], 'hex');
-    const encrypted = parts[1];
-    const key = Buffer.from(ENCRYPTION_KEY.padEnd(32).slice(0, 32));
-    
-    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
-    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-    
-    return decrypted;
-  } catch (err) {
-    console.error('Decryption error:', err);
-    return text; // Return original if decryption fails
+    const iv = decodeBase64(parts[0]);
+    const encrypted = decodeBase64(parts[1]);
+    const authTag = decodeBase64(parts[2]);
+
+    const decipher = createDecipheriv(ALGORITHM, KEY, iv);
+    decipher.setAuthTag(authTag);
+
+    const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
+    return decrypted.toString("utf8");
+  } catch (error) {
+    console.error("Decryption failed:", error);
+    return value;
   }
 }
-
-export const SENSITIVE_FIELDS = ['platenum', 'enginenumber', 'chasis', 'vin', 'ORnum', 'CRnum'];
