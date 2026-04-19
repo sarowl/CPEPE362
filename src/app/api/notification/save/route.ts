@@ -1,3 +1,12 @@
+// ============================================================
+//
+// POST endpoint: saves a new notification for the authenticated user.
+// Deduplicates: if an identical title+message already exists for the
+// user, it skips insertion and returns the existing record.
+// Used by: Mygarage component when maintenance is saved/updated,
+//          triggering a maintenance-reminder notification.
+// Body: { title: string, message: string }
+// ============================================================
 import { supabase } from "@/lib/supabase";
 import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
@@ -37,7 +46,6 @@ export async function POST(req: NextRequest) {
 
     const token = authHeader.replace("Bearer ", "");
 
-    // Get user from token
     const {
       data: { user },
       error: userError,
@@ -50,7 +58,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get body data
     const body = await req.json();
     const title = typeof body?.title === "string" ? body.title.trim() : "";
     const message = typeof body?.message === "string" ? body.message.trim() : "";
@@ -62,7 +69,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Prevent duplicate notifications with the same title/message for this user.
     const { data: existing, error: existingError } = await supabase
       .from("notification")
       .select("id")
@@ -86,17 +92,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Insert notification
     const { data, error } = await supabase
       .from("notification")
-      .insert([
-        {
-          user_id: user.id,
-          title,
-          message,
-          is_read: false,
-        },
-      ])
+      .insert([{ user_id: user.id, title, message, is_read: false }])
       .select();
 
     if (error) {
@@ -205,3 +203,4 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+

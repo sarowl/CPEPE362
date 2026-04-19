@@ -3,7 +3,6 @@
 import React from "react";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
-import { Plus } from "lucide-react";
 
 const BRANDS = [
   { name: "Toyota", id: "toyota" },
@@ -30,26 +29,13 @@ export default function VehicleSelection() {
         {/* HERO SECTION */}
         <section className="flex flex-col md:flex-row gap-8 mb-16 items-start border-b border-border pb-12">
           <div className="flex-1">
-            <div className="flex justify-between items-start mb-4">
-              <h1 className="text-4xl md:text-5xl font-black tracking-tighter uppercase leading-none">
-                Car and Truck <span className="text-primary">Repair</span>
-              </h1>
-            </div>
-
+            <h1 className="text-4xl md:text-5xl font-black tracking-tighter uppercase leading-none mb-4">
+              All-in-One <span className="text-primary">Car Hub</span>
+            </h1>
             <p className="text-sm md:text-base text-muted-foreground leading-relaxed max-w-2xl font-medium">
-              Empowering owners with manufacturer-grade manuals and a global network of master mechanics.
-              Everything you need to diagnose, repair, and maintain your vehicle on your own.
+              Your complete resource for car repairs, community discussions, and step-by-step guides.
+              Select your brand to access repair manuals, forum posts, and expert tips from real mechanics and owners.
             </p>
-
-            <div className="mt-6 flex flex-wrap gap-4 items-center">
-              {/* ✅ FIX: "Create a Guide" is now a Link to /guides/create */}
-              <Link
-                href="/guides/create"
-                className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-2 font-mono text-xs font-bold uppercase tracking-widest hover:brightness-110 transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
-              >
-                <Plus size={13} /> Create a Guide
-              </Link>
-            </div>
           </div>
         </section>
 
@@ -86,9 +72,6 @@ export default function VehicleSelection() {
                 {brand.name}
               </span>
 
-              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <Plus size={10} className="text-primary" />
-              </div>
               <div className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-border group-hover:border-primary" />
             </Link>
           ))}

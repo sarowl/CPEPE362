@@ -1,4 +1,3 @@
-// src/components/RepairFlow.tsx
 import { useState } from "react";
 import ProgressIndicator from "./AIRepairFlow/ProgressIndicator";
 import ProblemEntryScreen from "./AIRepairFlow/Screens/ProblemEntryScreen";

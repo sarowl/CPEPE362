@@ -1,4 +1,3 @@
-// src/components/AIRepairFlow/Screens/RepairModeScreen.tsx
 import { useState, useEffect } from "react";
 import {
   AlertTriangle,

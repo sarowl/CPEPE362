@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   BookOpen, Plus, Clock, Trash2, Edit2,
   CheckCircle, XCircle, AlertCircle, RefreshCw, Eye,
-  ArrowLeft, Wrench, Video, X,
+  ArrowLeft, Wrench, Video, X, Package,
 } from "lucide-react";
 
 interface Guide {
@@ -17,6 +17,7 @@ interface Guide {
   model_id?: string;
   difficulty: string;
   time_required: string;
+  required_parts?: string[];
   status: "draft" | "pending" | "approved" | "rejected";
   created_at: string;
   updated_at: string;
@@ -34,7 +35,7 @@ interface Notification {
 
 interface FullGuide {
   guide_id: string; title: string; summary: string; introduction: string;
-  difficulty: string; time_required: string; tools: string[];
+  difficulty: string; time_required: string; tools: string[]; required_parts?: string[];
   brand_id: string; model_name: string; status: string;
   thumbnail_url?: string | null;
 }
@@ -120,8 +121,10 @@ export default function ProfileContributionsTab() {
   const [loading,        setLoading]        = useState(true);
   const [deleting,       setDeleting]       = useState<string | null>(null);
   const [confirmDelete,  setConfirmDelete]  = useState<string | null>(null);
-  // [V2 Req #4] Preview modal state
   const [previewGuideId, setPreviewGuideId] = useState<string | null>(null);
+  // 4.3 & 4.4: Search and status filter
+  const [searchQuery,    setSearchQuery]    = useState("");
+  const [statusFilter,   setStatusFilter]   = useState<Guide["status"] | "all">("all");
 
   useEffect(() => {
     const loadAll = async () => {
@@ -157,8 +160,19 @@ export default function ProfileContributionsTab() {
   const getUnreadNotif = (guideId: string) =>
     notifications.find((n) => n.guide_id === guideId && !n.read);
 
+  // 4.3: Filter by search query — Title, Time, Brand, Model, Difficulty
+  // 4.4: Filter by status
+  const visibleGuides = guides.filter((g) => {
+    const matchesStatus = statusFilter === "all" || g.status === statusFilter;
+    if (!matchesStatus) return false;
+    if (!searchQuery.trim()) return true;
+    const keywords = searchQuery.toLowerCase().split(/\s+/).filter(Boolean);
+    const hay = [g.title, g.brand_id, g.model_name, g.difficulty, g.time_required, ...(g.required_parts ?? [])].join(" ").toLowerCase();
+    return keywords.every((k) => hay.includes(k));
+  });
+
   const grouped = STATUS_ORDER.reduce((acc, status) => {
-    acc[status] = guides.filter((g) => g.status === status);
+    acc[status] = visibleGuides.filter((g) => g.status === status);
     return acc;
   }, {} as Record<Guide["status"], Guide[]>);
 
@@ -197,7 +211,42 @@ export default function ProfileContributionsTab() {
           </Link>
         </div>
       ) : (
-        <div className="space-y-8">
+        <>
+          {/* 4.3: Search bar */}
+          <div className="mb-3 flex items-center gap-2 border border-border bg-background px-3 h-9">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-muted-foreground shrink-0"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by title, brand, model, difficulty, time..."
+              className="h-full flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground"
+            />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery("")} className="text-muted-foreground hover:text-ink">
+                <X size={12} />
+              </button>
+            )}
+          </div>
+
+          {/* 4.4: Status filter */}
+          <div className="mb-5 flex items-center gap-1.5 flex-wrap">
+            <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground mr-1">Filter:</span>
+            {([["all", "All"], ["approved", "Approved"], ["rejected", "Rejected"], ["draft", "Draft"], ["pending", "Pending"]] as [Guide["status"] | "all", string][]).map(([val, label]) => (
+              <button
+                key={val}
+                onClick={() => setStatusFilter(val)}
+                className={`px-2.5 py-1 text-[10px] font-bold border transition-colors ${
+                  statusFilter === val
+                    ? "bg-primary text-white border-primary"
+                    : "bg-background border-border text-muted-foreground hover:border-primary hover:text-primary"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div className="space-y-8">
           {STATUS_ORDER.map((status) => {
             const list = grouped[status];
             if (list.length === 0) return null;
@@ -236,6 +285,14 @@ export default function ProfileContributionsTab() {
             );
           })}
         </div>
+
+          {visibleGuides.length === 0 && guides.length > 0 && (
+            <div className="border border-dashed border-border flex flex-col items-center justify-center py-12 gap-2 text-center">
+              <p className="text-sm font-bold text-muted-foreground">No guides match your search or filter.</p>
+              <button onClick={() => { setSearchQuery(""); setStatusFilter("all"); }} className="text-xs text-primary underline">Clear filters</button>
+            </div>
+          )}
+        </>
       )}
 
       {/* Delete confirmation overlay */}
@@ -501,7 +558,10 @@ function GuidePreviewModal({
                     src={guide.thumbnail_url}
                     alt={guide.title}
                     className="w-full h-full object-cover"
-                    onError={(e) => { (e.target as HTMLImageElement).src = "/no-thumbnail.png"; }}
+                    onError={(e) => {
+                const img = e.target as HTMLImageElement;
+                if (!img.dataset.errored) { img.dataset.errored = "1"; img.src = "/no-thumbnail.png"; } else { img.style.display = "none"; }
+              }}
                     loading="lazy"
                   />
                 </div>
@@ -538,6 +598,18 @@ function GuidePreviewModal({
                     <div className="flex flex-wrap gap-1.5">
                       {guide.tools.map((t, i) => (
                         <span key={i} className="text-xs bg-secondary border border-border px-2 py-0.5">{t}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+               {(guide.required_parts?.length ?? 0) > 0 && (
+                  <div className="mt-3">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1.5 flex items-center gap-1">
+                      <Package size={10} /> Required Parts
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(guide.required_parts ?? []).map((p, i) => (
+                        <span key={i} className="text-xs bg-blue-50 border border-blue-200 text-blue-700 px-2 py-0.5">{p}</span>
                       ))}
                     </div>
                   </div>
