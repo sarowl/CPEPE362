@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState, Suspense } from "react";
+import Fuse from "fuse.js";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Search, X, MessageCircle, Tag, RefreshCw, User2, ThumbsUp, ThumbsDown, Clock3, BookOpen } from "lucide-react";
+import { Search, X, MessageCircle, Tag, RefreshCw, User2, Users, ThumbsUp, ThumbsDown, Clock3, BookOpen } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import Navbar from "@/components/Navbar";
@@ -117,6 +118,8 @@ function SearchPageComponent() {
     fetchData();
   }, [selectedBrand, query]);
 
+
+  // Fuzzy search setup
   const keywords = useMemo(() => {
     return query
       .toLowerCase()
@@ -131,32 +134,45 @@ function SearchPageComponent() {
       results = results.filter((item) => item.brand_id === selectedBrand);
     }
     if (!query.trim()) return results;
-    return results.filter((item) => {
-      const haystack = [
-        item.title,
-        item.model_name,
-        item.brand_id,
-        item.summary,
-        item.difficulty,
-        item.time_required,
-        ...(item.tools ?? []),
-        ...(item.required_parts ?? []),
-      ].join(" ").toLowerCase();
-      return keywords.every((k) => haystack.includes(k));
+    // Fuzzy search using Fuse.js
+    const fuse = new Fuse(results, {
+      keys: [
+        "title",
+        "model_name",
+        "brand_id",
+        "summary",
+        "difficulty",
+        "time_required",
+        "tools",
+        "required_parts"
+      ],
+      threshold: 0.4,
+      ignoreLocation: true,
     });
-  }, [guides, query, keywords, selectedBrand]);
+    return fuse.search(query).map(res => res.item);
+  }, [guides, query, selectedBrand]);
 
   const filteredForum = useMemo(() => {
     let results = forumPosts;
     if (selectedBrand) {
       results = results.filter((item) => item.brand_id === selectedBrand);
     }
-    if (!keywords.length) return results;
-    return results.filter((item) => {
-      const haystack = `${item.title} ${item.content} ${item.brand_id} ${item.model_name ?? item.model_id ?? ""} ${item.Users?.name ?? ""}`.toLowerCase();
-      return keywords.every((k) => haystack.includes(k));
+    if (!query.trim()) return results;
+    // Fuzzy search using Fuse.js
+    const fuse = new Fuse(results, {
+      keys: [
+        "title",
+        "content",
+        "brand_id",
+        "model_name",
+        "model_id",
+        "Users.name"
+      ],
+      threshold: 0.4,
+      ignoreLocation: true,
     });
-  }, [forumPosts, keywords, selectedBrand]);
+    return fuse.search(query).map(res => res.item);
+  }, [forumPosts, query, selectedBrand]);
 
   const handleSearch = (value: string) => {
     setQuery(value);
@@ -270,7 +286,8 @@ function SearchPageComponent() {
                     <RefreshCw size={14} className="animate-spin" /> Loading guides...
                   </div>
                 ) : filteredGuides.length === 0 ? (
-                  <div className="py-10 text-center text-muted-foreground text-sm">
+                  <div className="py-10 text-center text-muted-foreground text-sm flex flex-col items-center border border-dashed border-border rounded">
+                    <BookOpen size={28} className="mx-auto mb-2 text-orange-400" />
                     {query ? "No guides found for your search." : "No approved guides yet."}
                   </div>
                 ) : (
@@ -309,7 +326,7 @@ function SearchPageComponent() {
                     </div>
                   ) : filteredForum.length === 0 ? (
                     <div className="py-10 text-center text-muted-foreground text-sm border border-dashed border-border rounded">
-                      <MessageCircle size={28} className="mx-auto mb-2 opacity-30" />
+                      <MessageCircle size={28} className="mx-auto mb-2 text-orange-400" />
                       {query ? "No forum posts found for your search." : "No forum posts yet."}
                     </div>
                   ) : (
@@ -319,33 +336,41 @@ function SearchPageComponent() {
                         href={user ? `/community/forum/${post.brand_id}/${post.forum_id}` : "/login"}
                         onClick={handleProtectedClick}
                         className={
-                          `group flex items-start gap-5 rounded-2xl border border-border bg-white w-full p-7 shadow-md \
-                          transition-all duration-300 ease-out \
-                          hover:shadow-xl hover:-translate-y-1 hover:border-orange-400 \
-                          opacity-0 animate-fade-in`}
+                          `group flex items-start gap-5 rounded-2xl border border-border bg-white w-full p-7 shadow-md transition-all duration-300 ease-out cursor-pointer \
+                          hover:shadow-2xl hover:-translate-y-1 hover:border-orange-500 hover:bg-orange-50/40 opacity-0 animate-fade-in`}
                         style={{ maxWidth: "100%", animationDelay: `${idx * 60}ms`, animationFillMode: "forwards" }}
                       >
                         <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-orange-100 to-orange-200 text-orange-600 border border-orange-200 shadow-sm group-hover:scale-105 transition-transform duration-300">
-                          <MessageCircle size={26} />
+                          <Users size={26} />
                         </div>
                         <div className="min-w-0 flex-1 flex flex-col gap-2">
-                          <div className="flex flex-wrap items-center gap-2 mb-1">
-                            <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-[11px] uppercase tracking-widest text-muted-foreground font-bold">
-                              <Tag size={11} /> Forum
-                            </span>
-                            <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 border border-orange-300 px-2 py-0.5 text-[11px] uppercase tracking-widest text-orange-700 font-bold">
-                              {post.brand_id}
-                            </span>
-                            {post.model_name && (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 border border-gray-200 px-2 py-0.5 text-[11px] text-gray-600 font-semibold">
-                                {post.model_name}
+                          <div className="flex flex-wrap items-center gap-2 mb-1 justify-between">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-[11px] uppercase tracking-widest text-muted-foreground font-bold">
+                                <Tag size={11} /> Forum
                               </span>
-                            )}
-                            {post.Users?.name && (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 border border-gray-300 px-2 py-0.5 text-[11px] tracking-widest text-gray-700 font-semibold">
-                                <User2 size={12} className="text-gray-400" /> by {post.Users.name}
+                              <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 border border-orange-300 px-2 py-0.5 text-[11px] uppercase tracking-widest text-orange-700 font-bold">
+                                {post.brand_id}
                               </span>
-                            )}
+                              {post.model_name && (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 border border-gray-200 px-2 py-0.5 text-[11px] text-gray-600 font-semibold">
+                                  {post.model_name}
+                                </span>
+                              )}
+                              {post.Users?.name && (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 border border-gray-300 px-2 py-0.5 text-[11px] tracking-widest text-gray-700 font-semibold">
+                                  <User2 size={12} className="text-gray-400" /> by {post.Users.name}
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[11px] text-muted-foreground font-semibold ml-auto">
+                              {new Date(post.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                            </span>
+                          </div>
+                          <p className="text-lg font-extrabold leading-snug line-clamp-2 mb-1 group-hover:text-orange-700 transition-colors">{post.title}</p>
+                          <p className="text-[15px] text-muted-foreground line-clamp-3">{post.content}</p>
+                          <hr className="mt-2 mb-1 border-t border-border" />
+                          <div className="flex flex-wrap items-center gap-2">
                             <span className="inline-flex items-center gap-1 rounded-full bg-green-50 border border-green-200 px-2 py-0.5 text-[11px] text-green-700 font-semibold">
                               <ThumbsUp size={12} className="text-green-400" /> {post.likes}
                             </span>
@@ -356,11 +381,6 @@ function SearchPageComponent() {
                               <MessageCircle size={11} className="text-blue-400" /> {post.comment_count}
                             </span>
                           </div>
-                          <p className="text-lg font-extrabold leading-snug line-clamp-2 mb-1 group-hover:text-orange-700 transition-colors">{post.title}</p>
-                          <p className="text-[15px] text-muted-foreground line-clamp-3">{post.content}</p>
-                          <p className="text-[11px] text-muted-foreground mt-1">
-                            {new Date(post.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                          </p>
                         </div>
                       </Link>
                     ))
@@ -434,8 +454,8 @@ function SearchGuideCard({
               )}
             </div>
           )}
-          <div className="border-t border-border my-2 w-full" />
-          <div className="flex items-center justify-between mt-auto pt-2">
+          <div className="border-t border-border mt-1 mb-0.5 w-full" />
+          <div className="flex items-center justify-between mt-0">
             <span className="text-xs text-muted-foreground font-mono tracking-wide flex items-center gap-1">
               <Clock3 size={14} className="inline-block mr-1 text-orange-400" />
               {guide.time_required}
