@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import Navbar from "./Navbar";
 import { ExperienceType, Profiletype } from "@/lib/types";
 import ProfileContributionsTab from "@/components/ProfileContributionsTab";
+import SnakeLoading from "@/components/SnakeLoading";
 
 
 const certificationImages = ["/card-ai.jpg", "/card-community.jpg", "/card-guides.jpg"];
@@ -371,7 +372,12 @@ export default function Profile() {
   };
 
   if (loading) {
-    return <p>Loading profile...</p>;
+    return (
+      <SnakeLoading
+        title="Building your profile"
+        subtitle="Loading your details, certifications, and bookmarks."
+      />
+    );
   }
 
   return (
@@ -379,7 +385,7 @@ export default function Profile() {
       <Navbar />
       <div className="flex gap-6 max-w-6xl mx-auto p-6 mt-6">
       {/* Left Sidebar */}
-      <div className="w-80 flex-shrink-0">
+      <div className="w-80 shrink-0">
         {/* Profile Card */}
         <div className="bg-white rounded-lg shadow p-6 mb-4">
           {/* Profile Picture */}
@@ -927,7 +933,7 @@ function LikedGuidesTab() {
                 </div>
                 <div className="p-4">
                   <div className="flex items-center justify-between gap-2 mb-1">
-                    <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground capitalize">
+                    <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
                       {guide.brand_id} · {guide.model_name}
                     </span>
                     <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 bg-gray-100 border border-gray-200 text-gray-500 shrink-0">

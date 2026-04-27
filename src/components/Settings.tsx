@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { User } from "@supabase/supabase-js";
 import Navbar from "./Navbar";
+import SnakeLoading from "@/components/SnakeLoading";
 
 export default function Settings() {
   const [user, setUser] = useState<User | null>(null);
@@ -79,7 +80,12 @@ export default function Settings() {
   };
 
   if (loading) {
-    return <p>Loading settings...</p>;
+    return (
+      <SnakeLoading
+        title="Loading settings"
+        subtitle="Retrieving your account details and security preferences."
+      />
+    );
   }
 
   return (
