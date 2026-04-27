@@ -6,6 +6,7 @@ import GarageModal, { type NewVehicleInput } from "./garagemodel";
 import GarageViewModal from "./garageviewmodal";
 import GarageEditModal from "./garageeditmodal";
 import { supabase } from "@/lib/supabase";
+import SnakeLoading from "@/components/SnakeLoading";
 
 type GarageVehicle = NewVehicleInput & {
   id: string;
@@ -729,9 +730,11 @@ const saveMaintenanceToDB = async () => {
           ) : null}
 
           {isLoading ? (
-            <div className="mt-3 border border-[#d7d7d7] bg-[#f9f9f9] px-5 py-7 text-center font-mono text-sm uppercase tracking-widest text-[#5f5f5f]">
-              Loading garage...
-            </div>
+            <SnakeLoading
+              overlay
+              title="Loading garage"
+              subtitle="Pulling in your vehicles and maintenance history."
+            />
           ) : !isAuthenticated ? (
             <div className="mt-3 border border-[#d7d7d7] bg-[#f9f9f9] px-5 py-7 text-center font-mono text-sm text-[#3d3d3d]">
               Sign in to view and manage your garage.
