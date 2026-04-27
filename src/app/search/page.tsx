@@ -461,7 +461,7 @@ function SearchGuideCard({
               {guide.time_required}
             </span>
             <span className="text-sm font-bold text-orange-600 group-hover:underline group-hover:text-orange-700 transition-colors cursor-pointer select-none">
-              {isLoggedIn ? "VIEW GUIDE →" : "🔒 LOGIN TO VIEW"}
+              {isLoggedIn ? "VIEW GUIDE →" : "LOGIN TO VIEW"}
             </span>
           </div>
         </div>
