@@ -54,11 +54,25 @@ export async function GET(req: Request) {
       }
     }
 
-    // Attach likes/dislikes to each post
+    // Fetch comment counts for all forum posts
+    let commentCounts: Record<string, number> = {};
+    if (forumIds.length > 0) {
+      const { data: comments, error: commentsError } = await supabase
+        .from("ForumComment")
+        .select("post_id, comment_id");
+      if (!commentsError && comments) {
+        forumIds.forEach((id) => {
+          commentCounts[id] = comments.filter((c) => c.post_id === id).length;
+        });
+      }
+    }
+
+    // Attach likes/dislikes and commentCount to each post
     const postsWithVotes = posts.map((p) => ({
       ...p,
       likes: votesByPost[p.forum_id]?.likes || 0,
       dislikes: votesByPost[p.forum_id]?.dislikes || 0,
+      commentCount: commentCounts[p.forum_id] || 0,
     }));
 
     return NextResponse.json({ posts: postsWithVotes }, { status: 200 });
