@@ -115,35 +115,38 @@ const ProblemEntryScreen = ({ onSubmit }: Props) => {
       setInput("");
       setLoading(true);
 
-      try {
-        const validation = await getNextStep("validate-input", text, []);
+      if (phase === "initial") {
+        setInput("");
+        setLoading(true);
 
-        if (validation.type === "validation" && !validation.isValid) {
-          setError("Enter a vehicle-related problem.");
-          return;
+        try {
+          const enrichedProblem = selectedVehicle
+            ? `Vehicle: ${selectedVehicle.year} ${selectedVehicle.model}\nProblem: ${text}`
+            : text;
+
+          const [validation, result] = await Promise.all([
+            getNextStep("validate-input", text, []),
+            getNextStep("get-questions", enrichedProblem, []),
+          ]);
+
+          if (validation.type === "validation" && !validation.isValid) {
+            setError("Enter a vehicle-related problem.");
+            return;
+          }
+
+          setInitialProblem(enrichedProblem);
+
+          if (result.type === "questions") {
+            setQuestions(result.questions);
+            setIndex(0);
+            setPhase("followup");
+          }
+        } catch {
+          setError("AI request failed.");
+        } finally {
+          setLoading(false);
         }
-
-        const enrichedProblem = selectedVehicle
-          ? `Vehicle: ${selectedVehicle.year} ${selectedVehicle.model}\nProblem: ${text}`
-          : text;
-
-        setInitialProblem(enrichedProblem);
-
-        const result = await getNextStep("get-questions", enrichedProblem, []);
-
-        if (result.type === "diagnosis") {
-          onSubmit(enrichedProblem, result.diagnoses, selectedVehicle);
-        }
-
-        if (result.type === "questions") {
-          setQuestions(result.questions);
-          setIndex(0);
-          setPhase("followup");
-        }
-      } catch {
-        setError("AI request failed.");
-      } finally {
-        setLoading(false);
+        return;
       }
 
       return;

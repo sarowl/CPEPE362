@@ -1,14 +1,43 @@
-// ============================================================
-// POST endpoint: generates a step-by-step repair procedure using Gemma 4 AI.
-// Input: selected diagnosis + vehicle info + problem context
-// Uses: REPAIR_MODE_API_KEY env var (gemma-4-31b model)
-// ============================================================
-// src/app/api/repair_procedure/route.ts
 import { NextResponse } from "next/server";
-import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const API_KEY = process.env.REPAIR_MODE_API_KEY || "";
 const genAI = new GoogleGenerativeAI(API_KEY);
+
+function safeJsonParse(rawText: string) {
+  let clean = rawText.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+  const jsonMatch = clean.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
+  if (jsonMatch) clean = jsonMatch[0];
+  try {
+    return JSON.parse(clean);
+  } catch (e) {
+    console.error("Failed to parse JSON. Raw output:", rawText);
+    throw new Error("Invalid JSON format from AI");
+  }
+}
+
+async function generateWithTimeout(model: any, contents: any, config: any, timeoutMs = 25000) {
+  const timeoutPromise = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error("Request timed out")), timeoutMs)
+  );
+  const generatePromise = model.generateContent({ contents, generationConfig: config });
+  return Promise.race([generatePromise, timeoutPromise]);
+}
+
+async function generateWithRetry(model: any, contents: any, config: any, retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await generateWithTimeout(model, contents, config);
+    } catch (error: any) {
+      const isRetryable = error.status === 503 || error.status === 429 || error.message === "Request timed out";
+      if (isRetryable && i < retries - 1) {
+        await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
+        continue;
+      }
+      throw error;
+    }
+  }
+}
 
 export async function POST(req: Request) {
   try {
@@ -23,102 +52,62 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing diagnosis" }, { status: 400 });
     }
 
-    // Initialize Gemma 4 31B
-    const model = genAI.getGenerativeModel({
-      model: "gemma-4-31b",
-      systemInstruction: 'You are "Autobot", an expert automotive repair assistant. Your goal is to provide highly specific, safe, and actionable repair guidance for DIY mechanics.',
-    });
+    const model = genAI.getGenerativeModel({ model: "gemma-3-27b-it" });
 
     const vehicleInfo = vehicle
-      ? `Vehicle: ${vehicle.year} ${vehicle.make} ${vehicle.model}`
-      : "Vehicle: Unknown";
+      ? `${vehicle.year} ${vehicle.make} ${vehicle.model}`
+      : "Unknown Vehicle";
 
-    const prompt = `
-      You are "Autobot", an expert automotive repair assistant.
+    const prompt = `You are "Autobot", an expert automotive repair assistant.
+ALWAYS respond with raw JSON only. No markdown. No explanation outside the JSON.
 
-      ${vehicleInfo}
+Vehicle: ${vehicleInfo}
+Diagnosis: ${diagnosis.title}
+Description: ${diagnosis.description}
+Urgency: ${diagnosis.urgency}
+Additional context: ${problemContext ?? "None provided."}
 
-      A vehicle has been diagnosed with the following issue:
-      - Diagnosis: ${diagnosis.title}
-      - Description: ${diagnosis.description}
-      - Urgency: ${diagnosis.urgency}
+Generate a step-by-step repair procedure for this specific vehicle and diagnosis.
 
-      Additional context from the user:
-      ${problemContext ?? "No additional context provided."}
+Rules:
+- Tailor steps to the specific make, model, and year (access panels, torque specs, known quirks).
+- Each step: short title (3-6 words) + clear instruction (1-3 sentences).
+- Steps must be in correct mechanic order.
+- Include safety warnings inline where relevant.
+- Include torque specs or measurements inline where relevant.
+- Be specific to the diagnosed issue — no generic advice.
+- Use plain DIY mechanic language.
+- Only list tools genuinely required beyond common hand tools.
+- Include part specs, sizes, or OEM references where relevant.
 
-      Generate a clear, ordered step-by-step repair procedure specific to the
-      ${vehicle ? `${vehicle.year} ${vehicle.model}` : "vehicle"} and this diagnosis.
+Respond with ONLY this JSON structure, no other text:
+{
+  "tools": ["tool 1", "tool 2"],
+  "parts": ["part with spec 1", "part with spec 2"],
+  "steps": [
+    {"id": 1, "title": "Step Title Here", "instruction": "Clear instruction here."},
+    {"id": 2, "title": "Step Title Here", "instruction": "Clear instruction here."}
+  ],
+  "postRepairNote": "2-4 sentences on what to verify after repair.",
+  "nextMaintenance": {
+    "label": "Follow-up maintenance item",
+    "interval": "e.g. 30,000 mi or 12 months"
+  }
+}`;
 
-      Rules:
-      - Tailor steps to the specific make, model, and year where procedures differ
-        (e.g. access panels, torque specs, part numbers, known quirks for that vehicle).
-      - Each step must have a short title (3–6 words) and a clear instruction (1–3 sentences).
-      - Steps must be in the correct order a mechanic would follow.
-      - Include safety warnings inside the instruction text where relevant (e.g. "Ensure the engine is cool before proceeding.").
-      - Include torque specs or measurements inside the instruction text where relevant.
-      - Be specific to the diagnosed issue — do not give generic advice.
-      - Use plain language that a DIY mechanic can understand.
-      - Generate steps depending on the complexity of the diagnosis make it clear and actionable.
+    const result = await generateWithRetry(
+      model,
+      [{ role: "user", parts: [{ text: prompt }] }],
+      { temperature: 0.1 }
+    );
 
-      Also generate:
-      - tools: A list of specific tools required for this repair on this vehicle (e.g. "10mm socket wrench", "brake caliper wind-back tool"). Only list tools that are genuinely required beyond common hand tools. Tailor to the vehicle where relevant (e.g. special sockets or trim removal tools specific to the make/model).
-      - parts: A list of replacement parts or consumables needed (e.g. "Front brake pads (check OEM spec for ${vehicle?.model ?? "this vehicle"})", "Brake fluid DOT 4 — 500ml"). Include specs, sizes, or OEM references where relevant to the specific vehicle.
-      - postRepairNote: A 2–4 sentence post-repair checklist specific to this diagnosis. Tell the mechanic exactly what to verify, test, or inspect after completing the repair before returning the vehicle to normal use.
-      - nextMaintenance: The single most relevant follow-up maintenance item for this repair. Include a short label (e.g. "Brake fluid flush") and a realistic service interval (e.g. "30,000 mi" or "12 months").
-    `;
-
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.1, // Low temperature for technical accuracy
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: SchemaType.OBJECT,
-          properties: {
-            tools: {
-              type: SchemaType.ARRAY,
-              items: { type: SchemaType.STRING },
-            },
-            parts: {
-              type: SchemaType.ARRAY,
-              items: { type: SchemaType.STRING },
-            },
-            steps: {
-              type: SchemaType.ARRAY,
-              items: {
-                type: SchemaType.OBJECT,
-                properties: {
-                  id:          { type: SchemaType.NUMBER },
-                  title:       { type: SchemaType.STRING },
-                  instruction: { type: SchemaType.STRING },
-                },
-                required: ["id", "title", "instruction"],
-              },
-            },
-            postRepairNote: { type: SchemaType.STRING },
-            nextMaintenance: {
-              type: SchemaType.OBJECT,
-              properties: {
-                label:    { type: SchemaType.STRING },
-                interval: { type: SchemaType.STRING },
-              },
-              required: ["label", "interval"],
-            },
-          },
-          required: ["tools", "parts", "steps", "postRepairNote", "nextMaintenance"],
-        },
-      },
-    });
-
-    const responseText = result.response.text();
-    const responseData = JSON.parse(responseText);
-
+    const responseData = safeJsonParse((result as any).response.text());
     return NextResponse.json(responseData);
 
   } catch (error: any) {
     console.error("Repair procedure API error:", error);
     return NextResponse.json(
-      { error: error.message || "Failed to generate repair procedure" }, 
+      { error: error.message || "Failed to generate repair procedure" },
       { status: 500 }
     );
   }
