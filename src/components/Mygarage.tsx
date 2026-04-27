@@ -71,6 +71,9 @@ export default function Mygarage() {
   const [maintenanceEditingId, setMaintenanceEditingId] = useState<string | null>(null);
   const [isSavingMaintenance, setIsSavingMaintenance] = useState(false);
   const [maintenanceFormError, setMaintenanceFormError] = useState<string | null>(null);
+  const [isAddingVehicle, setIsAddingVehicle] = useState(false);
+  const [isUpdatingVehicle, setIsUpdatingVehicle] = useState(false);
+  const [deletingVehicleId, setDeletingVehicleId] = useState<string | null>(null);
 
   const activeVehicle = vehicles.find((vehicle) => vehicle.id === activeVehicleId) ?? null;
   const visibleMaintenanceRows = maintenanceRows
@@ -280,6 +283,8 @@ export default function Mygarage() {
 
 
 const updateVehicleInDB = async (vehicle: GarageVehicle) => {
+ if (isUpdatingVehicle) return;
+ setIsUpdatingVehicle(true);
  const {
     data: { session },
   } = await supabase.auth.getSession();
@@ -334,6 +339,8 @@ const updateVehicleInDB = async (vehicle: GarageVehicle) => {
     await fetchVehicles();
   } catch (err) {
     console.error("Update failed:", err);
+  } finally {
+    setIsUpdatingVehicle(false);
   }
 
 }
@@ -400,6 +407,8 @@ const updateVehicleInDB = async (vehicle: GarageVehicle) => {
 
 
 const saveVehicleToDB = async (vehicle: GarageVehicle) => {
+  if (isAddingVehicle) return;
+  setIsAddingVehicle(true);
   const model = `${vehicle.make} ${vehicle.model}`;
   const color = vehicle.colorName;
 
@@ -445,6 +454,8 @@ const saveVehicleToDB = async (vehicle: GarageVehicle) => {
     console.log("Saved:", data);
   } catch (err) {
     console.error("Save failed:", err);
+  } finally {
+    setIsAddingVehicle(false);
   }
 };
 
@@ -511,6 +522,7 @@ const uploadVehiclePhoto = async (photoFile: File): Promise<string | null> => {
   };
 
   const handleAddVehicle = async (vehicle: NewVehicleInput, photoFile: File | null) => {
+    if (isAddingVehicle) return;
     const id =
       typeof crypto !== "undefined" && "randomUUID" in crypto
         ? crypto.randomUUID()
@@ -556,6 +568,8 @@ const uploadVehiclePhoto = async (photoFile: File): Promise<string | null> => {
   }, []);
 
 const deleteVehicleFromDB = async (id: string) => {
+  if (deletingVehicleId === id) return;
+  setDeletingVehicleId(id);
   const {
     data: { session },
   } = await supabase.auth.getSession();
@@ -604,10 +618,13 @@ const deleteVehicleFromDB = async (id: string) => {
   } catch (err) {
     console.error("Delete failed:", err);
     alert("Delete failed: " + (err instanceof Error ? err.message : String(err)));
+  } finally {
+    setDeletingVehicleId(null);
   }
 };
 
 const saveMaintenanceToDB = async () => {
+  if (isSavingMaintenance) return;
   if (!activeVehicleId) {
     setMaintenanceFormError("Select a vehicle first.");
     return;
@@ -694,10 +711,11 @@ const saveMaintenanceToDB = async () => {
             <button
               type="button"
               onClick={() => setOpen(true)}
-              className="inline-flex cursor-pointer items-center gap-2 border border-[#151515] bg-[#111] px-5 py-2.5 font-mono text-sm font-semibold uppercase tracking-[0.2em] text-white hover:bg-[#2a2a2a]"
+              disabled={isAddingVehicle || isUpdatingVehicle}
+              className="inline-flex cursor-pointer items-center gap-2 border border-[#151515] bg-[#111] px-5 py-2.5 font-mono text-sm font-semibold uppercase tracking-[0.2em] text-white hover:bg-[#2a2a2a] disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Plus className="h-4 w-4" />
-              Add Vehicle
+              {isAddingVehicle ? "Adding..." : "Add Vehicle"}
             </button>
           </div>
         </div>
@@ -808,6 +826,7 @@ const saveMaintenanceToDB = async () => {
                             setEditOpen(true);
                           }}
                           className="cursor-pointer border border-white/70 bg-white/10 px-3 py-1.5 font-mono text-xs uppercase tracking-[0.12em] text-white backdrop-blur-sm transition-colors hover:border-[#f26a2e] hover:bg-[#f26a2e]"
+                          disabled={deletingVehicleId === vehicle.id || isUpdatingVehicle}
                         >
                           Edit
                         </button>
@@ -817,9 +836,10 @@ const saveMaintenanceToDB = async () => {
                             event.stopPropagation();
                             deleteVehicleFromDB(vehicle.id);
                           }}
-                          className="cursor-pointer border border-white/70 bg-white/10 px-3 py-1.5 font-mono text-xs uppercase tracking-[0.12em] text-white backdrop-blur-sm transition-colors hover:border-[#d94343] hover:bg-[#d94343]"
+                          disabled={deletingVehicleId === vehicle.id}
+                          className="cursor-pointer border border-white/70 bg-white/10 px-3 py-1.5 font-mono text-xs uppercase tracking-[0.12em] text-white backdrop-blur-sm transition-colors hover:border-[#d94343] hover:bg-[#d94343] disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                          Delete
+                          {deletingVehicleId === vehicle.id ? "Deleting..." : "Delete"}
                         </button>
                       </div>
                     </div>
@@ -831,11 +851,12 @@ const saveMaintenanceToDB = async () => {
               <button
                 type="button"
                 onClick={() => setOpen(true)}
-                className="flex min-h-45 cursor-pointer flex-col items-center justify-center border-2 border-dashed border-[#c9c9c9] bg-[#f2f2f2]"
+                disabled={isAddingVehicle || isUpdatingVehicle}
+                className="flex min-h-45 cursor-pointer flex-col items-center justify-center border-2 border-dashed border-[#c9c9c9] bg-[#f2f2f2] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Plus className="h-7 w-7" />
                 <span className="mt-3 font-mono text-base font-semibold uppercase tracking-[0.2em] text-[#6f6f6f]">
-                  Add New Vehicle
+                  {isAddingVehicle ? "Adding..." : "Add New Vehicle"}
                 </span>
               </button>
             </div>
@@ -859,11 +880,11 @@ const saveMaintenanceToDB = async () => {
                   resetMaintenanceForm();
                   setAddMaintenanceOpen(true);
                 }}
-                disabled={!activeVehicle}
+                disabled={!activeVehicle || isSavingMaintenance}
                 className="inline-flex items-center gap-2 border border-[#151515] bg-[#111] px-4 py-2 font-mono text-xs font-semibold uppercase tracking-[0.14em] text-white transition hover:bg-[#2a2a2a] disabled:cursor-not-allowed disabled:border-[#9d9d9d] disabled:bg-[#bdbdbd]"
               >
                 <Plus className="h-3.5 w-3.5" />
-                Add Maintenance
+                {isSavingMaintenance ? "Saving..." : "Add Maintenance"}
               </button>
             </div>
 
@@ -898,7 +919,8 @@ const saveMaintenanceToDB = async () => {
                               setMaintenanceFormError(null);
                               setAddMaintenanceOpen(true);
                             }}
-                            className="cursor-pointer border border-[#c9c9c9] px-3 py-1.5 text-xs uppercase tracking-[0.12em] hover:bg-[#ececec]"
+                            disabled={isSavingMaintenance}
+                            className="cursor-pointer border border-[#c9c9c9] px-3 py-1.5 text-xs uppercase tracking-[0.12em] hover:bg-[#ececec] disabled:cursor-not-allowed disabled:opacity-60"
                           >
                             Edit
                           </button>

@@ -1,4 +1,3 @@
-// src/app/api/find_mechanics/route.ts
 import { NextResponse } from "next/server";
 
 const GEOAPIFY_API_KEY = process.env.GEOAPIFY_API_KEY || "";

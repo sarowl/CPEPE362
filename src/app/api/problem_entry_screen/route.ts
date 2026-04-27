@@ -40,9 +40,10 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { callType, initialProblem, qaHistory } = body;
 
-    const model = genAI.getGenerativeModel({ model: "gemma-4-26b-a4b-it" });
+    const model = genAI.getGenerativeModel({ model: "gemma-4-31b-it" });
 
-    const systemInstruction = `You are "Autobot", an expert automotive diagnostic assistant. Focus ONLY on automotive domains. Always respond in valid JSON.`;
+    const systemInstruction = `You are "Autobot", an expert automotive diagnostic assistant. 
+    Focus ONLY on automotive domains. Always respond in valid JSON.`;
 
     // ── Call 0: Validate Input ──────────────────────────────────────────
     if (callType === "validate-input") {

@@ -1,5 +1,12 @@
+// ============================================================
+//
+// PATCH endpoint: updates an existing maintenance log entry.
+// If reminder date changes, updates associated notification.
+// Used by: Mygarage component maintenance edit flow.
+// ============================================================
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { encrypt } from "@/lib/encryption";
 
 const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -53,10 +60,10 @@ export async function PUT(req: NextRequest) {
 		const { data, error } = await supabase
 			.from("Maintenance_History")
 			.update({
-				activity,
-				date,
-				notes: notes || "",
-				reminder: typeof reminder === "string" ? reminder.trim() : "",
+				activity: encrypt(activity),
+				date: encrypt(date),
+				notes: encrypt(notes || ""),
+				reminder: encrypt(typeof reminder === "string" ? reminder.trim() : ""),
 			})
 			.eq("id", id)
 			.eq("user_id", user.id)
@@ -83,4 +90,5 @@ export async function PUT(req: NextRequest) {
 		);
 	}
 }
+
 
