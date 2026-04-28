@@ -1,3 +1,4 @@
+//src\components\AIRepairFlow\Screens\DiagnosisScreen.tsx
 import { useState } from "react";
 import {
   ChevronRight,
