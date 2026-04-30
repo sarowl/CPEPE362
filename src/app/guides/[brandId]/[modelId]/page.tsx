@@ -120,7 +120,7 @@ export default function ModelGuidesPage() {
   }, [brandId, modelId]);
 
   const brandLabel = brandId ? brandId.charAt(0).toUpperCase() + brandId.slice(1) : "";
-  const createGuideUrl = `/guides/create?brand=${brandId}&model=${modelId}`;
+  const createGuideUrl = `/guides/create?brand=${brandId}&model=${modelId}&source=autohub`;
   const createPostUrl  = `/community/forum/create?brand=${brandId}&model=${modelId}&source=autohub`;
 
   return (
@@ -130,9 +130,9 @@ export default function ModelGuidesPage() {
 
         {/* Breadcrumb */}
         <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-widest text-muted-foreground mb-6">
-          <Link href="/car-makers" className="hover:text-ink transition-colors">Directory</Link>
+          <Link href="/car-makers" className="hover:text-primary underline-offset-2 hover:underline cursor-pointer transition-colors">Directory</Link>
           <ChevronRight size={10} />
-          <Link href={`/guides/${brandId}`} className="hover:text-ink transition-colors">{brandLabel}</Link>
+          <Link href={`/guides/${brandId}`} className="hover:text-primary underline-offset-2 hover:underline cursor-pointer transition-colors">{brandLabel}</Link>
           <ChevronRight size={10} />
           <span className="text-ink">{modelName}</span>
         </div>
@@ -166,21 +166,7 @@ export default function ModelGuidesPage() {
               </div>
             </div>
           </div>
-          {/* Action buttons */}
-          <div className="flex flex-col sm:flex-row gap-2 shrink-0">
-            <Link
-              href={createGuideUrl}
-              className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white text-xs font-bold hover:brightness-110 transition-all shadow-[4px_4px_0_0_rgba(0,0,0,0.15)]"
-            >
-              <Plus size={13} /> Create a Guide
-            </Link>
-            <Link
-              href={createPostUrl}
-              className="flex items-center gap-2 px-5 py-2.5 border border-primary text-primary text-xs font-bold hover:bg-primary hover:text-white transition-all"
-            >
-              <MessageCircle size={13} /> Create a Post
-            </Link>
-          </div>
+
         </div>
 
         {/* Tabs */}
@@ -293,8 +279,11 @@ export default function ModelGuidesPage() {
         )}
 
         <div className="mt-10 flex items-center">
-          <button onClick={() => router.back()} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-ink transition-colors">
-            <ArrowLeft size={13} /> Back to models
+          <button
+            onClick={() => router.push(`/guides/${brandId}`)}
+            className="flex items-center gap-2 px-3 py-1.5 border border-border text-[11px] font-bold uppercase tracking-widest bg-background text-ink hover:bg-[#474757] hover:text-white hover:border-[#474757] transition-all"
+          >
+            <ArrowLeft size={12} /> Back to Models
           </button>
         </div>
 
@@ -313,7 +302,7 @@ function GuideCard({
 }) {
   const diffColor = DIFFICULTY_COLORS[guide.difficulty] ?? "bg-secondary text-muted-foreground border-border";
   const diffBar   = DIFFICULTY_BAR[guide.difficulty]   ?? "bg-border";
-  const href      = `/guides/${brandId}/${modelId}/${guide.guide_id}`;
+  const href      = `/guides/${brandId}/${modelId}/${guide.guide_id}?source=autohub`;
   const hasThumbnail = !!guide.thumbnail_url;
   const thumbnailSrc = guide.thumbnail_url ?? "/no-thumbnail.png";
 

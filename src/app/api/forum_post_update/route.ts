@@ -10,19 +10,25 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: "User not authenticated" }, { status: 401 });
     }
 
-    const { forum_id, title, content } = await req.json();
+    const { forum_id, title, content, model_id, car_model } = await req.json();
 
     if (!forum_id || !title || !content) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
+    // Build update payload — only include model fields if they were explicitly provided
+    const updatePayload: Record<string, unknown> = {
+      title,
+      content,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (model_id !== undefined) updatePayload.model_id = model_id || null;
+    if (car_model !== undefined) updatePayload.car_model = car_model || null;
+
     const { data: post, error } = await supabase
       .from("ForumPost")
-      .update({
-        title,
-        content,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updatePayload)
       .eq("forum_id", forum_id)
       .eq("user_id", authData.user.id)
       .select()

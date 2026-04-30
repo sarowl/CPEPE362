@@ -94,12 +94,17 @@ function ForumPostCreateForm() {
     setError(null);
     try {
       setSubmitting(true);
+      // Resolve the selected model's name for the car_model (text) column.
+      // car_model is stored purely as a troubleshooting reference so the
+      // admin "Fix Forum IDs" tool can re-align model_id if it ever goes stale.
+      const selectedModel = models.find((m) => m.id === modelId);
       const res = await fetch("/api/forum_post_create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           brand_id: brand,
           model_id: modelId || null,
+          car_model: selectedModel?.name ?? null,
           title,
           content,
         }),
@@ -253,12 +258,23 @@ function ForumPostCreateForm() {
             >
               {submitting ? "Submitting..." : "Submit Post"}
             </button>
-            <Link
-              href="/forum"
+            <button
+              type="button"
+              onClick={() => {
+                if (source === 'autohub' && preselectedBrand && preselectedModel) {
+                  router.push(`/guides/${preselectedBrand}/${preselectedModel}`);
+                } else if (source === 'autohub' && preselectedBrand) {
+                  router.push(`/guides/${preselectedBrand}`);
+                } else if (source === 'forum') {
+                  router.push('/forum');
+                } else {
+                  router.push('/community/forum');
+                }
+              }}
               className="border border-border px-8 py-3 font-mono text-xs font-bold uppercase tracking-widest hover:border-ink transition-all"
             >
               Cancel
-            </Link>
+            </button>
           </div>
         </form>
 

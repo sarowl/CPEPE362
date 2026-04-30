@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import CarModelCard from "@/components/CarModelCard";
-import { ChevronRight, ArrowLeft, Plus, MessageCircle } from "lucide-react";
+import { ChevronRight, ArrowLeft } from "lucide-react";
 
 interface CarModel {
   id: string;
@@ -127,7 +127,7 @@ export default function BrandModelsPage() {
 
         {/* BREADCRUMB */}
         <nav className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground mb-8">
-          <Link href="/car-makers" className="hover:text-primary transition-colors">
+          <Link href="/car-makers" className="hover:text-primary underline-offset-2 hover:underline cursor-pointer transition-colors">
             Directory
           </Link>
           <ChevronRight size={10} />
@@ -170,20 +170,6 @@ export default function BrandModelsPage() {
                 className="flex items-center gap-2 border border-border px-4 py-2 font-mono text-xs font-bold uppercase tracking-widest hover:border-ink transition-all"
               >
                 <ArrowLeft size={12} /> Back to Directory
-              </Link>
-
-              <Link
-                href={`/guides/create?brand=${brandId}`}
-                className="flex items-center gap-2 bg-primary text-white px-6 py-2 font-mono text-xs font-bold uppercase tracking-widest hover:brightness-110 transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
-              >
-                <Plus size={13} /> Create a Guide
-              </Link>
-
-              <Link
-                href={`/community/forum/create?brand=${brandId}&source=autohub`}
-                className="flex items-center gap-2 border border-primary text-primary px-6 py-2 font-mono text-xs font-bold uppercase tracking-widest hover:bg-primary hover:text-white transition-all"
-              >
-                <MessageCircle size={13} /> Create a Post
               </Link>
             </div>
           </div>

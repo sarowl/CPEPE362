@@ -138,6 +138,14 @@ function CreateGuideForm() {
 
   const paramBrand = searchParams.get("brand") ?? "";
   const paramModel = searchParams.get("model") ?? "";
+  const paramSource = searchParams.get("source") ?? ""; // "community", "contributions", or "autohub"
+
+
+  const getRedirectTarget = () => {
+    if (paramSource === "community") return "/community/guides";
+    if (paramSource === "autohub" && paramBrand && paramModel) return `/guides/${paramBrand}/${paramModel}`;
+    return "/profile?tab=contributions";
+  };
 
   const [brandId,    setBrandId]    = useState(paramBrand);
   const [models,     setModels]     = useState<CarModel[]>([]);
@@ -338,7 +346,7 @@ function CreateGuideForm() {
     if (guideId) {
       await fetch(`/api/guides/${guideId}`, { method: "DELETE" }).catch(() => {});
     }
-    router.push("/profile?tab=contributions");
+    router.push(getRedirectTarget());
   };
 
   const handleTurnToDraft = () => {
@@ -348,7 +356,7 @@ function CreateGuideForm() {
   const handleTurnToDraftLeave = async () => {
     setShowTurnToDraftModal(false);
     if (!guideId) {
-      router.push("/profile?tab=contributions");
+      router.push(getRedirectTarget());
       return;
     }
     // Save current step data if on step 2
@@ -359,7 +367,7 @@ function CreateGuideForm() {
         await fetch(`/api/guides/${guideId}/steps`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ steps: payload }) });
       } catch {} finally { setSaving(false); }
     }
-    router.push("/profile?tab=contributions");
+    router.push(getRedirectTarget());
   };
 
   const handleTurnToDraftContinue = () => {
@@ -391,7 +399,7 @@ function CreateGuideForm() {
             <p className="text-sm text-muted-foreground mb-6 leading-relaxed">Your guide has been submitted for admin review. You'll be notified once it's approved or if any changes are needed.</p>
             <div className="flex gap-3 justify-center">
               <button onClick={()=>router.push("/profile?tab=contributions")} className="px-5 py-2 bg-primary text-white text-xs font-bold hover:brightness-110">View My Contributions</button>
-              <button onClick={()=>router.push("/car-makers")} className="px-5 py-2 border border-border text-xs font-bold hover:bg-secondary">Browse Guides</button>
+              <button onClick={()=>router.push("/community/guides")} className="px-5 py-2 border border-border text-xs font-bold hover:bg-secondary">Browse Guides</button>
             </div>
           </div>
         </main>

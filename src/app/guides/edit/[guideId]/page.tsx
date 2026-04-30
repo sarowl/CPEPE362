@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import {
   ChevronRight, ChevronLeft, Plus, Trash2, Upload, X,
@@ -125,7 +125,17 @@ function ThumbnailCropper({ src, onCropped, onCancel }: { src: string; onCropped
 export default function EditGuidePage() {
   const router  = useRouter();
   const params  = useParams();
+  const searchParams = useSearchParams();
   const guideId = params?.guideId as string;
+  const paramSource = searchParams.get("source") ?? "";
+  const paramBrand  = searchParams.get("brand") ?? "";
+  const paramModel  = searchParams.get("model") ?? "";
+
+  const getRedirectTarget = () => {
+    if (paramSource === "community") return "/community/guides";
+    if (paramSource === "autohub" && paramBrand && paramModel) return `/guides/${paramBrand}/${paramModel}`;
+    return "/profile?tab=contributions";
+  };
 
   const [wizardStep, setWizardStep] = useState<1|2|3>(1);
   const [loadingGuide, setLoadingGuide] = useState(true);
@@ -246,7 +256,7 @@ export default function EditGuidePage() {
     setSteps(origSteps.map((s) => ({ ...s, images: [...s.images], imageFiles: [null,null,null], imagePreviews: [...s.imagePreviews] })));
     pendingStepFiles.current = {};
     setError("");
-    router.push("/profile?tab=contributions");
+    router.push(getRedirectTarget());
   };
 
   const handleThumbnailFileSelect = (file: File) => {
@@ -411,7 +421,7 @@ export default function EditGuidePage() {
             <><h2 className="font-black uppercase tracking-tighter text-xl mb-2">Saved as Draft</h2>
             <p className="text-sm text-muted-foreground mb-6">Your changes have been saved. You can continue editing or submit later.</p></>
           )}
-          <button onClick={() => router.push("/profile?tab=contributions")} className="px-5 py-2.5 bg-primary text-white text-xs font-bold hover:brightness-110 transition-all">Back to Contributions</button>
+          <button onClick={() => router.push(getRedirectTarget())} className="px-5 py-2.5 bg-primary text-white text-xs font-bold hover:brightness-110 transition-all">Back to Contributions</button>
         </div>
       </main>
     </div>
