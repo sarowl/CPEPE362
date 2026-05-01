@@ -2,7 +2,7 @@
 
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import Navbar from "@/components/Navbar";
@@ -68,6 +68,8 @@ export default function GuideViewPage() {
   const params  = useParams();
   const router  = useRouter();
   const guideId = params?.guideId as string;
+  const searchParams = useSearchParams();
+  const source = searchParams.get("source"); // "community", "contributions", or null (autohub)
 
   const [guide,        setGuide]        = useState<Guide | null>(null);
   const [steps,        setSteps]        = useState<Step[]>([]);
@@ -364,8 +366,15 @@ export default function GuideViewPage() {
 
         {/* Footer */}
         <div className="mt-8 pt-6 border-t border-border flex items-center justify-between">
-          <button onClick={() => router.back()} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-ink transition-colors">
-            <ArrowLeft size={13} /> Back to models
+          <button
+            onClick={() => {
+              if (source === "community") router.push("/community/guides");
+              else if (source === "contributions") router.push("/profile?tab=contributions");
+              else router.back();
+            }}
+            className="flex items-center gap-2 px-3 py-1.5 border border-border text-[11px] font-bold uppercase tracking-widest bg-background text-ink hover:bg-[#474757] hover:text-white hover:border-[#474757] transition-all"
+          >
+            <ArrowLeft size={13} /> Back
           </button>
           {creator && (
             <Link href={`/user/${creator.user_id}`} className="text-[10px] font-mono text-muted-foreground hover:text-primary transition-colors uppercase tracking-widest">

@@ -10,7 +10,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "User not authenticated" }, { status: 401 });
     }
 
-    const { brand_id, model_id, title, content } = await req.json();
+    const { brand_id, model_id, car_model, title, content } = await req.json();
 
     if (!brand_id || !title || !content) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -22,6 +22,7 @@ export async function POST(req: Request) {
         user_id: authData.user.id,
         brand_id,
         model_id: model_id || null,
+        car_model: car_model || null,
         title,
         content,
       })

@@ -168,6 +168,10 @@ export default function AdminPage() {
   // Guide model_id migration fix
   const [modelIdFixLoading, setModelIdFixLoading] = useState(false);
   const [modelIdFixResult,  setModelIdFixResult]  = useState<{checked:number;fixed:number;skipped:number;unmatched:number}|null>(null);
+
+  // Forum model_id fix
+  const [forumFixLoading, setForumFixLoading] = useState(false);
+  const [forumFixResult,  setForumFixResult]  = useState<{checked:number;fixed:number;skipped:number;unmatched:number}|null>(null);
   const toast = useCallback((text:string, type:"ok"|"err"="ok")=>{
     setNoticeMsg({text,type}); setTimeout(()=>setNoticeMsg(null),5000);
   },[]);
@@ -696,7 +700,35 @@ export default function AdminPage() {
           {/* ── FORUM ────────────────────────────────────────── */}
           {activeTab==="forum"&&(
             <section>
-              <div className="mb-5"><p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Admin / Forum</p><h2 className="font-black uppercase tracking-tighter text-base mt-0.5">Forum Moderation</h2></div>
+              <div className="mb-5 flex items-start justify-between gap-3">
+                <div><p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Admin / Forum</p><h2 className="font-black uppercase tracking-tighter text-base mt-0.5">Forum Moderation</h2></div>
+                <div className="flex items-center gap-2 mt-1">
+                  {/* Fix Forum IDs: re-align forum posts' model_id using stored car_model text */}
+                  <button
+                    onClick={async()=>{
+                      setForumFixLoading(true);
+                      setForumFixResult(null);
+                      try{
+                        const res=await fetch("/api/forum-fix-model-ids",{method:"POST",headers:{"x-admin-email":session?.email??""}});
+                        const j=await res.json();
+                        if(j.error){toast(`Fix failed: ${j.error}`,"err");}
+                        else{setForumFixResult(j);toast(`Done \u2014 ${j.fixed} post(s) fixed.`,"ok");}
+                      }catch(e:any){toast(`Fix error: ${e.message}`,"err");}
+                      finally{setForumFixLoading(false);}
+                    }}
+                    disabled={forumFixLoading}
+                    title="Re-align forum posts' model_id using stored car_model name"
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold border border-primary text-primary hover:bg-primary hover:text-white transition-colors disabled:opacity-50">
+                    {forumFixLoading ? <RefreshCw size={11} className="animate-spin"/> : <RefreshCw size={11}/>}
+                    Fix Forum IDs
+                  </button>
+                  {forumFixResult&&(
+                    <span className="text-[10px] font-mono text-muted-foreground">
+                      ✓ {forumFixResult.fixed} fixed · {forumFixResult.skipped} ok · {forumFixResult.unmatched} unmatched
+                    </span>
+                  )}
+                </div>
+              </div>
               <div className="border border-border bg-background overflow-hidden">
                 <div className="grid grid-cols-[2.5fr_1.5fr_0.8fr_auto] gap-4 px-5 py-2.5 bg-secondary border-b border-border">{["Post","Author","Status","Actions"].map(h=><span key={h} className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">{h}</span>)}</div>
                 <div className="py-14 text-center text-sm text-muted-foreground">No reported posts.</div>

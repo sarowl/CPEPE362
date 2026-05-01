@@ -192,7 +192,7 @@ export default function ProfileContributionsTab() {
           <p className="text-xs text-muted-foreground mt-1">All repair guides you've created</p>
         </div>
         <Link
-          href="/guides/create"
+          href="/guides/create?source=contributions"
           className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white text-xs font-bold hover:brightness-110 transition-all shadow-[3px_3px_0_0_rgba(0,0,0,0.1)]"
         >
           <Plus size={12} /> Create Guide
@@ -206,7 +206,7 @@ export default function ProfileContributionsTab() {
           <p className="text-xs text-muted-foreground text-center max-w-xs leading-relaxed">
             Share your repair knowledge with the community. Create your first guide!
           </p>
-          <Link href="/guides/create" className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white text-xs font-bold hover:brightness-110 transition-all mt-1">
+          <Link href="/guides/create?source=contributions" className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white text-xs font-bold hover:brightness-110 transition-all mt-1">
             <Plus size={12} /> Create Guide
           </Link>
         </div>
@@ -428,7 +428,7 @@ function GuideCard({
         {/* Public link — approved guides only (navigates to public page) */}
         {canPublicView && (
           <Link
-            href={`/guides/${guide.brand_id}/${guide.model_id}/${guide.guide_id}`}
+            href={`/guides/${guide.brand_id}/${guide.model_id}/${guide.guide_id}?source=contributions`}
             title="View published guide (public page)"
             className="p-1.5 hover:bg-green-50 border border-border rounded transition-colors"
             onClick={(e) => e.stopPropagation()}
@@ -440,7 +440,7 @@ function GuideCard({
         {/* Edit — not available while pending */}
         {canEdit && (
           <Link
-            href={`/guides/edit/${guide.guide_id}`}
+            href={`/guides/edit/${guide.guide_id}?source=contributions`}
             title="Edit guide"
             className="p-1.5 hover:bg-secondary border border-border rounded transition-colors"
             onClick={(e) => e.stopPropagation()}

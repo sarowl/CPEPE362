@@ -90,7 +90,7 @@ export default function CommunityGuidesPage() {
           </div>
           {user && (
             <Link
-              href="/guides/create"
+              href="/guides/create?source=community"
               className="shrink-0 flex items-center gap-2 px-5 py-2.5 bg-primary text-white text-xs font-bold hover:brightness-110 transition-all"
             >
               <Plus size={13} /> Create Guide
@@ -158,7 +158,7 @@ export default function CommunityGuidesPage() {
 // UPDATED 6.3: Community Guide card — thumbnail above card, half-cropped preview
 function GuideCard({ guide, isLoggedIn }: { guide: Guide; isLoggedIn: boolean }) {
   const diffColor = DIFFICULTY_COLORS[guide.difficulty] ?? "bg-secondary text-muted-foreground border-border";
-  const href = `/guides/${guide.brand_id}/${guide.model_id}/${guide.guide_id}`;
+  const href = `/guides/${guide.brand_id}/${guide.model_id}/${guide.guide_id}?source=community`;
   // UPDATED 6.4: Only fallback to /no-thumbnail.png when thumbnail_url is truly absent
   const hasThumbnail = !!guide.thumbnail_url;
   const thumbnailSrc = guide.thumbnail_url ?? "/no-thumbnail.png";
@@ -170,7 +170,7 @@ function GuideCard({ guide, isLoggedIn }: { guide: Guide; isLoggedIn: boolean })
         <img
           src={thumbnailSrc}
           alt={guide.title}
-          className={`w-full h-full object-cover${!hasThumbnail ? " opacity-80" : ""}`}
+          className={`w-full h-full object-cover transition-transform duration-300 group-hover:scale-105${!hasThumbnail ? " opacity-80" : ""}`}
           onError={(e) => {
                 const img = e.target as HTMLImageElement;
                 if (!img.dataset.errored) { img.dataset.errored = "1"; img.src = "/no-thumbnail.png"; } else { img.style.display = "none"; }
@@ -186,7 +186,7 @@ function GuideCard({ guide, isLoggedIn }: { guide: Guide; isLoggedIn: boolean })
             {guide.difficulty}
           </span>
         </div>
-        <h3 className="text-sm font-bold leading-snug line-clamp-2">{guide.title}</h3>
+        <h3 className="text-sm font-bold leading-snug line-clamp-2 group-hover:text-[#ca3500] transition-colors">{guide.title}</h3>
         <p className="text-xs text-muted-foreground leading-relaxed flex-1 line-clamp-3">{guide.summary}</p>
         {guide.required_parts && guide.required_parts.length > 0 && (
           <div className="flex flex-wrap gap-1 pt-1">
