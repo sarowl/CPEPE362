@@ -39,6 +39,18 @@ interface ForumPost {
   Users: { name: string };
 }
 
+interface Document {
+  document_id: string;
+  title: string;
+  description?: string;
+  file_url: string;
+  file_type: string;
+  file_size: number;
+  thumbnail_url?: string | null;
+  created_at: string;
+  user_id: string;
+}
+
 const DIFFICULTY_COLORS: Record<string, string> = {
   Beginner:     "bg-green-50 text-green-700 border-green-200",
   Intermediate: "bg-yellow-50 text-yellow-700 border-yellow-200",
@@ -67,13 +79,14 @@ export default function ModelGuidesPage() {
 
   const [guides,        setGuides]        = useState<Guide[]>([]);
   const [forumPosts,    setForumPosts]    = useState<ForumPost[]>([]);
+  const [documents,     setDocuments]     = useState<Document[]>([]);
   const [creators,      setCreators]      = useState<Record<string, string>>({});
   const [modelName,     setModelName]     = useState("");
   const [modelInfo,     setModelInfo]     = useState<string | null>(null);
   const [modelImg,      setModelImg]      = useState<string | null>(null);
   const [modelCategory, setModelCategory] = useState("");
   const [loading,       setLoading]       = useState(true);
-  const [activeTab,     setActiveTab]     = useState<"guides" | "forum">("guides");
+  const [activeTab,     setActiveTab]     = useState<"guides" | "forum" | "documents">("guides");
 
   useEffect(() => {
     if (!brandId || !modelId) return;
@@ -115,6 +128,14 @@ export default function ModelGuidesPage() {
       .then((r) => r.json())
       .then((json) => {
         setForumPosts(json.posts ?? []);
+      })
+      .catch(() => {});
+
+    // Fetch documents for this model
+    fetch(`/api/documents/by-model?model_id=${modelId}`)
+      .then((r) => r.json())
+      .then((json) => {
+        setDocuments(json.documents ?? []);
       })
       .catch(() => {});
   }, [brandId, modelId]);
@@ -163,6 +184,8 @@ export default function ModelGuidesPage() {
                 <span className="flex items-center gap-1"><BookOpen size={11} /> {guides.length} Guide{guides.length !== 1 ? "s" : ""}</span>
                 <span>·</span>
                 <span className="flex items-center gap-1"><MessageCircle size={11} /> {forumPosts.length} Forum Post{forumPosts.length !== 1 ? "s" : ""}</span>
+                <span>·</span>
+                <span className="flex items-center gap-1"><Package size={11} /> {documents.length} Document{documents.length !== 1 ? "s" : ""}</span>
               </div>
             </div>
           </div>
@@ -186,6 +209,14 @@ export default function ModelGuidesPage() {
             }`}
           >
             <MessageCircle size={12} className="inline mr-1.5" />Forum Posts ({forumPosts.length})
+          </button>
+          <button
+            onClick={() => setActiveTab("documents")}
+            className={`px-5 py-2.5 font-mono text-xs font-bold uppercase tracking-widest border-b-2 transition-colors ${
+              activeTab === "documents" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-ink"
+            }`}
+          >
+            <Package size={12} className="inline mr-1.5" />Documents ({documents.length})
           </button>
         </div>
 
@@ -273,6 +304,30 @@ export default function ModelGuidesPage() {
                     <MessageCircle size={12} /> Create a Post
                   </Link>
                 </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Documents Tab */}
+        {activeTab === "documents" && (
+          <>
+            {documents.length === 0 ? (
+              <div className="border border-dashed border-border bg-background flex flex-col items-center justify-center py-20 gap-4">
+                <Package size={36} className="text-border" />
+                <div className="text-center">
+                  <p className="text-sm font-bold">No documents available for this model yet.</p>
+                  <p className="text-xs text-muted-foreground mt-1">Check back soon for manuals and documentation.</p>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {documents.map((doc) => (
+                  <DocumentCard
+                    key={doc.document_id}
+                    document={doc}
+                  />
+                ))}
               </div>
             )}
           </>
@@ -404,5 +459,89 @@ function GuideCard({
         </div>
       </div>
     </Link>
+  );
+}
+
+function DocumentCard({
+  document,
+}: {
+  document: Document;
+}) {
+  const hasThumbnail = !!document.thumbnail_url;
+  const thumbnailSrc = document.thumbnail_url ?? "/no-thumbnail.png";
+  
+  const getFileTypeColor = (fileType: string) => {
+    const type = fileType.toLowerCase();
+    if (type.includes("pdf")) return "bg-red-50 border-red-200 text-red-700";
+    if (type.includes("doc")) return "bg-blue-50 border-blue-200 text-blue-700";
+    if (type.includes("sheet") || type.includes("xls")) return "bg-green-50 border-green-200 text-green-700";
+    return "bg-secondary border-border text-muted-foreground";
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return "0 B";
+    const k = 1024;
+    const sizes = ["B", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
+  };
+
+  return (
+    <a
+      href={document.file_url}
+      download
+      className="group border border-border bg-background hover:border-primary hover:-translate-y-0.5 hover:shadow-[4px_4px_0_0_var(--primary)] transition-all duration-200 flex flex-col overflow-hidden rounded"
+    >
+      <div className="relative w-full overflow-hidden" style={{ aspectRatio: "16/9" }}>
+        <img
+          src={thumbnailSrc}
+          alt={document.title}
+          className={`w-full h-full object-cover${!hasThumbnail ? " opacity-80" : ""}`}
+          loading="lazy"
+          onError={(e) => {
+            const img = e.target as HTMLImageElement;
+            if (!img.dataset.errored) { img.dataset.errored = "1"; img.src = "/no-thumbnail.png"; } else { img.style.display = "none"; }
+          }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="bg-primary text-white rounded-full p-3 flex items-center justify-center">
+            <Package size={20} />
+          </div>
+        </div>
+      </div>
+
+      <div className="p-4 flex-1 flex flex-col gap-2">
+        <div className="flex items-start justify-between gap-2">
+          <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 border shrink-0 ${getFileTypeColor(document.file_type)}`}>
+            {document.file_type}
+          </span>
+        </div>
+
+        <h3 className="font-black uppercase tracking-tighter text-sm leading-snug group-hover:text-primary transition-colors line-clamp-2">
+          {document.title}
+        </h3>
+
+        {document.description && (
+          <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
+            {document.description}
+          </p>
+        )}
+
+        <div className="pt-2 border-t border-border mt-auto">
+          <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <Package size={10} /> {formatFileSize(document.file_size)}
+            </span>
+            <span className="flex items-center gap-1">
+              <Clock size={10} /> {new Date(document.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+            </span>
+          </div>
+        </div>
+
+        <div className="pt-2 flex items-center gap-2 text-primary text-xs font-bold uppercase tracking-wider">
+          Download <ChevronRight size={12} className="group-hover:translate-x-1 transition-transform" />
+        </div>
+      </div>
+    </a>
   );
 }
