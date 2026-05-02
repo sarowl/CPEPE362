@@ -8,7 +8,12 @@ const nextConfig = {
     },
   },
   reactCompiler: true,
-  proxyClientMaxBodySize: 52428800, // 50MB in bytes
+  api: {
+    bodyParser: {
+      sizeLimit: "50mb",
+    },
+    responseLimit: "50mb",
+  },
 } as any;
 
 export default nextConfig;

@@ -9,7 +9,7 @@ import Busboy from "busboy";
 import { Readable } from "stream";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300; // 5 minutes for large file processing
 
 export async function POST(req: NextRequest) {
   const adminEmail = req.headers.get("x-admin-email") ?? "";
@@ -17,7 +17,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Parse multipart form manually — bypasses Next.js 10MB body limit
   const fields: Record<string, string> = {};
   let fileBuffer: Buffer | null = null;
   let fileName = "";
@@ -45,24 +44,51 @@ export async function POST(req: NextRequest) {
         chunks.push(chunk);
         fileSize += chunk.length;
       });
+      
       stream.on("end", () => {
-        fileBuffer = Buffer.concat(chunks);
+        try {
+          fileBuffer = Buffer.concat(chunks);
+        } catch (err) {
+          reject(new Error(`Failed to concatenate file chunks: ${err}`));
+        }
       });
-      stream.on("error", reject);
+      
+      stream.on("error", (err) => {
+        reject(new Error(`File stream error: ${err}`));
+      });
     });
 
-    busboy.on("finish", resolve);
-    busboy.on("error", reject);
+    busboy.on("finish", () => {
+      resolve();
+    });
+    
+    busboy.on("error", (err) => {
+      reject(new Error(`Busboy parse error: ${err}`));
+    });
 
     // Pipe the raw request body into busboy
-    const nodeStream = Readable.fromWeb(req.body as any);
-    nodeStream.pipe(busboy);
+    try {
+      if (req.body) {
+        const nodeStream = Readable.fromWeb(req.body as any);
+        nodeStream.on("error", (err) => {
+          reject(new Error(`Request stream error: ${err}`));
+        });
+        nodeStream.pipe(busboy);
+      } else {
+        reject(new Error("No request body provided"));
+      }
+    } catch (err) {
+      reject(new Error(`Stream setup error: ${err}`));
+    }
   });
 
   const { brand_id: brandId, model_id: modelId, manual_type: manualType, title } = fields;
 
   if (!fileBuffer || !brandId || !modelId || !manualType || !title) {
-    return NextResponse.json({ error: "Missing required fields." }, { status: 400 });
+    return NextResponse.json({ 
+      error: "Missing required fields.", 
+      received: { brandId, modelId, manualType, title, fileBuffer: !!fileBuffer }
+    }, { status: 400 });
   }
   if (fileMime !== "application/pdf") {
     return NextResponse.json({ error: "Only PDF files are allowed." }, { status: 400 });
