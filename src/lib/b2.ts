@@ -1,4 +1,4 @@
-// lib/b2.ts
+// src/lib/b2.ts
 import { S3Client } from "@aws-sdk/client-s3";
 
 export const b2 = new S3Client({

@@ -1,16 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase-admin";
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
 
 export async function GET(req: NextRequest) {
   const brandId  = req.nextUrl.searchParams.get("brand_id");
   const modelId  = req.nextUrl.searchParams.get("model_id");
 
-  let query = supabaseAdmin
+  let query = createAdminClient()
     .from("manuals")
     .select("id, title, brand_id, model_id, manual_type, file_name, file_size, created_at, car_models(name)")
     .order("created_at", { ascending: false });

@@ -1,5 +1,5 @@
 "use client";
-
+//src\app\guides\[brandId]\[modelId]\page.tsx
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -185,7 +185,7 @@ export default function ModelGuidesPage() {
                 <span>·</span>
                 <span className="flex items-center gap-1"><MessageCircle size={11} /> {forumPosts.length} Forum Post{forumPosts.length !== 1 ? "s" : ""}</span>
                 <span>·</span>
-                <span className="flex items-center gap-1"><Package size={11} /> {documents.length} Document{documents.length !== 1 ? "s" : ""}</span>
+                <span className="flex items-center gap-1"><Package size={11} /> {documents.length} Document {documents.length !== 1 ? "s" : ""}</span>
               </div>
             </div>
           </div>
