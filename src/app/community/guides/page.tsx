@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import Fuse from "fuse.js";
+import type { FuseResultMatch } from "fuse.js";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -83,7 +84,7 @@ export default function CommunityGuidesPage() {
   );
 
   const filtered = useMemo(() => {
-    if (!debouncedQuery) return guides.map(g => ({ item: g }));
+    if (!debouncedQuery) return guides.map(g => ({ item: g, matches: undefined }));
     return fuse.search(debouncedQuery);
   }, [debouncedQuery, fuse, guides]);
 
@@ -186,7 +187,7 @@ export default function CommunityGuidesPage() {
                 key={result.item.guide_id}
                 guide={result.item}
                 isLoggedIn={!!user}
-                matches={result.matches}
+                matches={result.matches ? Array.from(result.matches) : undefined}
                 highlight={debouncedQuery.length > 0}
                 isActive={activeIndex === idx}
               />
@@ -199,7 +200,7 @@ export default function CommunityGuidesPage() {
 }
 
 // Highlight helper
-function highlightText(text: string, matches: Fuse.FuseResultMatch[] | undefined, key: string) {
+function highlightText(text: string, matches: FuseResultMatch[] | undefined, key: string) {
   if (!matches) return text;
   const match = matches.find((m) => m.key === key);
   if (!match || !match.indices.length) return text;
@@ -214,13 +215,15 @@ function highlightText(text: string, matches: Fuse.FuseResultMatch[] | undefined
   return parts;
 }
 
-function GuideCard({ guide, isLoggedIn, matches, highlight, isActive }: {
+interface GuideCardProps {
   guide: Guide;
   isLoggedIn: boolean;
-  matches?: Fuse.FuseResultMatch[];
+  matches?: FuseResultMatch[];
   highlight?: boolean;
   isActive?: boolean;
-}) {
+}
+
+function GuideCard({ guide, isLoggedIn, matches, highlight, isActive }: GuideCardProps) {
   const diffColor = DIFFICULTY_COLORS[guide.difficulty] ?? "bg-secondary text-muted-foreground border-border";
   const href = `/guides/${guide.brand_id}/${guide.model_id}/${guide.guide_id}?source=community`;
   const hasThumbnail = !!guide.thumbnail_url;
