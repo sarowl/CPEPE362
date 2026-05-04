@@ -1,4 +1,5 @@
-// Server client — use this in Server Components, API Routes, and Middleware
+// src\lib\supabase-server.js
+
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
