@@ -537,7 +537,8 @@ export default function AdminPage() {
                         isLast={i===filteredUsers.length-1}
                         onStatusChange={(uid,s)=>setUserStatuses(p=>({...p,[uid]:s}))}
                         onToast={toast}
-                        onDeleteUser={setDeleteUser}/>
+                        onDeleteUser={setDeleteUser}
+                        adminEmail={session.email}/>
                     ))
                 }
               </div>
@@ -941,9 +942,34 @@ export default function AdminPage() {
 }
 
 // ── UserTableRow sub-component ────────────────────────────────
-function UserTableRow({user,status,isLast,onStatusChange,onToast,onDeleteUser}:{user:UserRow;status:"Active"|"Suspended"|"Pending";isLast:boolean;onStatusChange:(uid:string,s:"Active"|"Suspended"|"Pending")=>void;onToast:(m:string,t?:"ok"|"err")=>void;onDeleteUser:(u:UserRow)=>void;}) {
+function UserTableRow({user,status,isLast,onStatusChange,onToast,onDeleteUser,adminEmail}:{user:UserRow;status:"Active"|"Suspended"|"Pending";isLast:boolean;onStatusChange:(uid:string,s:"Active"|"Suspended"|"Pending")=>void;onToast:(m:string,t?:"ok"|"err")=>void;onDeleteUser:(u:UserRow)=>void;adminEmail:string;}) {
+  const [loading,setLoading]=useState(false);
   const ss={Active:"bg-green-50 text-green-700 border-green-200",Suspended:"bg-red-50 text-red-600 border-red-200",Pending:"bg-yellow-50 text-yellow-700 border-yellow-200"}[status];
   const joined=user.created_at?new Date(user.created_at).toLocaleDateString("en-PH",{year:"numeric",month:"short",day:"numeric"}):"—";
+  
+  const handleToggleSuspend=async()=>{
+    setLoading(true);
+    try {
+      const newStatus=status==="Suspended"?"Active":"Suspended";
+      const res=await fetch("/api/admin-suspend-user",{
+        method:"POST",
+        headers:{"Content-Type":"application/json","x-admin-email":adminEmail},
+        body:JSON.stringify({user_id:user.user_id,suspend:newStatus==="Suspended"})
+      });
+      
+      if(res.ok){
+        onStatusChange(user.user_id,newStatus);
+        onToast(`${user.name} ${newStatus==="Suspended"?"suspended":"activated"}.`);
+      } else {
+        const j=await res.json();
+        onToast(j.error??"Action failed.","err");
+      }
+    } catch(e:any){
+      onToast(e.message??"Network error.","err");
+    }
+    setLoading(false);
+  };
+  
   return(
     <div className={`grid grid-cols-[2fr_1.4fr_0.9fr_auto] gap-4 px-5 py-3.5 items-center hover:bg-secondary/30 transition-colors ${!isLast?"border-b border-border":""}`}>
       <span className="text-xs font-medium truncate">{user.name}</span>
@@ -951,9 +977,9 @@ function UserTableRow({user,status,isLast,onStatusChange,onToast,onDeleteUser}:{
       <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 border w-fit ${ss}`}>{status}</span>
       <div className="flex items-center gap-1">
         {status==="Suspended"
-          ?<button title="Activate" onClick={()=>{onStatusChange(user.user_id,"Active");onToast(`${user.name} activated.`);}} className="p-1.5 hover:bg-green-100 rounded"><CheckCircle size={13} className="text-green-600"/></button>
-          :<button title="Suspend"  onClick={()=>{onStatusChange(user.user_id,"Suspended");onToast(`${user.name} suspended.`);}} className="p-1.5 hover:bg-yellow-100 rounded"><Ban size={13} className="text-yellow-600"/></button>}
-        <button title="Delete" onClick={()=>onDeleteUser(user)} className="p-1.5 hover:bg-red-100 rounded"><Trash2 size={13} className="text-red-500"/></button>
+          ?<button title="Activate" onClick={handleToggleSuspend} disabled={loading} className="p-1.5 hover:bg-green-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"><CheckCircle size={13} className="text-green-600"/></button>
+          :<button title="Suspend"  onClick={handleToggleSuspend} disabled={loading} className="p-1.5 hover:bg-yellow-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"><Ban size={13} className="text-yellow-600"/></button>}
+        <button title="Delete" onClick={()=>onDeleteUser(user)} disabled={loading} className="p-1.5 hover:bg-red-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"><Trash2 size={13} className="text-red-500"/></button>
       </div>
     </div>
   );

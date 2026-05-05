@@ -28,6 +28,14 @@ export async function proxy(request: NextRequest) {
   // Refresh session — keeps the user logged in
   const { data: { user } } = await supabase.auth.getUser();
 
+  // Check if user is suspended
+  if (user?.user_metadata?.suspended === true) {
+    const isOnSuspendedPage = request.nextUrl.pathname === "/auth/suspended";
+    if (!isOnSuspendedPage) {
+      return NextResponse.redirect(new URL("/auth/suspended", request.url));
+    }
+  }
+
   // Protect routes — redirect to login if not authenticated
   const protectedRoutes = ["/profile", "/garage", "/settings"];
   const isProtected = protectedRoutes.some((route) =>
