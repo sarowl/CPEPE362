@@ -1,3 +1,4 @@
+// src\lib\supabase.ts
 import { createBrowserClient } from "@supabase/ssr";
 
 export const supabase = createBrowserClient(
@@ -7,8 +8,6 @@ export const supabase = createBrowserClient(
     auth: {
       flowType: "pkce",
     },
-    // Explicit storage configuration to ensure bucket access works correctly
-    // and public URLs are constructed from the right endpoint.
     global: {
       headers: {
         "x-supabase-storage-url": `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1`,

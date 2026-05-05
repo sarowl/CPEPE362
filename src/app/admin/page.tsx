@@ -15,6 +15,7 @@ import {
 import { resolveCarModelImage } from "@/lib/carTypeImage";
 
 
+// ── CarImageCropper (unchanged) ───────────────────────────────
 function CarImageCropper({
   src, onCropped, onCancel,
 }: { src: string; onCropped: (blob: Blob) => void; onCancel: () => void }) {
@@ -100,6 +101,7 @@ function CarImageCropper({
   );
 }
 
+// ── Constants ─────────────────────────────────────────────────
 const BRANDS = [
   { name:"Toyota",id:"toyota"},{name:"Mitsubishi",id:"mitsubishi"},
   { name:"BYD",id:"byd"},{name:"Suzuki",id:"suzuki"},
@@ -120,6 +122,7 @@ interface EditModelForm{ name:string; category:string; years:string; info:string
 const emptyAdd  = ():AddModelForm  => ({name:"",category:"",years:"",info:"",imageFile:null,imagePreview:""});
 const emptyEdit = (m:CarModelRow):EditModelForm => ({name:m.name,category:m.category,years:m.years,info:m.info??"",imageFile:null,imagePreview:m.model_img?`${m.model_img}?t=${Date.now()}`:"" });
 
+// ── AdminPage ─────────────────────────────────────────────────
 export default function AdminPage() {
   const session = useAdminGuard();
   const router  = useRouter();
@@ -162,8 +165,7 @@ export default function AdminPage() {
   const [deleteUserConfirm, setDeleteUserConfirm] = useState("");
 
   // Orphaned folder cleanup
-  const [cleanupLoading,    setCleanupLoading]    = useState(false);
-
+  const [cleanupLoading, setCleanupLoading] = useState(false);
 
   // Guide model_id migration fix
   const [modelIdFixLoading, setModelIdFixLoading] = useState(false);
@@ -172,11 +174,31 @@ export default function AdminPage() {
   // Forum model_id fix
   const [forumFixLoading, setForumFixLoading] = useState(false);
   const [forumFixResult,  setForumFixResult]  = useState<{checked:number;fixed:number;skipped:number;unmatched:number}|null>(null);
+
+  // ── Documents tab state ──────────────────────────────────────
+  const [docBrandId,          setDocBrandId]          = useState("");
+  const [docModels,           setDocModels]           = useState<{id:string;name:string}[]>([]);
+  const [docModelId,          setDocModelId]          = useState("");
+  const [docManualType,       setDocManualType]       = useState<"user_manual"|"service_manual">("user_manual");
+  const [docTitle,            setDocTitle]            = useState("");
+  const [docFile,             setDocFile]             = useState<File|null>(null);
+  const [docUploading,        setDocUploading]        = useState(false);
+  const [docError,            setDocError]            = useState("");
+  const [manuals,             setManuals]             = useState<any[]>([]);
+  const [manualsLoading,      setManualsLoading]      = useState(false);
+  const [viewManualId,        setViewManualId]        = useState<string|null>(null);
+  const [viewUrls,            setViewUrls]            = useState<{viewUrl:string;downloadUrl:string}|null>(null);
+  const [viewUrlLoading,      setViewUrlLoading]      = useState(false);
+  const [deleteManualId,      setDeleteManualId]      = useState<string|null>(null);
+  const [deleteManualName,    setDeleteManualName]    = useState("");
+  const [deleteManualLoading, setDeleteManualLoading] = useState(false);
+
+  // ── Toast ────────────────────────────────────────────────────
   const toast = useCallback((text:string, type:"ok"|"err"="ok")=>{
     setNoticeMsg({text,type}); setTimeout(()=>setNoticeMsg(null),5000);
   },[]);
 
-  // ── Fetch pending count on mount (for notification bell) ──
+  // ── Fetch pending count on mount ─────────────────────────────
   useEffect(()=>{
     if (!session?.email) return;
     fetch("/api/guides-review", { headers:{ "x-admin-email": session.email } })
@@ -185,16 +207,16 @@ export default function AdminPage() {
       .catch(()=>{});
   },[session?.email]);
 
-  // ── Storage Auto-Sync: ensure every car model has a folder in Car_Models/ ──
+  // ── Storage Auto-Sync ────────────────────────────────────────
   useEffect(()=>{
     if (!session?.email) return;
     fetch("/api/car-models-storage-sync", {
       method: "POST",
       headers: { "x-admin-email": session.email },
-    }).catch(()=>{}); // fire-and-forget; errors are non-critical
+    }).catch(()=>{});
   },[session?.email]);
 
-  // ── Users ──────────────────────────────────────────────────
+  // ── Users ────────────────────────────────────────────────────
   const fetchUsers = useCallback(async()=>{
     setLoadingUsers(true);
     const{data,error}=await supabase.from("Users").select("user_id,name,created_at").order("created_at",{ascending:false});
@@ -211,11 +233,8 @@ export default function AdminPage() {
 
   useEffect(()=>{ if(activeTab==="users") fetchUsers(); },[activeTab,fetchUsers]);
 
-
-  // ── Car models — fetch ALL brands at once, grouped by brand_id ──
-  // Fixes the '0 models' count bug: old code only loaded lazily on click.
+  // ── Car models ───────────────────────────────────────────────
   const fetchAllModels = useCallback(async () => {
-    // Mark every brand as loading (null = spinner)
     const loading: Record<string, CarModelRow[] | null> = {};
     BRANDS.forEach(b => { loading[b.id] = null; });
     setCarModels(loading);
@@ -233,7 +252,6 @@ export default function AdminPage() {
       return;
     }
 
-    // Group by brand_id
     const grouped: Record<string, CarModelRow[]> = {};
     BRANDS.forEach(b => { grouped[b.id] = []; });
     (data ?? []).forEach((m: any) => {
@@ -244,7 +262,6 @@ export default function AdminPage() {
     setCarModels(grouped);
   }, [toast]);
 
-  // Reload when tab becomes active
   useEffect(() => {
     if (activeTab === "car-models") fetchAllModels();
   }, [activeTab, fetchAllModels]);
@@ -253,7 +270,74 @@ export default function AdminPage() {
     setExpandedBrand(prev => (prev === brandId ? null : brandId));
   };
 
-  // ── Add model ──────────────────────────────────────────────
+  // ── Documents: fetch models when brand changes ───────────────
+  useEffect(()=>{
+    if(!docBrandId){ setDocModels([]); setDocModelId(""); return; }
+    supabase.from("car_models").select("id,name").eq("brand_id",docBrandId).order("name")
+      .then(({data})=>{ setDocModels(data??[]); setDocModelId(""); });
+  },[docBrandId]);
+
+  // ── Documents: fetch manuals list ────────────────────────────
+  const fetchManuals = useCallback(async()=>{
+    setManualsLoading(true);
+    const res  = await fetch("/api/manuals/list");
+    const json = await res.json();
+    setManuals(json.manuals??[]);
+    setManualsLoading(false);
+  },[]);
+
+  useEffect(()=>{ if(activeTab==="documents") fetchManuals(); },[activeTab,fetchManuals]);
+
+  // ── Documents: upload ────────────────────────────────────────
+  const handleManualUpload = async()=>{
+    setDocError("");
+    if(!docBrandId)     { setDocError("Select a brand.");     return; }
+    if(!docModelId)     { setDocError("Select a car model."); return; }
+    if(!docTitle.trim()){ setDocError("Enter a title.");      return; }
+    if(!docFile)        { setDocError("Choose a PDF file.");  return; }
+    setDocUploading(true);
+    const fd = new FormData();
+    fd.append("file",        docFile);
+    fd.append("brand_id",    docBrandId);
+    fd.append("model_id",    docModelId);
+    fd.append("manual_type", docManualType);
+    fd.append("title",       docTitle.trim());
+    const res  = await fetch("/api/manuals/upload",{ method:"POST", headers:{"x-admin-email":session?.email??""}, body:fd });
+    const json = await res.json();
+    if(!res.ok){ setDocError(json.error??"Upload failed."); setDocUploading(false); return; }
+    toast(`"${json.manual.title}" uploaded successfully.`);
+    setDocTitle(""); setDocFile(null); setDocBrandId(""); setDocModelId(""); setDocModels([]);
+    fetchManuals();
+    setDocUploading(false);
+  };
+
+  // ── Documents: open viewer ───────────────────────────────────
+  const handleOpenViewer = async(manualId:string)=>{
+    setViewManualId(manualId); setViewUrls(null); setViewUrlLoading(true);
+    const res  = await fetch(`/api/manuals/url?id=${manualId}`);
+    const json = await res.json();
+    setViewUrls(json); setViewUrlLoading(false);
+  };
+
+  // ── Documents: delete ────────────────────────────────────────
+  const handleDeleteManual = async()=>{
+    if(!deleteManualId||!session?.email) return;
+    setDeleteManualLoading(true);
+    const res = await fetch("/api/manuals/delete",{
+      method:"DELETE",
+      headers:{"Content-Type":"application/json","x-admin-email":session.email},
+      body:JSON.stringify({manual_id:deleteManualId}),
+    });
+    if(res.ok){
+      setManuals(prev=>prev.filter(m=>m.id!==deleteManualId));
+      toast(`"${deleteManualName}" deleted.`);
+    } else {
+      const j=await res.json(); toast(j.error??"Delete failed.","err");
+    }
+    setDeleteManualLoading(false); setDeleteManualId(null); setDeleteManualName("");
+  };
+
+  // ── Add model ────────────────────────────────────────────────
   const handleAddModelSubmit=async()=>{
     if(!addModelFor) return; setAddError("");
     if(!addForm.name.trim()){setAddError("Model name required.");return;}
@@ -276,9 +360,7 @@ export default function AdminPage() {
         if(imgRes.ok) newModel={...newModel,model_img:`${imgJson.url}?t=${Date.now()}`};
       }
 
-      // Sync storage folders so new model always has a folder
       fetch("/api/car-models-storage-sync",{method:"POST",headers:{"x-admin-email":session?.email??""}}).catch(()=>{});
-
       setCarModels(prev=>({...prev,[addModelFor]:[...(prev[addModelFor]??[]),newModel]}));
       toast(`"${newModel.name}" added to ${BRANDS.find(b=>b.id===addModelFor)?.name}.`);
       setAddModelFor(null); setAddForm(emptyAdd());
@@ -286,7 +368,7 @@ export default function AdminPage() {
     setAddLoading(false);
   };
 
-  // ── Edit model ─────────────────────────────────────────────
+  // ── Edit model ───────────────────────────────────────────────
   const handleEditSubmit=async()=>{
     if(!editModel||!editForm) return; setEditError("");
     if(!editForm.name.trim()){setEditError("Model name required.");return;}
@@ -321,7 +403,7 @@ export default function AdminPage() {
     setEditLoading(false);
   };
 
-  // ── Delete model ───────────────────────────────────────────
+  // ── Delete model ─────────────────────────────────────────────
   const handleDeleteModel=async()=>{
     if(!deleteModel) return;
     setDeleteLoading(true);
@@ -342,7 +424,7 @@ export default function AdminPage() {
     setDeleteModel(null);
   };
 
-  // ── Delete user ───────────────────────────────────────────
+  // ── Delete user ──────────────────────────────────────────────
   const handleDeleteUser=async()=>{
     if(!deleteUser||!session?.email) return;
     if(deleteUserConfirm.trim().toLowerCase()!==(deleteUser.name??"").trim().toLowerCase()){
@@ -369,8 +451,10 @@ export default function AdminPage() {
 
   const filteredUsers = users.filter(u => u.name.toLowerCase().includes(searchUser.toLowerCase()));
 
+  // ── RENDER ───────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-paper text-ink flex flex-col">
+
       {/* ── Car Model Image Crop Modals ── */}
       {addCropSrc && (
         <CarImageCropper
@@ -413,7 +497,6 @@ export default function AdminPage() {
         </div>
         <div className="flex items-center gap-3">
           <span className="text-xs text-primary-foreground/50 font-mono hidden md:block">{session.name}</span>
-          {/* Bell — red only when there are pending guides */}
           <button
             className="relative p-1.5 hover:bg-secondary/20 rounded"
             onClick={() => setActiveTab("guides")}
@@ -439,12 +522,12 @@ export default function AdminPage() {
         {/* ── Sidebar ── */}
         <aside className="w-52 shrink-0 border-r border-border bg-background flex flex-col sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto">
           <nav className="flex flex-col p-3 gap-0.5">
-            {([ 
-              {id:"users",     icon:<Users size={14}/>,    label:"Users"},
-              {id:"guides",    icon:<BookOpen size={14}/>, label:"Guides", badge: pendingCount},
-              {id:"car-models",icon:<Car size={14}/>,      label:"Car Models"},
-              {id:"documents", icon:<FileText size={14}/>, label:"Documents"},
-              {id:"reports",   icon:<BarChart2 size={14}/>,label:"Reports"},
+            {([
+              {id:"users",     icon:<Users size={14}/>,        label:"Users"},
+              {id:"guides",    icon:<BookOpen size={14}/>,     label:"Guides", badge: pendingCount},
+              {id:"car-models",icon:<Car size={14}/>,          label:"Car Models"},
+              {id:"documents", icon:<FileText size={14}/>,     label:"Documents"},
+              {id:"reports",   icon:<BarChart2 size={14}/>,    label:"Reports"},
               {id:"forum",     icon:<MessageSquare size={14}/>,label:"Forum"},
             ] as {id:Tab;icon:React.ReactNode;label:string;badge?:number}[]).map(item=>(
               <button key={item.id} onClick={()=>setActiveTab(item.id)}
@@ -465,7 +548,7 @@ export default function AdminPage() {
         {/* ── Main content ── */}
         <main className="flex-1 overflow-y-auto p-8">
 
-          {/* ── USERS ────────────────────────────────────────── */}
+          {/* ── USERS ── */}
           {activeTab==="users"&&(
             <section>
               <div className="flex items-center justify-between mb-5">
@@ -473,12 +556,9 @@ export default function AdminPage() {
                   <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Admin / Users</p>
                   <h2 className="font-black uppercase tracking-tighter text-base mt-0.5">User Management</h2>
                 </div>
-                {/* Right-side action buttons */}
                 <div className="flex items-center gap-2">
-                  <button
-                    onClick={fetchUsers}
-                    className="flex items-center gap-1.5 px-3 py-1.5 border border-border hover:bg-secondary transition-colors text-xs font-semibold"
-                  >
+                  <button onClick={fetchUsers}
+                    className="flex items-center gap-1.5 px-3 py-1.5 border border-border hover:bg-secondary transition-colors text-xs font-semibold">
                     <RefreshCw size={12} className={`text-muted-foreground ${loadingUsers?"animate-spin":""}`}/>
                     <span className="text-muted-foreground">Refresh</span>
                   </button>
@@ -505,23 +585,19 @@ export default function AdminPage() {
                       setCleanupLoading(false);
                     }}
                     disabled={cleanupLoading}
-                    className="flex items-center gap-1.5 px-3 py-1.5 border border-orange-300 hover:bg-orange-50 transition-colors text-xs font-semibold disabled:opacity-60"
-                  >
+                    className="flex items-center gap-1.5 px-3 py-1.5 border border-orange-300 hover:bg-orange-50 transition-colors text-xs font-semibold disabled:opacity-60">
                     {cleanupLoading
                       ? <RefreshCw size={12} className="text-orange-500 animate-spin"/>
-                      : <Trash2 size={12} className="text-orange-500"/>
-                    }
+                      : <Trash2 size={12} className="text-orange-500"/>}
                     <span className="text-orange-500">Cleanup Orphans</span>
                   </button>
                 </div>
               </div>
-              {/* Search */}
               <div className="flex items-center gap-2 border border-border bg-background px-3 mb-4 w-full max-w-xs">
                 <Search size={13} className="text-muted-foreground shrink-0"/>
                 <input value={searchUser} onChange={e=>setSearchUser(e.target.value)}
                   placeholder="Search users..." className="flex-1 h-9 bg-transparent text-xs focus:outline-none font-mono"/>
               </div>
-              {/* Table */}
               <div className="border border-border bg-background overflow-hidden">
                 <div className="grid grid-cols-[2fr_1.4fr_0.9fr_auto] gap-4 px-5 py-2.5 bg-secondary border-b border-border">
                   {["Name","Joined","Status","Actions"].map(h=>(
@@ -545,7 +621,7 @@ export default function AdminPage() {
             </section>
           )}
 
-          {/* ── GUIDES ───────────────────────────────────────── */}
+          {/* ── GUIDES ── */}
           {activeTab==="guides"&&(
             <AdminGuidesTab
               adminEmail={session.email}
@@ -554,7 +630,7 @@ export default function AdminPage() {
             />
           )}
 
-          {/* ── CAR MODELS ───────────────────────────────────── */}
+          {/* ── CAR MODELS ── */}
           {activeTab==="car-models"&&(
             <section>
               <div className="mb-5 flex items-start justify-between gap-3">
@@ -563,7 +639,6 @@ export default function AdminPage() {
                   <h2 className="font-black uppercase tracking-tighter text-base mt-0.5">Car Model Management</h2>
                 </div>
                 <div className="flex items-center gap-2 mt-1">
-                  {/* One-time fix: re-link guides whose model_id is stale after car_models were recreated */}
                   <button
                     onClick={async()=>{
                       setModelIdFixLoading(true);
@@ -577,7 +652,6 @@ export default function AdminPage() {
                       finally{setModelIdFixLoading(false);}
                     }}
                     disabled={modelIdFixLoading}
-                    title="Re-link guides whose model_id is stale after car_models were recreated"
                     className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold border border-primary text-primary hover:bg-primary hover:text-white transition-colors disabled:opacity-50">
                     {modelIdFixLoading ? <RefreshCw size={11} className="animate-spin"/> : <RefreshCw size={11}/>}
                     Fix Guide IDs
@@ -602,18 +676,16 @@ export default function AdminPage() {
                         onClick={()=>handleBrandToggle(brand.id)}>
                         <img src={`/car-makers/${brand.id}.png`} alt={brand.name} className="w-7 h-7 object-contain grayscale" onError={e=>{(e.target as HTMLImageElement).style.display="none";}}/>
                         <span className="font-bold text-xs uppercase tracking-widest flex-1">{brand.name}</span>
-                        {models===null || models===undefined
+                        {models===null||models===undefined
                           ?<span className="text-[9px] font-mono text-muted-foreground uppercase"><RefreshCw size={9} className="inline animate-spin mr-1"/>loading</span>
                           :<span className="text-[9px] font-mono text-muted-foreground uppercase">{models.length} model{models.length!==1?"s":""}</span>
                         }
                         <ChevronRight size={13} className={`text-muted-foreground transition-transform duration-200 ${expandedBrand===brand.id?"rotate-90":""}`}/>
                       </button>
-
                       {expandedBrand===brand.id&&(
                         <div className="border-t border-border bg-secondary/20 px-5 py-4">
                           {(models===null||models===undefined)&&<div className="flex items-center gap-2 text-xs text-muted-foreground py-2"><RefreshCw size={11} className="animate-spin"/> Loading...</div>}
                           {Array.isArray(models)&&models.length===0&&<p className="text-xs text-muted-foreground py-1 mb-3">No models yet for this brand.</p>}
-
                           {Array.isArray(models)&&models.length>0&&(
                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 mb-4">
                               {models.map(m=>(
@@ -622,7 +694,7 @@ export default function AdminPage() {
                                     <img
                                       src={resolveCarModelImage(m.model_img, m.category)}
                                       alt={m.name}
-                                      className={`w-full h-full object-cover${!m.model_img ? " opacity-80" : ""}`}
+                                      className={`w-full h-full object-cover${!m.model_img?" opacity-80":""}`}
                                       onError={(e)=>{(e.target as HTMLImageElement).src="/no-thumbnail.png";}}
                                     />
                                   </div>
@@ -647,7 +719,6 @@ export default function AdminPage() {
                               ))}
                             </div>
                           )}
-
                           <button
                             onClick={()=>{setAddForm(emptyAdd());setAddError("");setAddModelFor(brand.id);}}
                             className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold border border-dashed border-border hover:border-ink hover:bg-secondary transition-all mt-1">
@@ -662,49 +733,165 @@ export default function AdminPage() {
             </section>
           )}
 
-          {/* ── DOCUMENTS ──────────────────────────────────── */}
+          {/* ── DOCUMENTS ── */}
           {activeTab==="documents"&&(
             <section>
-              <div className="mb-5"><p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Admin / Documents</p><h2 className="font-black uppercase tracking-tighter text-base mt-0.5">Document Management</h2></div>
-              <div className="border border-dashed border-border bg-background p-10 flex flex-col items-center justify-center gap-3 mb-6">
-                <div className="w-12 h-12 bg-secondary flex items-center justify-center"><Upload size={22} className="text-muted-foreground"/></div>
-                <p className="text-sm font-bold">Upload a Vehicle Manual (PDF)</p>
-                <div className="flex flex-wrap gap-3 mt-2 items-center justify-center">
-                  <select className="border border-border bg-background px-3 py-2 text-xs focus:outline-none"><option value="">— Select Brand —</option>{BRANDS.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select>
-                  <label className="px-3 py-2 border border-border bg-secondary text-xs font-bold cursor-pointer">Choose PDF<input type="file" accept=".pdf" className="hidden" onChange={()=>toast("PDF selected — upload coming soon.")}/></label>
-                  <button onClick={()=>toast("Document upload coming soon.")} className="px-4 py-2 bg-primary text-white text-xs font-bold hover:brightness-110">Upload</button>
+              <div className="mb-5 flex items-start justify-between">
+                <div>
+                  <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Admin / Documents</p>
+                  <h2 className="font-black uppercase tracking-tighter text-base mt-0.5">Document Management</h2>
                 </div>
+                <button onClick={fetchManuals}
+                  className="flex items-center gap-1.5 px-3 py-1.5 border border-border hover:bg-secondary transition-colors text-xs font-semibold">
+                  <RefreshCw size={12} className={manualsLoading?"animate-spin":""}/>
+                  <span className="text-muted-foreground">Refresh</span>
+                </button>
               </div>
+
+              {/* Upload panel */}
+              <div className="border border-border bg-background p-6 mb-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Upload size={14} className="text-muted-foreground"/>
+                  <h3 className="text-xs font-black uppercase tracking-tighter">Upload Vehicle Manual (PDF)</h3>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block">Brand <span className="text-primary">*</span></label>
+                    <select value={docBrandId} onChange={e=>setDocBrandId(e.target.value)}
+                      className="w-full border border-border bg-background px-3 py-2 text-xs focus:outline-none focus:border-ink">
+                      <option value="">— Select Brand —</option>
+                      {BRANDS.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block">Car Model <span className="text-primary">*</span></label>
+                    <select value={docModelId} onChange={e=>setDocModelId(e.target.value)}
+                      disabled={!docBrandId||docModels.length===0}
+                      className="w-full border border-border bg-background px-3 py-2 text-xs focus:outline-none focus:border-ink disabled:opacity-50">
+                      <option value="">{!docBrandId?"Select a brand first":docModels.length===0?"No models found":"— Select Model —"}</option>
+                      {docModels.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block">Manual Type <span className="text-primary">*</span></label>
+                    <select value={docManualType} onChange={e=>setDocManualType(e.target.value as any)}
+                      className="w-full border border-border bg-background px-3 py-2 text-xs focus:outline-none focus:border-ink">
+                      <option value="user_manual">User Manual</option>
+                      <option value="service_manual">Service Manual</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block">Title <span className="text-primary">*</span></label>
+                    <input type="text" placeholder="e.g. Corolla Cross 2023 Owner's Manual"
+                      value={docTitle} onChange={e=>setDocTitle(e.target.value)}
+                      className="w-full border border-border bg-background px-3 py-2 text-xs focus:outline-none focus:border-ink"/>
+                  </div>
+                </div>
+                <div className="space-y-1 mb-4">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block">PDF File <span className="text-primary">*</span></label>
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-2 px-3 py-2 border border-dashed border-border hover:border-ink cursor-pointer text-xs font-bold text-muted-foreground hover:text-ink transition-all">
+                      <FileText size={13}/> {docFile ? docFile.name : "Choose PDF"}
+                      <input type="file" accept=".pdf,application/pdf" className="hidden"
+                        onChange={e=>{ const f=e.target.files?.[0]; if(f) setDocFile(f); e.target.value=""; }}/>
+                    </label>
+                    {docFile&&<span className="text-[10px] text-muted-foreground font-mono">{(docFile.size/1024/1024).toFixed(2)} MB</span>}
+                    {docFile&&(
+                      <button onClick={()=>setDocFile(null)} className="p-1 hover:bg-secondary rounded">
+                        <X size={12} className="text-muted-foreground"/>
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {docError&&<p className="text-xs text-red-600 flex items-center gap-1.5 mb-3"><XCircle size={12}/> {docError}</p>}
+                <button onClick={handleManualUpload} disabled={docUploading}
+                  className="flex items-center gap-2 px-5 py-2 bg-ink text-white text-xs font-bold hover:bg-ink/80 disabled:opacity-60 transition-colors">
+                  {docUploading?<><RefreshCw size={12} className="animate-spin"/> Uploading...</>:<><Upload size={12}/> Upload Manual</>}
+                </button>
+              </div>
+
+              {/* Manuals table */}
               <div className="border border-border bg-background overflow-hidden">
-                <div className="grid grid-cols-[2fr_1fr_1fr_auto] gap-4 px-5 py-2.5 bg-secondary border-b border-border">{["Document","Brand","Uploaded","Actions"].map(h=><span key={h} className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">{h}</span>)}</div>
-                <div className="py-14 text-center text-sm text-muted-foreground">No documents uploaded yet.</div>
+                <div className="grid grid-cols-[2.5fr_1fr_0.8fr_0.7fr_auto] gap-4 px-5 py-2.5 bg-secondary border-b border-border">
+                  {["Title","Model","Type","Size","Actions"].map(h=>(
+                    <span key={h} className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">{h}</span>
+                  ))}
+                </div>
+                {manualsLoading
+                  ?<div className="flex items-center justify-center gap-2 py-10 text-xs text-muted-foreground"><RefreshCw size={13} className="animate-spin"/> Loading...</div>
+                  :manuals.length===0
+                    ?<div className="py-14 text-center text-sm text-muted-foreground">No manuals uploaded yet.</div>
+                    :manuals.map((m,i)=>(
+                      <div key={m.id}
+                        className={`grid grid-cols-[2.5fr_1fr_0.8fr_0.7fr_auto] gap-4 px-5 py-3 items-center hover:bg-secondary/30 transition-colors ${i<manuals.length-1?"border-b border-border":""}`}>
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium truncate">{m.title}</p>
+                          <p className="text-[10px] text-muted-foreground truncate">{m.file_name}</p>
+                        </div>
+                        <span className="text-[10px] text-muted-foreground truncate">{m.car_models?.name??"-"}</span>
+                        <span className={`text-[9px] font-bold uppercase tracking-wide px-2 py-0.5 border w-fit
+                          ${m.manual_type==="user_manual"
+                            ?"bg-blue-50 text-blue-700 border-blue-200"
+                            :"bg-amber-50 text-amber-700 border-amber-200"}`}>
+                          {m.manual_type==="user_manual"?"User":"Service"}
+                        </span>
+                        <span className="text-[10px] font-mono text-muted-foreground">
+                          {(m.file_size/1024/1024).toFixed(1)} MB
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <button title="View PDF" onClick={()=>handleOpenViewer(m.id)}
+                            className="p-1.5 hover:bg-secondary rounded">
+                            <FileText size={13} className="text-blue-500"/>
+                          </button>
+                          <button title="Delete" onClick={()=>{ setDeleteManualId(m.id); setDeleteManualName(m.title); }}
+                            className="p-1.5 hover:bg-red-50 rounded">
+                            <Trash2 size={13} className="text-red-500"/>
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                }
               </div>
             </section>
           )}
 
-          {/* ── REPORTS ──────────────────────────────────────── */}
+          {/* ── REPORTS ── */}
           {activeTab==="reports"&&(
             <section>
-              <div className="mb-5"><p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Admin / Reports</p><h2 className="font-black uppercase tracking-tighter text-base mt-0.5">Platform Reports</h2></div>
+              <div className="mb-5">
+                <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Admin / Reports</p>
+                <h2 className="font-black uppercase tracking-tighter text-base mt-0.5">Platform Reports</h2>
+              </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                {[{label:"Total Users",value:users.length||"—",icon:<Users size={17}/>,accent:"border-blue-200 bg-blue-50",text:"text-blue-600"},
-                  {label:"Active Guides",value:"—",icon:<BookOpen size={17}/>,accent:"border-green-200 bg-green-50",text:"text-green-600"},
-                  {label:"Pending Reviews",value:pendingCount||"—",icon:<Clock size={17}/>,accent:"border-yellow-200 bg-yellow-50",text:"text-yellow-600"},
-                  {label:"Filed Reports",value:"—",icon:<BarChart2 size={17}/>,accent:"border-red-200 bg-red-50",text:"text-red-500"}].map(s=>(
-                  <div key={s.label} className={`border p-5 ${s.accent}`}><span className={`${s.text} mb-3 block`}>{s.icon}</span><p className="text-2xl font-black">{s.value}</p><p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground mt-1">{s.label}</p></div>
+                {[
+                  {label:"Total Users",    value:users.length||"—", icon:<Users size={17}/>,    accent:"border-blue-200 bg-blue-50",   text:"text-blue-600"},
+                  {label:"Active Guides",  value:"—",               icon:<BookOpen size={17}/>, accent:"border-green-200 bg-green-50", text:"text-green-600"},
+                  {label:"Pending Reviews",value:pendingCount||"—", icon:<Clock size={17}/>,    accent:"border-yellow-200 bg-yellow-50",text:"text-yellow-600"},
+                  {label:"Filed Reports",  value:"—",               icon:<BarChart2 size={17}/>,accent:"border-red-200 bg-red-50",     text:"text-red-500"},
+                ].map(s=>(
+                  <div key={s.label} className={`border p-5 ${s.accent}`}>
+                    <span className={`${s.text} mb-3 block`}>{s.icon}</span>
+                    <p className="text-2xl font-black">{s.value}</p>
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground mt-1">{s.label}</p>
+                  </div>
                 ))}
               </div>
-              <div className="border border-border bg-background p-8 flex flex-col items-center justify-center h-52 gap-2"><BarChart2 size={28} className="text-border"/><p className="text-xs font-mono text-muted-foreground uppercase tracking-widest">Chart Area — Coming Soon</p></div>
+              <div className="border border-border bg-background p-8 flex flex-col items-center justify-center h-52 gap-2">
+                <BarChart2 size={28} className="text-border"/>
+                <p className="text-xs font-mono text-muted-foreground uppercase tracking-widest">Chart Area — Coming Soon</p>
+              </div>
             </section>
           )}
 
-          {/* ── FORUM ────────────────────────────────────────── */}
+          {/* ── FORUM ── */}
           {activeTab==="forum"&&(
             <section>
               <div className="mb-5 flex items-start justify-between gap-3">
-                <div><p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Admin / Forum</p><h2 className="font-black uppercase tracking-tighter text-base mt-0.5">Forum Moderation</h2></div>
+                <div>
+                  <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Admin / Forum</p>
+                  <h2 className="font-black uppercase tracking-tighter text-base mt-0.5">Forum Moderation</h2>
+                </div>
                 <div className="flex items-center gap-2 mt-1">
-                  {/* Fix Forum IDs: re-align forum posts' model_id using stored car_model text */}
                   <button
                     onClick={async()=>{
                       setForumFixLoading(true);
@@ -713,12 +900,11 @@ export default function AdminPage() {
                         const res=await fetch("/api/forum-fix-model-ids",{method:"POST",headers:{"x-admin-email":session?.email??""}});
                         const j=await res.json();
                         if(j.error){toast(`Fix failed: ${j.error}`,"err");}
-                        else{setForumFixResult(j);toast(`Done \u2014 ${j.fixed} post(s) fixed.`,"ok");}
+                        else{setForumFixResult(j);toast(`Done — ${j.fixed} post(s) fixed.`,"ok");}
                       }catch(e:any){toast(`Fix error: ${e.message}`,"err");}
                       finally{setForumFixLoading(false);}
                     }}
                     disabled={forumFixLoading}
-                    title="Re-align forum posts' model_id using stored car_model name"
                     className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold border border-primary text-primary hover:bg-primary hover:text-white transition-colors disabled:opacity-50">
                     {forumFixLoading ? <RefreshCw size={11} className="animate-spin"/> : <RefreshCw size={11}/>}
                     Fix Forum IDs
@@ -731,7 +917,11 @@ export default function AdminPage() {
                 </div>
               </div>
               <div className="border border-border bg-background overflow-hidden">
-                <div className="grid grid-cols-[2.5fr_1.5fr_0.8fr_auto] gap-4 px-5 py-2.5 bg-secondary border-b border-border">{["Post","Author","Status","Actions"].map(h=><span key={h} className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">{h}</span>)}</div>
+                <div className="grid grid-cols-[2.5fr_1.5fr_0.8fr_auto] gap-4 px-5 py-2.5 bg-secondary border-b border-border">
+                  {["Post","Author","Status","Actions"].map(h=>(
+                    <span key={h} className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">{h}</span>
+                  ))}
+                </div>
                 <div className="py-14 text-center text-sm text-muted-foreground">No reported posts.</div>
               </div>
             </section>
@@ -861,7 +1051,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* ══ DELETE CONFIRM MODAL ══ */}
+      {/* ══ DELETE MODEL CONFIRM MODAL ══ */}
       {deleteModel&&(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 backdrop-blur-sm px-4">
           <div className="w-full max-w-sm bg-background border border-border shadow-[6px_6px_0_0_var(--ink)] p-6">
@@ -918,59 +1108,99 @@ export default function AdminPage() {
               )}
             </div>
             <div className="flex justify-end gap-3">
-              <button
-                onClick={()=>{setDeleteUser(null);setDeleteUserConfirm("");}}
-                className="px-4 py-2 text-xs font-bold border border-border hover:bg-secondary"
-                disabled={deleteUserLoading}
-              >Cancel</button>
+              <button onClick={()=>{setDeleteUser(null);setDeleteUserConfirm("");}}
+                className="px-4 py-2 text-xs font-bold border border-border hover:bg-secondary" disabled={deleteUserLoading}>Cancel</button>
               <button
                 onClick={handleDeleteUser}
-                disabled={
-                  deleteUserLoading ||
-                  deleteUserConfirm.trim().toLowerCase()!==(deleteUser.name??"").trim().toLowerCase()
-                }
-                className="px-4 py-2 text-xs font-bold bg-red-600 text-white hover:bg-red-700 disabled:opacity-40 flex items-center gap-1.5"
-              >
+                disabled={deleteUserLoading||deleteUserConfirm.trim().toLowerCase()!==(deleteUser.name??"").trim().toLowerCase()}
+                className="px-4 py-2 text-xs font-bold bg-red-600 text-white hover:bg-red-700 disabled:opacity-40 flex items-center gap-1.5">
                 {deleteUserLoading?<><RefreshCw size={11} className="animate-spin"/> Deleting...</>:<><Trash2 size={11}/> Yes, Delete</>}
               </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* ══ PDF VIEWER MODAL ══ */}
+      {viewManualId&&(
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/70 backdrop-blur-sm px-4">
+          <div className="w-full max-w-4xl bg-background border border-border shadow-[8px_8px_0_0_var(--ink)] flex flex-col" style={{height:"90vh"}}>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-secondary shrink-0">
+              <h3 className="font-black uppercase tracking-tighter text-sm">PDF Viewer</h3>
+              <div className="flex items-center gap-2">
+                {viewUrls&&(
+                  <a href={viewUrls.downloadUrl} target="_blank" rel="noreferrer"
+                    className="flex items-center gap-1.5 px-3 py-1.5 border border-border hover:bg-secondary text-xs font-bold transition-colors">
+                    <Upload size={11} className="rotate-180"/> Download
+                  </a>
+                )}
+                <button onClick={()=>{ setViewManualId(null); setViewUrls(null); }}
+                  className="p-1 hover:bg-border rounded"><X size={14}/></button>
+              </div>
+            </div>
+            <div className="flex-1 min-h-0 bg-secondary/30">
+              {viewUrlLoading
+                ?<div className="flex items-center justify-center h-full gap-2 text-xs text-muted-foreground"><RefreshCw size={13} className="animate-spin"/> Loading PDF...</div>
+                :viewUrls
+                  ?<iframe src={viewUrls.viewUrl} className="w-full h-full border-0" title="PDF Viewer"/>
+                  :<div className="flex items-center justify-center h-full text-xs text-red-500">Failed to load PDF.</div>
+              }
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ DELETE MANUAL CONFIRM MODAL ══ */}
+      {deleteManualId&&(
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 backdrop-blur-sm px-4">
+          <div className="w-full max-w-sm bg-background border border-border shadow-[6px_6px_0_0_var(--ink)] p-6">
+            <div className="flex items-start gap-3 mb-5">
+              <AlertCircle size={20} className="text-red-500 shrink-0 mt-0.5"/>
+              <div>
+                <h4 className="font-black uppercase tracking-tighter text-sm">Delete Manual?</h4>
+                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                  This will permanently delete <strong>{deleteManualName}</strong> from storage and the database. This cannot be undone.
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button onClick={()=>{ setDeleteManualId(null); setDeleteManualName(""); }}
+                className="px-4 py-2 text-xs font-bold border border-border hover:bg-secondary" disabled={deleteManualLoading}>
+                Cancel
+              </button>
+              <button onClick={handleDeleteManual} disabled={deleteManualLoading}
+                className="px-4 py-2 text-xs font-bold bg-red-600 text-white hover:bg-red-700 disabled:opacity-60 flex items-center gap-1.5">
+                {deleteManualLoading?<><RefreshCw size={11} className="animate-spin"/> Deleting...</>:<><Trash2 size={11}/> Yes, Delete</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
 
 // ── UserTableRow sub-component ────────────────────────────────
-function UserTableRow({user,status,isLast,onStatusChange,onToast,onDeleteUser,adminEmail}:{user:UserRow;status:"Active"|"Suspended"|"Pending";isLast:boolean;onStatusChange:(uid:string,s:"Active"|"Suspended"|"Pending")=>void;onToast:(m:string,t?:"ok"|"err")=>void;onDeleteUser:(u:UserRow)=>void;adminEmail:string;}) {
-  const [loading,setLoading]=useState(false);
-  const ss={Active:"bg-green-50 text-green-700 border-green-200",Suspended:"bg-red-50 text-red-600 border-red-200",Pending:"bg-yellow-50 text-yellow-700 border-yellow-200"}[status];
-  const joined=user.created_at?new Date(user.created_at).toLocaleDateString("en-PH",{year:"numeric",month:"short",day:"numeric"}):"—";
-  
-  const handleToggleSuspend=async()=>{
-    setLoading(true);
-    try {
-      const newStatus=status==="Suspended"?"Active":"Suspended";
-      const res=await fetch("/api/admin-suspend-user",{
-        method:"POST",
-        headers:{"Content-Type":"application/json","x-admin-email":adminEmail},
-        body:JSON.stringify({user_id:user.user_id,suspend:newStatus==="Suspended"})
-      });
-      
-      if(res.ok){
-        onStatusChange(user.user_id,newStatus);
-        onToast(`${user.name} ${newStatus==="Suspended"?"suspended":"activated"}.`);
-      } else {
-        const j=await res.json();
-        onToast(j.error??"Action failed.","err");
-      }
-    } catch(e:any){
-      onToast(e.message??"Network error.","err");
-    }
-    setLoading(false);
-  };
-  
-  return(
+function UserTableRow({
+  user, status, isLast, onStatusChange, onToast, onDeleteUser,
+}: {
+  user: UserRow;
+  status: "Active"|"Suspended"|"Pending";
+  isLast: boolean;
+  onStatusChange: (uid: string, s: "Active"|"Suspended"|"Pending") => void;
+  onToast: (m: string, t?: "ok"|"err") => void;
+  onDeleteUser: (u: UserRow) => void;
+}) {
+  const ss = {
+    Active:    "bg-green-50 text-green-700 border-green-200",
+    Suspended: "bg-red-50 text-red-600 border-red-200",
+    Pending:   "bg-yellow-50 text-yellow-700 border-yellow-200",
+  }[status];
+  const joined = user.created_at
+    ? new Date(user.created_at).toLocaleDateString("en-PH",{year:"numeric",month:"short",day:"numeric"})
+    : "—";
+  return (
     <div className={`grid grid-cols-[2fr_1.4fr_0.9fr_auto] gap-4 px-5 py-3.5 items-center hover:bg-secondary/30 transition-colors ${!isLast?"border-b border-border":""}`}>
       <span className="text-xs font-medium truncate">{user.name}</span>
       <span className="text-xs text-muted-foreground">{joined}</span>
