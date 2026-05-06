@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { isAdminEmail } from "@/lib/adminAccounts";
 
-export async function POST(req: Request) {
+export async function PATCH(req: Request) {
   try {
     const adminEmail = req.headers.get("x-admin-email") ?? "";
     if (!adminEmail || !isAdminEmail(adminEmail))
@@ -10,10 +10,14 @@ export async function POST(req: Request) {
 
     const body = await req.json();
     const user_id: string = body?.user_id ?? "";
-    const suspend: boolean = body?.suspend ?? true;
+    const action: "suspend" | "activate" = body?.action;
 
     if (!user_id)
       return NextResponse.json({ error: "user_id is required." }, { status: 400 });
+    if (action !== "suspend" && action !== "activate")
+      return NextResponse.json({ error: "action must be 'suspend' or 'activate'." }, { status: 400 });
+
+    const suspend = action === "suspend";
 
     const svcKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (!svcKey)
@@ -27,54 +31,22 @@ export async function POST(req: Request) {
     );
 
     if (suspend) {
-      // Mark user as suspended in metadata
-      const { error: metaErr } = await authAdmin.auth.admin.updateUserById(user_id, {
-        user_metadata: { suspended: true },
+      const { error } = await authAdmin.auth.admin.updateUserById(user_id, {
+        ban_duration: "876600h",
       });
-
-      if (metaErr) {
-        return NextResponse.json(
-          { error: `Failed to suspend user: ${metaErr.message}` },
-          { status: 500 }
-        );
-      }
-
-      // Revoke all refresh tokens to force logout
-      const { error: revokeErr } = await authAdmin.auth.admin.updateUserById(user_id, {
-        ban_duration: "none",
-        banned_until: new Date(2099, 11, 31).toISOString(),
-      } as any);
-
-      if (revokeErr) {
-        console.warn("Warning: could not set ban_until:", revokeErr);
-      }
+      if (error)
+        return NextResponse.json({ error: `Failed to suspend: ${error.message}` }, { status: 500 });
     } else {
-      // Mark user as active
-      const { error: metaErr } = await authAdmin.auth.admin.updateUserById(user_id, {
-        user_metadata: { suspended: false },
-      });
-
-      if (metaErr) {
-        return NextResponse.json(
-          { error: `Failed to activate user: ${metaErr.message}` },
-          { status: 500 }
-        );
-      }
-
-      // Remove ban
-      const { error: unbanErr } = await authAdmin.auth.admin.updateUserById(user_id, {
+      const { error } = await authAdmin.auth.admin.updateUserById(user_id, {
         ban_duration: "none",
-        banned_until: null,
-      } as any);
-
-      if (unbanErr) {
-        console.warn("Warning: could not remove ban_until:", unbanErr);
-      }
+      });
+      if (error)
+        return NextResponse.json({ error: `Failed to activate: ${error.message}` }, { status: 500 });
     }
 
     return NextResponse.json({
       success: true,
-      message: suspend ? "User suspended successfully." : "User activated successfully.",
+      message: suspend ? "User suspended." : "User activated.",
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
