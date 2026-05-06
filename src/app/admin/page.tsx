@@ -114,7 +114,7 @@ const MODEL_TYPES = ["Sedan","SUV","Hatchback","Pickup Truck","Van","MPV","Cross
 
 type Tab = "users"|"guides"|"car-models"|"documents"|"reports"|"forum";
 
-interface UserRow     { user_id:string; name:string; created_at:string; }
+interface UserRow { user_id: string; name: string; email: string; created_at: string; last_sign_in_at: string | null; status: "Active" | "Suspended" | "Pending"; provider?: string;  }
 interface CarModelRow { id:string; name:string; slug:string; category:string; years:string; info?:string; model_img?:string; brand_id:string; }
 interface AddModelForm{ name:string; category:string; years:string; info:string; imageFile:File|null; imagePreview:string; }
 interface EditModelForm{ name:string; category:string; years:string; info:string; imageFile:File|null; imagePreview:string; }
@@ -217,19 +217,29 @@ export default function AdminPage() {
   },[session?.email]);
 
   // ── Users ────────────────────────────────────────────────────
-  const fetchUsers = useCallback(async()=>{
-    setLoadingUsers(true);
-    const{data,error}=await supabase.from("Users").select("user_id,name,created_at").order("created_at",{ascending:false});
-    if(error){ toast(`Failed to load users: ${error.message}`,"err"); }
-    else {
-      const rows:UserRow[]=(data??[]).map((u:any)=>({user_id:u.user_id,name:u.name??"Unknown",created_at:u.created_at??""}));
-      setUsers(rows);
-      const map:Record<string,"Active"|"Suspended"|"Pending">={};
-      rows.forEach(r=>{map[r.user_id]="Active";});
-      setUserStatuses(map);
-    }
+  const fetchUsers = useCallback(async () => {
+  if (!session?.email) return; // ← guard here
+  setLoadingUsers(true);
+  const res = await fetch("/api/admin-get-users", {
+    headers: { "x-admin-email": session.email },
+  });
+  const json = await res.json();
+
+  if (!res.ok) {
+    toast(`Failed to load users: ${json.error}`, "err");
     setLoadingUsers(false);
-  },[toast]);
+    return;
+  }
+
+  const rows: UserRow[] = json.users;
+  setUsers(rows);
+
+  const map: Record<string, "Active" | "Suspended" | "Pending"> = {};
+  rows.forEach((r: any) => { map[r.user_id] = r.status; });
+  setUserStatuses(map);
+
+  setLoadingUsers(false);
+}, [toast, session?.email]);
 
   useEffect(()=>{ if(activeTab==="users") fetchUsers(); },[activeTab,fetchUsers]);
 
@@ -449,7 +459,7 @@ export default function AdminPage() {
 
   if (!session) return null;
 
-  const filteredUsers = users.filter(u => u.name.toLowerCase().includes(searchUser.toLowerCase()));
+  const filteredUsers = users.filter(u => u.name.toLowerCase().includes(searchUser.toLowerCase()) || u.email.toLowerCase().includes(searchUser.toLowerCase()));
 
   // ── RENDER ───────────────────────────────────────────────────
   return (
@@ -599,8 +609,8 @@ export default function AdminPage() {
                   placeholder="Search users..." className="flex-1 h-9 bg-transparent text-xs focus:outline-none font-mono"/>
               </div>
               <div className="border border-border bg-background overflow-hidden">
-                <div className="grid grid-cols-[2fr_1.4fr_0.9fr_auto] gap-4 px-5 py-2.5 bg-secondary border-b border-border">
-                  {["Name","Joined","Status","Actions"].map(h=>(
+                <div className="grid grid-cols-[1fr_1.2fr_0.7fr_0.7fr_0.7fr_0.7fr_auto] gap-3 px-5 py-2.5 bg-secondary border-b border-border">
+                  {["Name","Email","Provider","Account Created","Last Sign In","Status","Actions"].map(h=>(
                     <span key={h} className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">{h}</span>
                   ))}
                 </div>
@@ -613,7 +623,8 @@ export default function AdminPage() {
                         isLast={i===filteredUsers.length-1}
                         onStatusChange={(uid,s)=>setUserStatuses(p=>({...p,[uid]:s}))}
                         onToast={toast}
-                        onDeleteUser={setDeleteUser}/>
+                        onDeleteUser={setDeleteUser}
+                        adminEmail={session.email}/>
                     ))
                 }
               </div>
@@ -1182,33 +1193,76 @@ export default function AdminPage() {
 
 // ── UserTableRow sub-component ────────────────────────────────
 function UserTableRow({
-  user, status, isLast, onStatusChange, onToast, onDeleteUser,
+  user, status, isLast, onStatusChange, onToast, onDeleteUser, adminEmail,
 }: {
   user: UserRow;
-  status: "Active"|"Suspended"|"Pending";
+  status: "Active" | "Suspended" | "Pending";
   isLast: boolean;
-  onStatusChange: (uid: string, s: "Active"|"Suspended"|"Pending") => void;
-  onToast: (m: string, t?: "ok"|"err") => void;
+  onStatusChange: (uid: string, s: "Active" | "Suspended" | "Pending") => void;
+  onToast: (m: string, t?: "ok" | "err") => void;
   onDeleteUser: (u: UserRow) => void;
+  adminEmail: string;
 }) {
+  const [loading, setLoading] = useState(false);
+
+  const handleToggleSuspend = async () => {
+    const action = status === "Suspended" ? "activate" : "suspend";
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin-suspend-user", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-email": adminEmail,
+        },
+        body: JSON.stringify({ user_id: user.user_id, action }),
+      });
+      const j = await res.json();
+      if (res.ok) {
+        const newStatus = action === "suspend" ? "Suspended" : "Active";
+        onStatusChange(user.user_id, newStatus);
+        onToast(action === "suspend" ? `"${user.name}" suspended.` : `"${user.name}" reactivated.`);
+      } else {
+        onToast(j.error ?? "Action failed.", "err");
+      }
+    } catch {
+      onToast("Network error.", "err");
+    }
+    setLoading(false);
+  };
+
   const ss = {
     Active:    "bg-green-50 text-green-700 border-green-200",
     Suspended: "bg-red-50 text-red-600 border-red-200",
     Pending:   "bg-yellow-50 text-yellow-700 border-yellow-200",
   }[status];
+
   const joined = user.created_at
-    ? new Date(user.created_at).toLocaleDateString("en-PH",{year:"numeric",month:"short",day:"numeric"})
+    ? new Date(user.created_at).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" })
     : "—";
+
+  const lastSignIn = user.last_sign_in_at
+    ? new Date(user.last_sign_in_at).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" })
+    : "Never";
+
   return (
-    <div className={`grid grid-cols-[2fr_1.4fr_0.9fr_auto] gap-4 px-5 py-3.5 items-center hover:bg-secondary/30 transition-colors ${!isLast?"border-b border-border":""}`}>
-      <span className="text-xs font-medium truncate">{user.name}</span>
+    <div className={`grid grid-cols-[1fr_1.2fr_0.7fr_0.7fr_0.7fr_0.7fr_auto] gap-3 px-5 py-3.5 items-center hover:bg-secondary/30 transition-colors ${!isLast ? "border-b border-border" : ""}`}>
+      <span className="text-xs font-medium truncate" title={user.name}>{user.name}</span>
+      <span className="text-xs text-muted-foreground truncate" title={user.email}>{user.email}</span>
+      <span className="text-xs text-muted-foreground capitalize" title={user.provider}>{user.provider ?? "—"}</span>
       <span className="text-xs text-muted-foreground">{joined}</span>
+      <span className="text-xs text-muted-foreground">{lastSignIn}</span>
       <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 border w-fit ${ss}`}>{status}</span>
       <div className="flex items-center gap-1">
-        {status==="Suspended"
-          ?<button title="Activate" onClick={()=>{onStatusChange(user.user_id,"Active");onToast(`${user.name} activated.`);}} className="p-1.5 hover:bg-green-100 rounded"><CheckCircle size={13} className="text-green-600"/></button>
-          :<button title="Suspend"  onClick={()=>{onStatusChange(user.user_id,"Suspended");onToast(`${user.name} suspended.`);}} className="p-1.5 hover:bg-yellow-100 rounded"><Ban size={13} className="text-yellow-600"/></button>}
-        <button title="Delete" onClick={()=>onDeleteUser(user)} className="p-1.5 hover:bg-red-100 rounded"><Trash2 size={13} className="text-red-500"/></button>
+        {loading
+          ? <span className="p-1.5"><RefreshCw size={13} className="animate-spin text-muted-foreground" /></span>
+          : status === "Suspended"
+            ? <button title="Reactivate" onClick={handleToggleSuspend} className="p-1.5 hover:bg-green-100 rounded"><CheckCircle size={13} className="text-green-600" /></button>
+            : <button title="Suspend" onClick={handleToggleSuspend} className="p-1.5 hover:bg-yellow-100 rounded"><Ban size={13} className="text-yellow-600" /></button>
+        }
+        <button title="Delete" onClick={() => onDeleteUser(user)} disabled={loading} className="p-1.5 hover:bg-red-100 rounded disabled:opacity-40">
+          <Trash2 size={13} className="text-red-500" />
+        </button>
       </div>
     </div>
   );
