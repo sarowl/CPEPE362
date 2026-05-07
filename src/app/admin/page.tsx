@@ -168,12 +168,9 @@ export default function AdminPage() {
   const [cleanupLoading, setCleanupLoading] = useState(false);
 
   // Guide model_id migration fix
-  const [modelIdFixLoading, setModelIdFixLoading] = useState(false);
-  const [modelIdFixResult,  setModelIdFixResult]  = useState<{checked:number;fixed:number;skipped:number;unmatched:number}|null>(null);
-
+  const [fkeyFixLoading, setFkeyFixLoading] = useState(false);
+  const [fkeyFixResult,  setFkeyFixResult]  = useState<{guides:{checked:number;fixed:number;skipped:number;unmatched:number}|null; forum:{checked:number;fixed:number;skipped:number;unmatched:number}|null}|null>(null);
   // Forum model_id fix
-  const [forumFixLoading, setForumFixLoading] = useState(false);
-  const [forumFixResult,  setForumFixResult]  = useState<{checked:number;fixed:number;skipped:number;unmatched:number}|null>(null);
 
   // ── Documents tab state ──────────────────────────────────────
   const [docBrandId,          setDocBrandId]          = useState("");
@@ -651,24 +648,31 @@ export default function AdminPage() {
                 <div className="flex items-center gap-2 mt-1">
                   <button
                     onClick={async()=>{
-                      setModelIdFixLoading(true);
-                      setModelIdFixResult(null);
+                      setFkeyFixLoading(true);
+                      setFkeyFixResult(null);
                       try{
-                        const res=await fetch("/api/guides-model-id-fix",{method:"POST",headers:{"x-admin-email":session?.email??""}});
-                        const j=await res.json();
-                        if(j.error){toast(`Fix failed: ${j.error}`,"err");}
-                        else{setModelIdFixResult(j);toast(`Done — ${j.fixed} guide(s) fixed.`,"ok");}
+                        const [gRes,fRes]=await Promise.all([
+                          fetch("/api/guides-model-id-fix",{method:"POST",headers:{"x-admin-email":session?.email??""}}),
+                          fetch("/api/forum-fix-model-ids",{method:"POST",headers:{"x-admin-email":session?.email??""}})
+                        ]);
+                        const [gJ,fJ]=await Promise.all([gRes.json(),fRes.json()]);
+                        if(gJ.error||fJ.error){toast(`Fix failed: ${gJ.error??fJ.error}`,"err");}
+                        else{
+                          setFkeyFixResult({guides:gJ,forum:fJ});
+                          toast(`Done — ${(gJ.fixed??0)+(fJ.fixed??0)} record(s) fixed.`,"ok");
+                        }
                       }catch(e:any){toast(`Fix error: ${e.message}`,"err");}
-                      finally{setModelIdFixLoading(false);}
+                      finally{setFkeyFixLoading(false);}
                     }}
-                    disabled={modelIdFixLoading}
+                    disabled={fkeyFixLoading}
                     className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold border border-primary text-primary hover:bg-primary hover:text-white transition-colors disabled:opacity-50">
-                    {modelIdFixLoading ? <RefreshCw size={11} className="animate-spin"/> : <RefreshCw size={11}/>}
-                    Fix Guide IDs
+                    {fkeyFixLoading ? <RefreshCw size={11} className="animate-spin"/> : <RefreshCw size={11}/>}
+                    Fix FKey IDs
                   </button>
-                  {modelIdFixResult&&(
+                  {fkeyFixResult&&(
                     <span className="text-[10px] font-mono text-muted-foreground">
-                      ✓ {modelIdFixResult.fixed} fixed · {modelIdFixResult.skipped} ok · {modelIdFixResult.unmatched} unmatched
+                      Guides: ✓ {fkeyFixResult.guides?.fixed??0} fixed · {fkeyFixResult.guides?.skipped??0} ok · {fkeyFixResult.guides?.unmatched??0} unmatched
+                      {" | "}Forum: ✓ {fkeyFixResult.forum?.fixed??0} fixed · {fkeyFixResult.forum?.skipped??0} ok · {fkeyFixResult.forum?.unmatched??0} unmatched
                     </span>
                   )}
                   <button onClick={fetchAllModels} className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold border border-border hover:bg-secondary transition-colors">
@@ -900,30 +904,6 @@ export default function AdminPage() {
                 <div>
                   <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Admin / Forum</p>
                   <h2 className="font-black uppercase tracking-tighter text-base mt-0.5">Forum Moderation</h2>
-                </div>
-                <div className="flex items-center gap-2 mt-1">
-                  <button
-                    onClick={async()=>{
-                      setForumFixLoading(true);
-                      setForumFixResult(null);
-                      try{
-                        const res=await fetch("/api/forum-fix-model-ids",{method:"POST",headers:{"x-admin-email":session?.email??""}});
-                        const j=await res.json();
-                        if(j.error){toast(`Fix failed: ${j.error}`,"err");}
-                        else{setForumFixResult(j);toast(`Done — ${j.fixed} post(s) fixed.`,"ok");}
-                      }catch(e:any){toast(`Fix error: ${e.message}`,"err");}
-                      finally{setForumFixLoading(false);}
-                    }}
-                    disabled={forumFixLoading}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold border border-primary text-primary hover:bg-primary hover:text-white transition-colors disabled:opacity-50">
-                    {forumFixLoading ? <RefreshCw size={11} className="animate-spin"/> : <RefreshCw size={11}/>}
-                    Fix Forum IDs
-                  </button>
-                  {forumFixResult&&(
-                    <span className="text-[10px] font-mono text-muted-foreground">
-                      ✓ {forumFixResult.fixed} fixed · {forumFixResult.skipped} ok · {forumFixResult.unmatched} unmatched
-                    </span>
-                  )}
                 </div>
               </div>
               <div className="border border-border bg-background overflow-hidden">

@@ -64,7 +64,7 @@ const STATUS_CONFIG = {
     icon: <CheckCircle size={13} className="text-green-600" />,
   },
   rejected: {
-    label: "Rejected",
+    label: "Returned",
     badge: "bg-red-50 text-red-600 border-red-200",
     description: "Not published. Review the admin feedback and edit to resubmit.",
     icon: <XCircle size={13} className="text-red-500" />,
@@ -231,7 +231,7 @@ export default function ProfileContributionsTab() {
           {/* 4.4: Status filter */}
           <div className="mb-5 flex items-center gap-1.5 flex-wrap">
             <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground mr-1">Filter:</span>
-            {([["all", "All"], ["approved", "Approved"], ["rejected", "Rejected"], ["draft", "Draft"], ["pending", "Pending"]] as [Guide["status"] | "all", string][]).map(([val, label]) => (
+            {([["all", "All"], ["approved", "Approved"], ["rejected", "Returned"], ["draft", "Draft"], ["pending", "Pending"]] as [Guide["status"] | "all", string][]).map(([val, label]) => (
               <button
                 key={val}
                 onClick={() => setStatusFilter(val)}
@@ -400,7 +400,7 @@ function GuideCard({
           // UPDATED 3.2/3.3: Show rejection reason AND admin note clearly
           <div className="mt-1.5 space-y-1">
             <p className="text-[10px] text-red-500 flex items-center gap-1">
-              <XCircle size={10} /> Rejected: {rejectionReason}
+              <XCircle size={10} /> Returned: {rejectionReason}
             </p>
             {rejectionNote && (
               <p className="text-[10px] text-red-400 pl-3.5 italic">
