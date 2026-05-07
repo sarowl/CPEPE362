@@ -1,4 +1,5 @@
 import Fuse from "fuse.js";
+import type { IFuseOptions } from "fuse.js";
 
 export interface FuzzyUser {
   user_id: string;
@@ -8,7 +9,7 @@ export interface FuzzyUser {
   email?: string;
 }
 
-const fuseOptions: Fuse.IFuseOptions<FuzzyUser> = {
+const fuseOptions: IFuseOptions<FuzzyUser> = {
   keys: [
     "name",
     "username",
