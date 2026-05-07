@@ -193,13 +193,6 @@ export default function ModelGuidesPage() {
                 ? <p className="text-sm text-muted-foreground mt-1 max-w-xl leading-relaxed">{modelInfo}</p>
                 : <p className="text-sm text-muted-foreground mt-1">Repair guides and community posts</p>
               }
-              <div className="flex items-center gap-3 mt-2 text-[11px] text-muted-foreground font-mono">
-                <span className="flex items-center gap-1"><BookOpen size={11} /> {guides.length} Guide{guides.length !== 1 ? "s" : ""}</span>
-                <span>·</span>
-                <span className="flex items-center gap-1"><MessageCircle size={11} /> {forumPosts.length} Forum Post{forumPosts.length !== 1 ? "s" : ""}</span>
-                <span>·</span>
-                <span className="flex items-center gap-1"><Package size={11} /> {documents.length} Document{documents.length !== 1 ? "s" : ""}</span>
-              </div>
             </div>
           </div>
         </div>

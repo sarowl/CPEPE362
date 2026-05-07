@@ -447,7 +447,7 @@ export default function EditGuidePage() {
           <div>
             <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mb-1">Edit Guide</p>
             <h1 className="font-black uppercase tracking-tighter text-2xl">Update Repair Guide</h1>
-            {isApprovedOrRejected && <p className="text-xs text-muted-foreground mt-1">Editing an {origGuideStatus} guide. Use <strong>Turn to Draft</strong> to save changes — guide will require re-review.</p>}
+            {isApprovedOrRejected && <p className="text-xs text-muted-foreground mt-1">Editing an {origGuideStatus === "rejected" ? "returned" : origGuideStatus} guide. Use <strong>Turn to Draft</strong> to save changes — guide will require re-review.</p>}
             {isDraft && <p className="text-xs text-muted-foreground mt-1">Editing a draft. Use <strong>Save Draft</strong> to keep changes or <strong>Submit for Review</strong> to publish.</p>}
           </div>
           {/* Turn to Draft — available immediately under Step 1: Info section */}

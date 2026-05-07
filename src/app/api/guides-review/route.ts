@@ -85,7 +85,7 @@ export async function POST(req: Request) {
           type:        "guide_rejected",
           guide_id,
           guide_title: guide.title,
-          message:     `Your guide "${guide.title}" has been rejected.`,
+          message:     `Your guide "${guide.title}" has been returned for revision.`,
           reason,
           note:        note ?? null,
         },
