@@ -1,22 +1,17 @@
 import Fuse from "fuse.js";
 import type { IFuseOptions } from "fuse.js";
 
-export interface FuzzyUser {
-  user_id: string;
-  name: string;
-  created_at: string;
-  username?: string;
-  email?: string;
-}
+// Accept any user type with required fields
+type GenericUser = { user_id: string; name: string; email?: string; username?: string };
 
-const fuseOptions: IFuseOptions<FuzzyUser> = {
+const fuseOptions: IFuseOptions<GenericUser> = {
   keys: [
     "name",
     "username",
     "email",
     {
       name: "fullName",
-      getFn: (user: FuzzyUser) => user.name,
+      getFn: (user: GenericUser) => user.name,
     },
   ],
   threshold: 0.35, // Adjust for strictness
@@ -27,14 +22,11 @@ const fuseOptions: IFuseOptions<FuzzyUser> = {
   useExtendedSearch: true,
 };
 
-export function createFuzzyUserSearch(users: FuzzyUser[]) {
+export function createFuzzyUserSearch<T extends GenericUser>(users: T[]) {
   return new Fuse(users, fuseOptions);
 }
 
-export function fuzzyUserFilter(
-  users: FuzzyUser[],
-  query: string
-): FuzzyUser[] {
+export function fuzzyUserFilter<T extends GenericUser>(users: T[], query: string): T[] {
   if (!query.trim()) return users;
   const fuse = createFuzzyUserSearch(users);
   return fuse.search(query).map((r) => r.item);
