@@ -296,26 +296,88 @@ export default function AdminPage() {
   useEffect(()=>{ if(activeTab==="documents") fetchManuals(); },[activeTab,fetchManuals]);
 
   // ── Documents: upload ────────────────────────────────────────
-  const handleManualUpload = async()=>{
+  // ── Documents: upload ────────────────────────────────────────
+  const handleManualUpload = async () => {
     setDocError("");
     if(!docBrandId)     { setDocError("Select a brand.");     return; }
     if(!docModelId)     { setDocError("Select a car model."); return; }
     if(!docTitle.trim()){ setDocError("Enter a title.");      return; }
     if(!docFile)        { setDocError("Choose a PDF file.");  return; }
+    
     setDocUploading(true);
-    const fd = new FormData();
-    fd.append("file",        docFile);
-    fd.append("brand_id",    docBrandId);
-    fd.append("model_id",    docModelId);
-    fd.append("manual_type", docManualType);
-    fd.append("title",       docTitle.trim());
-    const res  = await fetch("/api/manuals/upload",{ method:"POST", headers:{"x-admin-email":session?.email??""}, body:fd });
-    const json = await res.json();
-    if(!res.ok){ setDocError(json.error??"Upload failed."); setDocUploading(false); return; }
-    toast(`"${json.manual.title}" uploaded successfully.`);
-    setDocTitle(""); setDocFile(null); setDocBrandId(""); setDocModelId(""); setDocModels([]);
-    fetchManuals();
-    setDocUploading(false);
+
+    try {
+      const adminEmail = session?.email ?? "";
+
+      // STEP 1: The Handshake (Get the Presigned URL)
+      // Note: Make sure the route matches the filename you created (e.g., /api/manuals/generate-upload-url)
+      const urlRes = await fetch("/api/manuals/generate-upload-url", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-email": adminEmail,
+        },
+        body: JSON.stringify({
+          brandId: docBrandId,
+          modelId: docModelId,
+          fileName: docFile.name,
+          fileType: docFile.type,
+        }),
+      });
+
+      const urlJson = await urlRes.json();
+      if (!urlRes.ok) throw new Error(urlJson.error ?? "Failed to get upload URL");
+
+      const { signedUrl, fileKey } = urlJson;
+
+      // STEP 2: The Direct Upload (Bypass Next.js, send straight to Backblaze)
+      const uploadRes = await fetch(signedUrl, {
+        method: "PUT",
+        body: docFile,
+        headers: {
+          "Content-Type": docFile.type,
+        },
+      });
+
+      if (!uploadRes.ok) throw new Error("Failed to upload PDF directly to storage.");
+
+      // STEP 3: The Record (Save metadata to Supabase)
+      // Note: You must create this route: /api/manuals/save-metadata
+      const dbRes = await fetch("/api/manuals/save-metadata", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-email": adminEmail,
+        },
+        body: JSON.stringify({
+          brandId: docBrandId,
+          modelId: docModelId,
+          manualType: docManualType,
+          title: docTitle.trim(),
+          fileKey: fileKey,
+          fileName: docFile.name,
+          fileSize: docFile.size,
+        }),
+      });
+
+      const dbJson = await dbRes.json();
+      if (!dbRes.ok) throw new Error(dbJson.error ?? "Failed to save metadata to database.");
+
+      // Cleanup on success
+      toast(`"${docTitle.trim()}" uploaded successfully.`);
+      setDocTitle(""); 
+      setDocFile(null); 
+      setDocBrandId(""); 
+      setDocModelId(""); 
+      setDocModels([]);
+      fetchManuals();
+
+    } catch (err: any) {
+      console.error("Upload error:", err);
+      setDocError(err.message ?? "An unexpected upload error occurred.");
+    } finally {
+      setDocUploading(false);
+    }
   };
 
   // ── Documents: open viewer ───────────────────────────────────
