@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, Suspense } from "react";
-import Fuse from "fuse.js";
+import { fuzzySearchGuides, fuzzySearchForums } from "@/lib/fuzzySystemSearch";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Search, X, MessageCircle, Tag, RefreshCw, User2, Users, ThumbsUp, ThumbsDown, Clock3, BookOpen } from "lucide-react";
@@ -71,6 +71,7 @@ function SearchPageComponent() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [query, setQuery] = useState(params.get("q") ?? "");
+  const [debouncedQuery, setDebouncedQuery] = useState(query);
   const [selectedBrand, setSelectedBrand] = useState(params.get("brand") ?? "");
   const [notice, setNotice] = useState("");
   const [guides, setGuides] = useState<RealGuide[]>([]);
@@ -87,10 +88,20 @@ function SearchPageComponent() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Avoid direct setState in effect for params; instead, sync via derived state or router events if needed
   useEffect(() => {
-    setQuery(params.get("q") ?? "");
-    setSelectedBrand(params.get("brand") ?? "");
+    // Only update if params actually changed
+    const q = params.get("q") ?? "";
+    const b = params.get("brand") ?? "";
+    setQuery(prev => prev !== q ? q : prev);
+    setSelectedBrand(prev => prev !== b ? b : prev);
   }, [params]);
+
+  // Debounce search input for performance
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedQuery(query), 180);
+    return () => clearTimeout(handler);
+  }, [query]);
 
   useEffect(() => {
     async function fetchData() {
@@ -99,8 +110,8 @@ function SearchPageComponent() {
         const brandParam = selectedBrand ? `brandId=${encodeURIComponent(selectedBrand)}` : "";
         const guideUrl = brandParam ? `/api/guides?${brandParam}` : "/api/guides";
         const forumUrl = selectedBrand
-          ? `/api/forum_posts_all?brandId=${encodeURIComponent(selectedBrand)}${query.trim() ? `&q=${encodeURIComponent(query.trim())}` : ""}`
-          : `/api/forum_posts_all${query.trim() ? `?q=${encodeURIComponent(query.trim())}` : ""}`;
+          ? `/api/forum_posts_all?brandId=${encodeURIComponent(selectedBrand)}`
+          : `/api/forum_posts_all`;
 
         const [guidesRes, forumRes] = await Promise.all([
           fetch(guideUrl),
@@ -120,59 +131,23 @@ function SearchPageComponent() {
 
 
   // Fuzzy search setup
-  const keywords = useMemo(() => {
-    return query
-      .toLowerCase()
-      .split(/\s+/)
-      .map((k) => k.trim())
-      .filter(Boolean);
-  }, [query]);
+
 
   const filteredGuides = useMemo(() => {
     let results = guides;
     if (selectedBrand) {
       results = results.filter((item) => item.brand_id === selectedBrand);
     }
-    if (!query.trim()) return results;
-    // Fuzzy search using Fuse.js
-    const fuse = new Fuse(results, {
-      keys: [
-        "title",
-        "model_name",
-        "brand_id",
-        "summary",
-        "difficulty",
-        "time_required",
-        "tools",
-        "required_parts"
-      ],
-      threshold: 0.4,
-      ignoreLocation: true,
-    });
-    return fuse.search(query).map(res => res.item);
-  }, [guides, query, selectedBrand]);
+    return fuzzySearchGuides(results, debouncedQuery);
+  }, [guides, debouncedQuery, selectedBrand]);
 
   const filteredForum = useMemo(() => {
     let results = forumPosts;
     if (selectedBrand) {
       results = results.filter((item) => item.brand_id === selectedBrand);
     }
-    if (!query.trim()) return results;
-    // Fuzzy search using Fuse.js
-    const fuse = new Fuse(results, {
-      keys: [
-        "title",
-        "content",
-        "brand_id",
-        "model_name",
-        "model_id",
-        "Users.name"
-      ],
-      threshold: 0.4,
-      ignoreLocation: true,
-    });
-    return fuse.search(query).map(res => res.item);
-  }, [forumPosts, query, selectedBrand]);
+    return fuzzySearchForums(results, debouncedQuery);
+  }, [forumPosts, debouncedQuery, selectedBrand]);
 
   const handleSearch = (value: string) => {
     setQuery(value);
@@ -309,7 +284,7 @@ function SearchPageComponent() {
               <section className="mt-10">
                 <div className="mb-4 flex items-end justify-between">
                   <h2 className="text-3xl font-extrabold tracking-tight">Forums</h2>
-                  <span className="text-sm text-primary flex items-center min-w-[60px] justify-end">
+                  <span className="text-sm text-primary flex items-center min-w-15 justify-end">
                     {loading ? (
                       <>Loading...</>
                     ) : (
@@ -319,7 +294,7 @@ function SearchPageComponent() {
                     )}
                   </span>
                 </div>
-                <div className="flex flex-col gap-4 min-h-[80px] w-full">
+                <div className="flex flex-col gap-4 min-h-20 w-full">
                   {loading ? (
                     <div className="flex items-center justify-center gap-2 text-muted-foreground text-sm w-full">
                       <RefreshCw className="animate-spin" size={16} /> Loading forums...
@@ -340,7 +315,7 @@ function SearchPageComponent() {
                           hover:shadow-2xl hover:-translate-y-1 hover:border-orange-500 hover:bg-orange-50/40 opacity-0 animate-fade-in`}
                         style={{ maxWidth: "100%", animationDelay: `${idx * 60}ms`, animationFillMode: "forwards" }}
                       >
-                        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-orange-100 to-orange-200 text-orange-600 border border-orange-200 shadow-sm group-hover:scale-105 transition-transform duration-300">
+                        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-orange-100 to-orange-200 text-orange-600 border border-orange-200 shadow-sm group-hover:scale-105 transition-transform duration-300">
                           <Users size={26} />
                         </div>
                         <div className="min-w-0 flex-1 flex flex-col gap-2">
@@ -423,6 +398,7 @@ function SearchGuideCard({
     >
       <div className="border border-border bg-white hover:border-orange-400 hover:shadow-xl shadow-md transition-all duration-300 flex flex-col h-full overflow-hidden rounded-2xl">
         <div className="relative w-full overflow-hidden" style={{ aspectRatio: "16/9" }}>
+          {/* TODO: Replace <img> with <Image /> from next/image for LCP and bandwidth optimization */}
           <img
             src={thumbnailSrc}
             alt={guide.title}
