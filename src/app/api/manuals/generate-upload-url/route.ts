@@ -8,7 +8,6 @@ import { b2, B2_BUCKET } from "@/lib/b2";
 
 export async function POST(req: NextRequest) {
   try {
-    // Step 1: Authenticate as admin
     const adminEmail = req.headers.get("x-admin-email") ?? "";
     if (!adminEmail || !isAdminEmail(adminEmail)) {
       return NextResponse.json(
@@ -17,7 +16,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Step 2: Validate and parse request body
     let body;
     try {
       body = await req.json();
@@ -30,7 +28,6 @@ export async function POST(req: NextRequest) {
 
     const { brandId, modelId, fileName, fileType } = body;
 
-    // Validate required fields
     if (!brandId || !modelId || !fileName || !fileType) {
       return NextResponse.json(
         { error: "Missing required fields: brandId, modelId, fileName, fileType." },
@@ -38,7 +35,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Enforce file type validation (only PDF)
     if (fileType !== "application/pdf") {
       return NextResponse.json(
         { error: "Only application/pdf file type is allowed." },
@@ -46,10 +42,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Step 3: Generate unique fileKey
     const fileKey = `manuals/${brandId}/${modelId}/${randomUUID()}.pdf`;
 
-    // Step 4: Generate presigned PUT URL (120 seconds expiration)
     const signedUrl = await getSignedUrl(
       b2,
       new PutObjectCommand({
@@ -60,7 +54,6 @@ export async function POST(req: NextRequest) {
       { expiresIn: 120 }
     );
 
-    // Step 5: Return presigned URL and fileKey to client
     return NextResponse.json(
       {
         signedUrl,
