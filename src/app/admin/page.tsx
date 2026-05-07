@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { fuzzyUserFilter } from "@/lib/fuzzyUserSearch";
 import { useRouter } from "next/navigation";
 import { useAdminGuard, clearAdminSession } from "@/lib/useAdminGuard";
 import { supabase } from "@/lib/supabase";
@@ -71,7 +72,7 @@ function CarImageCropper({
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-ink/80 px-4">
+    <div className="fixed inset-0 z-60 flex items-center justify-center bg-ink/80 px-4">
       <div className="bg-background border border-border p-5 w-full max-w-lg shadow-[6px_6px_0_0_var(--ink)]">
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-black uppercase tracking-tighter text-sm">Crop Image (16:9)</h3>
@@ -130,6 +131,7 @@ export default function AdminPage() {
   const [carModels,     setCarModels]     = useState<Record<string,CarModelRow[]|null>>({});
   const [expandedBrand, setExpandedBrand] = useState<string|null>(null);
   const [searchUser,    setSearchUser]    = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [loadingUsers,  setLoadingUsers]  = useState(false);
   const [noticeMsg,     setNoticeMsg]     = useState<{text:string;type:"ok"|"err"}|null>(null);
 
@@ -193,6 +195,12 @@ export default function AdminPage() {
       headers: { "x-admin-email": session.email },
     }).catch(()=>{}); // fire-and-forget; errors are non-critical
   },[session?.email]);
+
+  // Debounce search input for performance
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedSearch(searchUser), 180);
+    return () => clearTimeout(handler);
+  }, [searchUser]);
 
   // ── Users ──────────────────────────────────────────────────
   const fetchUsers = useCallback(async()=>{
@@ -367,7 +375,8 @@ export default function AdminPage() {
 
   if (!session) return null;
 
-  const filteredUsers = users.filter(u => u.name.toLowerCase().includes(searchUser.toLowerCase()));
+  // Prepare users for fuzzy search (add username/email if available in real data)
+  const filteredUsers = fuzzyUserFilter(users, debouncedSearch);
 
   return (
     <div className="min-h-screen bg-paper text-ink flex flex-col">
@@ -397,7 +406,7 @@ export default function AdminPage() {
 
       {/* ── Notification toast ── */}
       {noticeMsg && (
-        <div className={`fixed top-4 right-4 z-[100] px-5 py-3 text-sm font-bold shadow-lg border
+        <div className={`fixed top-4 right-4 z-100 px-5 py-3 text-sm font-bold shadow-lg border
           ${noticeMsg.type==="ok"?"bg-green-50 border-green-200 text-green-800":"bg-red-50 border-red-200 text-red-800"}`}>
           {noticeMsg.text}
         </div>
@@ -518,8 +527,15 @@ export default function AdminPage() {
               {/* Search */}
               <div className="flex items-center gap-2 border border-border bg-background px-3 mb-4 w-full max-w-xs">
                 <Search size={13} className="text-muted-foreground shrink-0"/>
-                <input value={searchUser} onChange={e=>setSearchUser(e.target.value)}
-                  placeholder="Search users..." className="flex-1 h-9 bg-transparent text-xs focus:outline-none font-mono"/>
+                <input
+                  value={searchUser}
+                  onChange={e => setSearchUser(e.target.value)}
+                  placeholder="Search users (name, username, email)..."
+                  className="flex-1 h-9 bg-transparent text-xs focus:outline-none font-mono"
+                  autoComplete="off"
+                  spellCheck={false}
+                  aria-label="Fuzzy search users"
+                />
               </div>
               {/* Table */}
               <div className="border border-border bg-background overflow-hidden">
