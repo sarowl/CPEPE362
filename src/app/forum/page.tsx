@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, Suspense } from "react";
+import { fuzzySearchForums } from "@/lib/fuzzySystemSearch";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
@@ -74,7 +75,14 @@ function ForumPageInner() {
 
   // Search & sort state
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [sortBy, setSortBy] = useState<SortOption>("latest");
+
+  // Debounce search input for performance
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedQuery(searchQuery), 200);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
 
   // Track per-post user reactions (optimistic UI, no page reload)
   const [reactions, setReactions] = useState<ReactionMap>({});
@@ -223,20 +231,14 @@ function ForumPageInner() {
     });
   };
 
-  // Apply brand filter → search → sort
+  // Apply brand filter → fuzzy search → sort
   const processedPosts = React.useMemo(() => {
     let result = selectedBrand
       ? posts.filter((p) => p.brand_id === selectedBrand)
       : posts;
 
-    if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase();
-      result = result.filter((p) =>
-        p.title.toLowerCase().includes(q) ||
-        p.brand_id.toLowerCase().includes(q) ||
-        (p.model_name ?? "").toLowerCase().includes(q) ||
-        (p.Users?.name ?? "").toLowerCase().includes(q)
-      );
+    if (debouncedQuery.trim()) {
+      result = fuzzySearchForums(result, debouncedQuery);
     }
 
     result = [...result].sort((a, b) => {
@@ -247,7 +249,7 @@ function ForumPageInner() {
     });
 
     return result;
-  }, [posts, selectedBrand, searchQuery, sortBy]);
+  }, [posts, selectedBrand, debouncedQuery, sortBy]);
 
   return (
     <div className="min-h-screen bg-paper text-ink flex flex-col animate-fade-in">
