@@ -6,6 +6,7 @@ import {
   RefreshCw, Clock, User, ArrowLeft, History,
   Trash2, Eye, AlertCircle, X,
 } from "lucide-react";
+import { StepImageGrid, ThumbnailPreview } from "@/components/StepImageViewer";
 
 const RETURN_REASONS = [
   "Incomplete", "Unreliable", "Unrealistic",
@@ -206,19 +207,8 @@ export default function AdminGuidesTab({
           {badge}
         </div>
         <p className="text-sm text-muted-foreground mb-4">{guide.summary}</p>
-        {/* UPDATED 6.1: Thumbnail immediately after title */}
-        <div className="mb-4 w-full overflow-hidden border border-border rounded" style={{ aspectRatio: "16/9" }}>
-          <img
-            src={guide.thumbnail_url ?? "/no-thumbnail.png"}
-            alt={guide.title}
-            className={`w-full h-full object-cover${!guide.thumbnail_url ? " opacity-80" : ""}`}
-            loading="lazy"
-            onError={(e) => {
-                const img = e.target as HTMLImageElement;
-                if (!img.dataset.errored) { img.dataset.errored = "1"; img.src = "/no-thumbnail.png"; } else { img.style.display = "none"; }
-              }}
-          />
-        </div>
+        {/* UPDATED: Clickable thumbnail preview */}
+        <ThumbnailPreview src={guide.thumbnail_url} alt={guide.title} className="mb-4" />
         <div className="flex flex-wrap gap-4 text-xs text-muted-foreground mb-4">
           <span>Difficulty: <strong className="text-ink">{guide.difficulty}</strong></span>
           <span>Time: <strong className="text-ink">{guide.time_required}</strong></span>
@@ -241,22 +231,8 @@ export default function AdminGuidesTab({
               <span className="text-xs font-bold">{step.title || `Step ${step.step_number}`}</span>
             </div>
             <div className="p-4">
-              {/* UPDATED 5: Large clear images with correct aspect ratio for thorough admin review */}
-              {step.images?.filter(Boolean).length > 0 && (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
-                  {step.images.filter(Boolean).map((url, i) => (
-                    <div key={i} className="w-full overflow-hidden border border-border rounded" style={{ aspectRatio: "16/9" }}>
-                      <img
-                        src={url}
-                        alt={`Step ${step.step_number} image ${i + 1}`}
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                        onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
+              {/* Clickable step images with lightbox viewer */}
+              <StepImageGrid images={step.images ?? []} stepNumber={step.step_number} className="mb-3" />
               <p className="text-sm leading-relaxed">{step.instructions}</p>
               {step.video_url && <VideoEmbed url={step.video_url} />}
             </div>

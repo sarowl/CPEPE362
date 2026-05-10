@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
+import { StepImageGrid, ThumbnailPreview } from "@/components/StepImageViewer";
 import { supabase } from "@/lib/supabase";
 import {
   ChevronRight, ChevronLeft, Plus, Trash2, Upload, X,
@@ -693,16 +694,11 @@ function CreateGuideForm() {
               <h2 className="font-black uppercase tracking-tighter text-base mb-1">Review Your Guide</h2>
               <p className="text-xs text-muted-foreground mb-5">Check everything looks good before submitting for admin review.</p>
 
-              {/* UPDATED 4.4: Thumbnail FIRST */}
+              {/* UPDATED: Clickable thumbnail preview */}
               {thumbPreview && (
                 <div className="mb-5">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Thumbnail</p>
-                  <img
-                    src={thumbPreview}
-                    alt="Thumbnail"
-                    className="w-full max-w-md rounded border border-border object-cover"
-                    style={{ aspectRatio: "16/9" }}
-                  />
+                  <ThumbnailPreview src={thumbPreview} alt={title || "Guide thumbnail"} className="max-w-md" />
                 </div>
               )}
 
@@ -731,21 +727,10 @@ function CreateGuideForm() {
                       {s.title&&<p className="text-xs font-bold">{s.title}</p>}
                     </div>
                     <div className="p-4 space-y-3">
-                      {/* UPDATED 4.4: Large clear images */}
-                      {(s.imagePreviews.some(Boolean) || s.images.some(Boolean)) && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                          {[0,1,2].map(i=>{
-                            const src=s.imagePreviews[i]||s.images[i];
-                            return src?(
-                              <img key={i} src={src}
-                                className="w-full aspect-video object-cover border border-border rounded"
-                                alt={`Step ${s.step_number} image ${i+1}`}
-                                onError={(e)=>{(e.target as HTMLImageElement).style.display="none";}}
-                              />
-                            ):null;
-                          })}
-                        </div>
-                      )}
+                      <StepImageGrid
+                        images={[0, 1, 2].map((i) => s.imagePreviews[i] || s.images[i] || null)}
+                        stepNumber={s.step_number}
+                      />
                       <p className="text-sm leading-relaxed">{s.instructions}</p>
                       {s.video_url && <p className="text-[10px] text-primary mt-1">📹 Video attached</p>}
                     </div>
