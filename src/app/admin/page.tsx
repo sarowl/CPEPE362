@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import { resolveCarModelImage } from "@/lib/carTypeImage";
+import { fuzzyUserFilter } from "@/lib/fuzzyUserSearch";
 
 
 // ── CarImageCropper (unchanged) ───────────────────────────────
@@ -518,7 +519,7 @@ export default function AdminPage() {
 
   if (!session) return null;
 
-  const filteredUsers = users.filter(u => u.name.toLowerCase().includes(searchUser.toLowerCase()) || u.email.toLowerCase().includes(searchUser.toLowerCase()));
+  const filteredUsers = fuzzyUserFilter(users, searchUser);
 
   // ── RENDER ───────────────────────────────────────────────────
   return (
