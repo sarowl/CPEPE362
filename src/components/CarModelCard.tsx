@@ -83,24 +83,6 @@ export default function CarModelCard({ model, brandId, brandName, guideCount = 0
         <p className="text-[10px] text-muted-foreground mt-0.5 font-mono">{model.years}</p>
       </div>
 
-      {/* ── 6.1: Data Indicators — Approved Guides + Forums (bottom-right) ── */}
-      <div className="absolute bottom-2 right-2 flex items-center gap-1">
-        <span
-          title={`${guideCount} approved guide${guideCount !== 1 ? "s" : ""}`}
-          className="flex items-center gap-0.5 bg-orange-50 border border-orange-200 text-orange-700 text-[8px] font-bold px-1.5 py-0.5 rounded-sm"
-        >
-          <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-          {guideCount}
-        </span>
-        <span
-          title={`${forumCount} forum thread${forumCount !== 1 ? "s" : ""}`}
-          className="flex items-center gap-0.5 bg-zinc-50 border border-zinc-200 text-zinc-500 text-[8px] font-bold px-1.5 py-0.5 rounded-sm"
-        >
-          <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-          {forumCount}
-        </span>
-      </div>
-
       {/* ── Decorative corners ─────────────────────────────────────────── */}
       <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
         <Plus size={10} className="text-orange-500" />

@@ -6,8 +6,9 @@ import {
   RefreshCw, Clock, User, ArrowLeft, History,
   Trash2, Eye, AlertCircle, X,
 } from "lucide-react";
+import { StepImageGrid, ThumbnailPreview } from "@/components/StepImageViewer";
 
-const REJECTION_REASONS = [
+const RETURN_REASONS = [
   "Incomplete", "Unreliable", "Unrealistic",
   "Too Simple", "Poor Photos", "Other",
 ];
@@ -86,9 +87,9 @@ export default function AdminGuidesTab({
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
   const [reviewGuide,  setReviewGuide]  = useState<{ guide: FullGuide; steps: Step[] } | null>(null);
   const [reviewing,    setReviewing]    = useState(false);
-  const [rejectMode,   setRejectMode]   = useState(false);
-  const [rejectReason, setRejectReason] = useState("");
-  const [rejectNote,   setRejectNote]   = useState("");
+  const [returnMode,   setReturnMode]   = useState(false);
+  const [returnReason, setReturnReason] = useState("");
+  const [returnNote,   setReturnNote]   = useState("");
   const [actioning,    setActioning]    = useState(false);
 
   // ── History state ─────────────────────────────────────────────
@@ -130,7 +131,7 @@ export default function AdminGuidesTab({
   // ── Open a guide for full reading ────────────────────────────
   const openGuide = async (guideId: string, forHistory = false) => {
     setReviewing(true);
-    setRejectMode(false); setRejectReason(""); setRejectNote("");
+    setReturnMode(false); setReturnReason(""); setReturnNote("");
     const [guideRes, stepsRes] = await Promise.all([
       fetch(`/api/guides/${guideId}`, { headers: { "x-admin-email": adminEmail } }),
       fetch(`/api/guides/${guideId}/steps`, { headers: { "x-admin-email": adminEmail } }),
@@ -143,23 +144,23 @@ export default function AdminGuidesTab({
     setReviewing(false);
   };
 
-  // ── Approve / reject ─────────────────────────────────────────
+  // ── Approve / return ─────────────────────────────────────────
   const handleAction = async (action: "approve" | "reject") => {
     if (!reviewGuide) return;
-    if (action === "reject" && !rejectReason) { onToast("Select a rejection reason.", "err"); return; }
+    if (action === "reject" && !returnReason) { onToast("Select a return reason.", "err"); return; }
     setActioning(true);
     const res = await fetch("/api/guides-review", {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-admin-email": adminEmail },
       body: JSON.stringify({
         guide_id: reviewGuide.guide.guide_id, action,
-        reason: rejectReason || undefined,
-        note:   rejectNote   || undefined,
+        reason: returnReason || undefined,
+        note:   returnNote   || undefined,
       }),
     });
     const json = await res.json();
     if (!res.ok) { onToast(json.error ?? "Action failed.", "err"); setActioning(false); return; }
-    onToast(action === "approve" ? "Guide approved and published!" : "Guide rejected. Author will be notified.");
+    onToast(action === "approve" ? "Guide approved and published!" : "Guide returned. Author will be notified.");
     setReviewGuide(null);
     fetchPending();
     setActioning(false);
@@ -206,19 +207,8 @@ export default function AdminGuidesTab({
           {badge}
         </div>
         <p className="text-sm text-muted-foreground mb-4">{guide.summary}</p>
-        {/* UPDATED 6.1: Thumbnail immediately after title */}
-        <div className="mb-4 w-full overflow-hidden border border-border rounded" style={{ aspectRatio: "16/9" }}>
-          <img
-            src={guide.thumbnail_url ?? "/no-thumbnail.png"}
-            alt={guide.title}
-            className={`w-full h-full object-cover${!guide.thumbnail_url ? " opacity-80" : ""}`}
-            loading="lazy"
-            onError={(e) => {
-                const img = e.target as HTMLImageElement;
-                if (!img.dataset.errored) { img.dataset.errored = "1"; img.src = "/no-thumbnail.png"; } else { img.style.display = "none"; }
-              }}
-          />
-        </div>
+        {/* UPDATED: Clickable thumbnail preview */}
+        <ThumbnailPreview src={guide.thumbnail_url} alt={guide.title} className="mb-4" />
         <div className="flex flex-wrap gap-4 text-xs text-muted-foreground mb-4">
           <span>Difficulty: <strong className="text-ink">{guide.difficulty}</strong></span>
           <span>Time: <strong className="text-ink">{guide.time_required}</strong></span>
@@ -241,22 +231,8 @@ export default function AdminGuidesTab({
               <span className="text-xs font-bold">{step.title || `Step ${step.step_number}`}</span>
             </div>
             <div className="p-4">
-              {/* UPDATED 5: Large clear images with correct aspect ratio for thorough admin review */}
-              {step.images?.filter(Boolean).length > 0 && (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
-                  {step.images.filter(Boolean).map((url, i) => (
-                    <div key={i} className="w-full overflow-hidden border border-border rounded" style={{ aspectRatio: "16/9" }}>
-                      <img
-                        src={url}
-                        alt={`Step ${step.step_number} image ${i + 1}`}
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                        onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
+              {/* Clickable step images with lightbox viewer */}
+              <StepImageGrid images={step.images ?? []} stepNumber={step.step_number} className="mb-3" />
               <p className="text-sm leading-relaxed">{step.instructions}</p>
               {step.video_url && <VideoEmbed url={step.video_url} />}
             </div>
@@ -284,19 +260,19 @@ export default function AdminGuidesTab({
           </span>
         )}
 
-        {rejectMode && (
+        {returnMode && (
           <div className="border border-red-200 bg-red-50 p-5 mb-4 space-y-3">
-            <p className="text-xs font-bold uppercase tracking-widest text-red-700">Rejection Reason</p>
+            <p className="text-xs font-bold uppercase tracking-widest text-red-700">Return Reason</p>
             <div className="flex flex-wrap gap-2">
-              {REJECTION_REASONS.map((r) => (
-                <button key={r} onClick={() => setRejectReason(r)}
-                  className={`px-3 py-1.5 text-xs font-bold border transition-all ${rejectReason === r ? "bg-red-600 text-white border-red-600" : "bg-white border-red-200 text-red-700 hover:border-red-400"}`}
+              {RETURN_REASONS.map((r) => (
+                <button key={r} onClick={() => setReturnReason(r)}
+                  className={`px-3 py-1.5 text-xs font-bold border transition-all ${returnReason === r ? "bg-red-600 text-white border-red-600" : "bg-white border-red-200 text-red-700 hover:border-red-400"}`}
                 >{r}</button>
               ))}
             </div>
             <div className="space-y-1">
               <label className="text-[10px] font-bold uppercase tracking-widest text-red-700 block">Additional Note (optional)</label>
-              <textarea value={rejectNote} onChange={(e) => setRejectNote(e.target.value)}
+              <textarea value={returnNote} onChange={(e) => setReturnNote(e.target.value)}
                 rows={2} placeholder="Add a note to help the author improve..."
                 className="w-full border border-red-200 bg-white px-3 py-2 text-xs focus:outline-none resize-none"
               />
@@ -305,24 +281,24 @@ export default function AdminGuidesTab({
         )}
 
         <div className="flex items-center gap-3 flex-wrap">
-          {!rejectMode ? (
+          {!returnMode ? (
             <>
               <button onClick={() => handleAction("approve")} disabled={actioning}
                 className="flex items-center gap-1.5 px-5 py-2.5 bg-green-600 text-white text-xs font-bold hover:bg-green-700 transition-colors disabled:opacity-50">
                 {actioning ? <RefreshCw size={12} className="animate-spin" /> : <CheckCircle size={13} />} Approve
               </button>
-              <button onClick={() => setRejectMode(true)}
+              <button onClick={() => setReturnMode(true)}
                 className="flex items-center gap-1.5 px-5 py-2.5 border border-red-300 text-red-600 text-xs font-bold hover:bg-red-50 transition-colors">
-                <XCircle size={13} /> Reject
+                <XCircle size={13} /> Return
               </button>
             </>
           ) : (
             <>
-              <button onClick={() => handleAction("reject")} disabled={actioning || !rejectReason}
+              <button onClick={() => handleAction("reject")} disabled={actioning || !returnReason}
                 className="flex items-center gap-1.5 px-5 py-2.5 bg-red-600 text-white text-xs font-bold hover:bg-red-700 transition-colors disabled:opacity-50">
-                {actioning ? <RefreshCw size={12} className="animate-spin" /> : <XCircle size={13} />} Confirm Reject
+                {actioning ? <RefreshCw size={12} className="animate-spin" /> : <XCircle size={13} />} Confirm Return
               </button>
-              <button onClick={() => setRejectMode(false)}
+              <button onClick={() => setReturnMode(false)}
                 className="px-4 py-2.5 border border-border text-xs font-bold hover:bg-secondary transition-colors">Cancel</button>
             </>
           )}
@@ -464,7 +440,7 @@ export default function AdminGuidesTab({
                     : "bg-background border-border text-muted-foreground hover:border-primary"
                 }`}
               >
-                {f === "all" ? "All" : f === "approved" ? "Approved" : "Rejected"}
+                {f === "all" ? "All" : f === "approved" ? "Approved" : "Returned"}
               </button>
             ))}
             {(historySearch || historyStatusFilter !== "all") && (
@@ -503,7 +479,7 @@ export default function AdminGuidesTab({
                 <History size={32} className="text-border" />
                 <p className="text-sm font-bold text-muted-foreground">{historyGuides.length === 0 ? "No reviewed guides yet" : "No results found"}</p>
                 <p className="text-xs text-muted-foreground text-center max-w-xs">
-                  {historyGuides.length === 0 ? "Approved and rejected guides will appear here." : "Try adjusting your search or filter."}
+                  {historyGuides.length === 0 ? "Approved and returned guides will appear here." : "Try adjusting your search or filter."}
                 </p>
               </div>
             ) : (
@@ -515,7 +491,7 @@ export default function AdminGuidesTab({
                         <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 border ${
                           guide.status === "approved" ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-600 border-red-200"
                         }`}>
-                          {guide.status === "approved" ? "Approved" : "Rejected"}
+                          {guide.status === "approved" ? "Approved" : "Returned"}
                         </span>
                         <span className="text-[10px] font-mono text-muted-foreground">
                           {guide.reviewed_at ? new Date(guide.reviewed_at).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" }) : "—"}
@@ -530,7 +506,7 @@ export default function AdminGuidesTab({
                       </p>
                       {guide.status === "rejected" && guide.rejection && (
                         <p className="text-[10px] text-red-500 mt-1">
-                          Reason: {guide.rejection.reason}
+                          Return Reason: {guide.rejection.reason}
                           {guide.rejection.note && ` — ${guide.rejection.note}`}
                         </p>
                       )}

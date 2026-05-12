@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
+import { StepImageGrid, ThumbnailPreview } from "@/components/StepImageViewer";
 import {
   ChevronRight, ChevronLeft, Plus, Trash2, Upload, X,
   AlertCircle, CheckCircle, Clock, Wrench, Package,
@@ -447,19 +448,21 @@ export default function EditGuidePage() {
           <div>
             <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mb-1">Edit Guide</p>
             <h1 className="font-black uppercase tracking-tighter text-2xl">Update Repair Guide</h1>
-            {isApprovedOrRejected && <p className="text-xs text-muted-foreground mt-1">Editing an {origGuideStatus} guide. Use <strong>Turn to Draft</strong> to save changes — guide will require re-review.</p>}
+            {isApprovedOrRejected && <p className="text-xs text-muted-foreground mt-1">Editing an {origGuideStatus === "rejected" ? "returned" : origGuideStatus} guide. Use <strong>Turn to Draft</strong> to save changes — guide will require re-review.</p>}
             {isDraft && <p className="text-xs text-muted-foreground mt-1">Editing a draft. Use <strong>Save Draft</strong> to keep changes or <strong>Submit for Review</strong> to publish.</p>}
           </div>
-          {/* Turn to Draft — available immediately under Step 1: Info section */}
-          <button
-            onClick={handleTurnToDraft}
-            disabled={saving}
-            className="flex items-center gap-1.5 px-3 py-2 border border-border text-xs font-bold hover:bg-secondary transition-colors disabled:opacity-60 shrink-0 mt-1"
-            title="Save as draft"
-          >
-            {saving ? <RefreshCw size={11} className="animate-spin" /> : null}
-            Turn to Draft
-          </button>
+          {/* Turn to Draft top button — only shown for approved/returned guides, not drafts */}
+          {isApprovedOrRejected && (
+            <button
+              onClick={handleTurnToDraft}
+              disabled={saving}
+              className="flex items-center gap-1.5 px-3 py-2 border border-border text-xs font-bold hover:bg-secondary transition-colors disabled:opacity-60 shrink-0 mt-1"
+              title="Save as draft"
+            >
+              {saving ? <RefreshCw size={11} className="animate-spin" /> : null}
+              Turn to Draft
+            </button>
+          )}
         </div>
 
         {/* Wizard indicator */}
@@ -717,10 +720,11 @@ export default function EditGuidePage() {
             <div className="border border-border bg-background p-5 space-y-4">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Thumbnail</p>
-                <div className="w-full max-w-md overflow-hidden border border-border rounded" style={{ aspectRatio: "16/9" }}>
-                  <img src={thumbDisplaySrc} alt="Thumbnail" className="w-full h-full object-cover"
-                    onError={(e) => { (e.target as HTMLImageElement).src = "/no-thumbnail.png"; }} />
-                </div>
+                <ThumbnailPreview
+                  src={thumbDisplaySrc !== "/no-thumbnail.png" ? thumbDisplaySrc : null}
+                  alt={title || "Guide thumbnail"}
+                  className="max-w-md"
+                />
                 {pendingThumb && <p className="text-[10px] text-yellow-600 mt-1">⚠ New thumbnail — will be uploaded on confirm</p>}
               </div>
               <h3 className="font-black uppercase tracking-tighter text-lg">{title}</h3>
@@ -744,19 +748,10 @@ export default function EditGuidePage() {
                       {s.title && <p className="text-xs font-bold">{s.title}</p>}
                     </div>
                     <div className="p-4 space-y-2">
-                      {(s.imagePreviews.some(Boolean) || s.images.some(Boolean)) && (
-                        <div className="grid grid-cols-3 gap-2">
-                          {[0,1,2].map((i) => {
-                            const src = s.imagePreviews[i] || s.images[i];
-                            return src ? (
-                              <div key={i} className="w-full overflow-hidden border border-border rounded" style={{ aspectRatio: "16/9" }}>
-                                <img src={src} alt={`Step ${s.step_number} img ${i+1}`} className="w-full h-full object-cover" loading="lazy"
-                                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-                              </div>
-                            ) : null;
-                          })}
-                        </div>
-                      )}
+                      <StepImageGrid
+                        images={[0, 1, 2].map((i) => s.imagePreviews[i] || s.images[i] || null)}
+                        stepNumber={s.step_number}
+                      />
                       <p className="text-sm leading-relaxed">{s.instructions}</p>
                       {s.video_url && <VideoEmbed url={s.video_url} />}
                     </div>

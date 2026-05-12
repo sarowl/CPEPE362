@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import { resolveCarModelImage } from "@/lib/carTypeImage";
+import { fuzzyUserFilter } from "@/lib/fuzzyUserSearch";
 
 
 // ── CarImageCropper (unchanged) ───────────────────────────────
@@ -168,12 +169,9 @@ export default function AdminPage() {
   const [cleanupLoading, setCleanupLoading] = useState(false);
 
   // Guide model_id migration fix
-  const [modelIdFixLoading, setModelIdFixLoading] = useState(false);
-  const [modelIdFixResult,  setModelIdFixResult]  = useState<{checked:number;fixed:number;skipped:number;unmatched:number}|null>(null);
-
+  const [fkeyFixLoading, setFkeyFixLoading] = useState(false);
+  const [fkeyFixResult,  setFkeyFixResult]  = useState<{guides:{checked:number;fixed:number;skipped:number;unmatched:number}|null; forum:{checked:number;fixed:number;skipped:number;unmatched:number}|null}|null>(null);
   // Forum model_id fix
-  const [forumFixLoading, setForumFixLoading] = useState(false);
-  const [forumFixResult,  setForumFixResult]  = useState<{checked:number;fixed:number;skipped:number;unmatched:number}|null>(null);
 
   // ── Documents tab state ──────────────────────────────────────
   const [docBrandId,          setDocBrandId]          = useState("");
@@ -299,26 +297,88 @@ export default function AdminPage() {
   useEffect(()=>{ if(activeTab==="documents") fetchManuals(); },[activeTab,fetchManuals]);
 
   // ── Documents: upload ────────────────────────────────────────
-  const handleManualUpload = async()=>{
+  // ── Documents: upload ────────────────────────────────────────
+  const handleManualUpload = async () => {
     setDocError("");
     if(!docBrandId)     { setDocError("Select a brand.");     return; }
     if(!docModelId)     { setDocError("Select a car model."); return; }
     if(!docTitle.trim()){ setDocError("Enter a title.");      return; }
     if(!docFile)        { setDocError("Choose a PDF file.");  return; }
+    
     setDocUploading(true);
-    const fd = new FormData();
-    fd.append("file",        docFile);
-    fd.append("brand_id",    docBrandId);
-    fd.append("model_id",    docModelId);
-    fd.append("manual_type", docManualType);
-    fd.append("title",       docTitle.trim());
-    const res  = await fetch("/api/manuals/upload",{ method:"POST", headers:{"x-admin-email":session?.email??""}, body:fd });
-    const json = await res.json();
-    if(!res.ok){ setDocError(json.error??"Upload failed."); setDocUploading(false); return; }
-    toast(`"${json.manual.title}" uploaded successfully.`);
-    setDocTitle(""); setDocFile(null); setDocBrandId(""); setDocModelId(""); setDocModels([]);
-    fetchManuals();
-    setDocUploading(false);
+
+    try {
+      const adminEmail = session?.email ?? "";
+
+      // STEP 1: The Handshake (Get the Presigned URL)
+      // Note: Make sure the route matches the filename you created (e.g., /api/manuals/generate-upload-url)
+      const urlRes = await fetch("/api/manuals/generate-upload-url", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-email": adminEmail,
+        },
+        body: JSON.stringify({
+          brandId: docBrandId,
+          modelId: docModelId,
+          fileName: docFile.name,
+          fileType: docFile.type,
+        }),
+      });
+
+      const urlJson = await urlRes.json();
+      if (!urlRes.ok) throw new Error(urlJson.error ?? "Failed to get upload URL");
+
+      const { signedUrl, fileKey } = urlJson;
+
+      // STEP 2: The Direct Upload (Bypass Next.js, send straight to Backblaze)
+      const uploadRes = await fetch(signedUrl, {
+        method: "PUT",
+        body: docFile,
+        headers: {
+          "Content-Type": docFile.type,
+        },
+      });
+
+      if (!uploadRes.ok) throw new Error("Failed to upload PDF directly to storage.");
+
+      // STEP 3: The Record (Save metadata to Supabase)
+      // Note: You must create this route: /api/manuals/save-metadata
+      const dbRes = await fetch("/api/manuals/save-metadata", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-email": adminEmail,
+        },
+        body: JSON.stringify({
+          brandId: docBrandId,
+          modelId: docModelId,
+          manualType: docManualType,
+          title: docTitle.trim(),
+          fileKey: fileKey,
+          fileName: docFile.name,
+          fileSize: docFile.size,
+        }),
+      });
+
+      const dbJson = await dbRes.json();
+      if (!dbRes.ok) throw new Error(dbJson.error ?? "Failed to save metadata to database.");
+
+      // Cleanup on success
+      toast(`"${docTitle.trim()}" uploaded successfully.`);
+      setDocTitle(""); 
+      setDocFile(null); 
+      setDocBrandId(""); 
+      setDocModelId(""); 
+      setDocModels([]);
+      fetchManuals();
+
+    } catch (err: any) {
+      console.error("Upload error:", err);
+      setDocError(err.message ?? "An unexpected upload error occurred.");
+    } finally {
+      setDocUploading(false);
+    }
   };
 
   // ── Documents: open viewer ───────────────────────────────────
@@ -459,7 +519,7 @@ export default function AdminPage() {
 
   if (!session) return null;
 
-  const filteredUsers = users.filter(u => u.name.toLowerCase().includes(searchUser.toLowerCase()) || u.email.toLowerCase().includes(searchUser.toLowerCase()));
+  const filteredUsers = fuzzyUserFilter(users, searchUser);
 
   // ── RENDER ───────────────────────────────────────────────────
   return (
@@ -651,24 +711,31 @@ export default function AdminPage() {
                 <div className="flex items-center gap-2 mt-1">
                   <button
                     onClick={async()=>{
-                      setModelIdFixLoading(true);
-                      setModelIdFixResult(null);
+                      setFkeyFixLoading(true);
+                      setFkeyFixResult(null);
                       try{
-                        const res=await fetch("/api/guides-model-id-fix",{method:"POST",headers:{"x-admin-email":session?.email??""}});
-                        const j=await res.json();
-                        if(j.error){toast(`Fix failed: ${j.error}`,"err");}
-                        else{setModelIdFixResult(j);toast(`Done — ${j.fixed} guide(s) fixed.`,"ok");}
+                        const [gRes,fRes]=await Promise.all([
+                          fetch("/api/guides-model-id-fix",{method:"POST",headers:{"x-admin-email":session?.email??""}}),
+                          fetch("/api/forum-fix-model-ids",{method:"POST",headers:{"x-admin-email":session?.email??""}})
+                        ]);
+                        const [gJ,fJ]=await Promise.all([gRes.json(),fRes.json()]);
+                        if(gJ.error||fJ.error){toast(`Fix failed: ${gJ.error??fJ.error}`,"err");}
+                        else{
+                          setFkeyFixResult({guides:gJ,forum:fJ});
+                          toast(`Done — ${(gJ.fixed??0)+(fJ.fixed??0)} record(s) fixed.`,"ok");
+                        }
                       }catch(e:any){toast(`Fix error: ${e.message}`,"err");}
-                      finally{setModelIdFixLoading(false);}
+                      finally{setFkeyFixLoading(false);}
                     }}
-                    disabled={modelIdFixLoading}
+                    disabled={fkeyFixLoading}
                     className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold border border-primary text-primary hover:bg-primary hover:text-white transition-colors disabled:opacity-50">
-                    {modelIdFixLoading ? <RefreshCw size={11} className="animate-spin"/> : <RefreshCw size={11}/>}
-                    Fix Guide IDs
+                    {fkeyFixLoading ? <RefreshCw size={11} className="animate-spin"/> : <RefreshCw size={11}/>}
+                    Fix FKey IDs
                   </button>
-                  {modelIdFixResult&&(
+                  {fkeyFixResult&&(
                     <span className="text-[10px] font-mono text-muted-foreground">
-                      ✓ {modelIdFixResult.fixed} fixed · {modelIdFixResult.skipped} ok · {modelIdFixResult.unmatched} unmatched
+                      Guides: ✓ {fkeyFixResult.guides?.fixed??0} fixed · {fkeyFixResult.guides?.skipped??0} ok · {fkeyFixResult.guides?.unmatched??0} unmatched
+                      {" | "}Forum: ✓ {fkeyFixResult.forum?.fixed??0} fixed · {fkeyFixResult.forum?.skipped??0} ok · {fkeyFixResult.forum?.unmatched??0} unmatched
                     </span>
                   )}
                   <button onClick={fetchAllModels} className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold border border-border hover:bg-secondary transition-colors">
@@ -900,30 +967,6 @@ export default function AdminPage() {
                 <div>
                   <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Admin / Forum</p>
                   <h2 className="font-black uppercase tracking-tighter text-base mt-0.5">Forum Moderation</h2>
-                </div>
-                <div className="flex items-center gap-2 mt-1">
-                  <button
-                    onClick={async()=>{
-                      setForumFixLoading(true);
-                      setForumFixResult(null);
-                      try{
-                        const res=await fetch("/api/forum-fix-model-ids",{method:"POST",headers:{"x-admin-email":session?.email??""}});
-                        const j=await res.json();
-                        if(j.error){toast(`Fix failed: ${j.error}`,"err");}
-                        else{setForumFixResult(j);toast(`Done — ${j.fixed} post(s) fixed.`,"ok");}
-                      }catch(e:any){toast(`Fix error: ${e.message}`,"err");}
-                      finally{setForumFixLoading(false);}
-                    }}
-                    disabled={forumFixLoading}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold border border-primary text-primary hover:bg-primary hover:text-white transition-colors disabled:opacity-50">
-                    {forumFixLoading ? <RefreshCw size={11} className="animate-spin"/> : <RefreshCw size={11}/>}
-                    Fix Forum IDs
-                  </button>
-                  {forumFixResult&&(
-                    <span className="text-[10px] font-mono text-muted-foreground">
-                      ✓ {forumFixResult.fixed} fixed · {forumFixResult.skipped} ok · {forumFixResult.unmatched} unmatched
-                    </span>
-                  )}
                 </div>
               </div>
               <div className="border border-border bg-background overflow-hidden">

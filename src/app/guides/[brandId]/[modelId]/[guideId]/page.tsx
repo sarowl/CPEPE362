@@ -6,6 +6,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import Navbar from "@/components/Navbar";
+import { StepImageGrid, ThumbnailPreview } from "@/components/StepImageViewer";
 import {
   Clock, Wrench, Package, ChevronRight, ArrowLeft, User,
   AlertCircle, BookOpen, Video, ThumbsUp, ThumbsDown, RefreshCw,
@@ -176,9 +177,7 @@ export default function GuideViewPage() {
     );
   }
 
-  // UPDATED 6.4: Only use fallback if thumbnail_url is genuinely absent
-  const thumbnailSrc = guide.thumbnail_url ?? "/no-thumbnail.png";
-
+  // Render guide
   return (
     <div className="min-h-screen bg-paper text-ink flex flex-col animate-fade-in">
       <Navbar />
@@ -206,24 +205,12 @@ export default function GuideViewPage() {
             </span>
           </div>
 
-          {/* UPDATED 6.1: Thumbnail immediately after title */}
-          <div className="mb-4 w-full overflow-hidden border border-border rounded" style={{ aspectRatio: "16/9" }}>
-            <img
-              src={thumbnailSrc}
-              alt={guide.title}
-              className="w-full h-full object-cover"
-              onError={(e) => {
-                const img = e.target as HTMLImageElement;
-                if (!img.dataset.errored) {
-                  img.dataset.errored = "1";
-                  img.src = "/no-thumbnail.png";
-                } else {
-                  img.style.display = "none";
-                }
-              }}
-              loading="lazy"
-            />
-          </div>
+          {/* UPDATED: Clickable thumbnail preview */}
+          <ThumbnailPreview
+            src={guide.thumbnail_url}
+            alt={guide.title}
+            className="mb-4"
+          />
 
           {/* Meta row */}
           <div className="flex flex-wrap gap-4 mb-4 text-xs">
@@ -341,22 +328,7 @@ export default function GuideViewPage() {
                 <h3 className="font-bold text-sm">{step.title || `Step ${step.step_number}`}</h3>
               </div>
               <div className="p-5">
-                {step.images?.filter(Boolean).length > 0 && (
-                  // UPDATED 5: Large, clear images, correct aspect ratio, no distortion
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-                    {step.images.filter(Boolean).map((url, i) => (
-                      <div key={i} className="w-full overflow-hidden border border-border rounded" style={{ aspectRatio: "16/9" }}>
-                        <img
-                          src={url}
-                          alt={`Step ${step.step_number} photo ${i + 1}`}
-                          className="w-full h-full object-cover"
-                          loading="lazy"
-                          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <StepImageGrid images={step.images ?? []} stepNumber={step.step_number} />
                 <p className="text-sm leading-relaxed">{step.instructions}</p>
                 {step.video_url && <VideoEmbed url={step.video_url} />}
               </div>

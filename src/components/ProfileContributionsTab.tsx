@@ -7,6 +7,7 @@ import {
   CheckCircle, XCircle, AlertCircle, RefreshCw, Eye,
   ArrowLeft, Wrench, Video, X, Package,
 } from "lucide-react";
+import { StepImageGrid, ThumbnailPreview } from "@/components/StepImageViewer";
 
 interface Guide {
   guide_id: string;
@@ -64,7 +65,7 @@ const STATUS_CONFIG = {
     icon: <CheckCircle size={13} className="text-green-600" />,
   },
   rejected: {
-    label: "Rejected",
+    label: "Returned",
     badge: "bg-red-50 text-red-600 border-red-200",
     description: "Not published. Review the admin feedback and edit to resubmit.",
     icon: <XCircle size={13} className="text-red-500" />,
@@ -231,7 +232,7 @@ export default function ProfileContributionsTab() {
           {/* 4.4: Status filter */}
           <div className="mb-5 flex items-center gap-1.5 flex-wrap">
             <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground mr-1">Filter:</span>
-            {([["all", "All"], ["approved", "Approved"], ["rejected", "Rejected"], ["draft", "Draft"], ["pending", "Pending"]] as [Guide["status"] | "all", string][]).map(([val, label]) => (
+            {([["all", "All"], ["approved", "Approved"], ["rejected", "Returned"], ["draft", "Draft"], ["pending", "Pending"]] as [Guide["status"] | "all", string][]).map(([val, label]) => (
               <button
                 key={val}
                 onClick={() => setStatusFilter(val)}
@@ -400,7 +401,7 @@ function GuideCard({
           // UPDATED 3.2/3.3: Show rejection reason AND admin note clearly
           <div className="mt-1.5 space-y-1">
             <p className="text-[10px] text-red-500 flex items-center gap-1">
-              <XCircle size={10} /> Rejected: {rejectionReason}
+              <XCircle size={10} /> Returned: {rejectionReason}
             </p>
             {rejectionNote && (
               <p className="text-[10px] text-red-400 pl-3.5 italic">
@@ -551,20 +552,9 @@ function GuidePreviewModal({
             </div>
           ) : guide ? (
             <div>
-              {/* UPDATED 6.1/6.4: Thumbnail FIRST in preview */}
+              {/* UPDATED: Clickable thumbnail preview */}
               {guide.thumbnail_url && (
-                <div className="mb-5 w-full overflow-hidden border border-border rounded" style={{ aspectRatio: "16/9" }}>
-                  <img
-                    src={guide.thumbnail_url}
-                    alt={guide.title}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                const img = e.target as HTMLImageElement;
-                if (!img.dataset.errored) { img.dataset.errored = "1"; img.src = "/no-thumbnail.png"; } else { img.style.display = "none"; }
-              }}
-                    loading="lazy"
-                  />
-                </div>
+                <ThumbnailPreview src={guide.thumbnail_url} alt={guide.title} className="mb-5" />
               )}
               {/* Guide header */}
               <div className="mb-6">
@@ -636,22 +626,7 @@ function GuidePreviewModal({
                       <span className="text-xs font-bold">{step.title || `Step ${step.step_number}`}</span>
                     </div>
                     <div className="p-4">
-                      {step.images?.filter(Boolean).length > 0 && (
-                        // UPDATED 5: Large, clear images with correct aspect ratio, no distortion
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
-                          {step.images.filter(Boolean).map((url, i) => (
-                            <div key={i} className="w-full overflow-hidden border border-border rounded" style={{ aspectRatio: "16/9" }}>
-                              <img
-                                src={url}
-                                alt={`Step ${step.step_number} image ${i + 1}`}
-                                className="w-full h-full object-cover"
-                                loading="lazy"
-                                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                              />
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                      <StepImageGrid images={step.images ?? []} stepNumber={step.step_number} />
                       <p className="text-sm leading-relaxed">{step.instructions}</p>
                       {step.video_url && (
                         <VideoEmbed url={step.video_url} />
