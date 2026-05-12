@@ -43,7 +43,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { callType, initialProblem, qaHistory } = body;
 
-    const model = genAI.getGenerativeModel({ model: "gemma-3-27b-it" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
     const baseConfig = { temperature: 0.1 };
 
     // ── Call 0: Validate Input ──────────────────────────────────────

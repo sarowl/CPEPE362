@@ -52,7 +52,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing diagnosis" }, { status: 400 });
     }
 
-    const model = genAI.getGenerativeModel({ model: "gemma-3-27b-it" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     const vehicleInfo = vehicle
       ? `${vehicle.year} ${vehicle.make} ${vehicle.model}`
