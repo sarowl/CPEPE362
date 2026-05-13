@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const API_KEY = process.env.REPAIR_MODE_API_KEY || "";
-const genAI = new GoogleGenerativeAI(API_KEY);
+// ─── Ollama Config ────────────────────────────────────────────────────────────
+const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
+const OLLAMA_MODEL    = process.env.OLLAMA_MODEL    || "gemma4:e2b";
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 function safeJsonParse(rawText: string) {
   let clean = rawText.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
   const jsonMatch = clean.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
@@ -12,24 +13,56 @@ function safeJsonParse(rawText: string) {
     return JSON.parse(clean);
   } catch (e) {
     console.error("Failed to parse JSON. Raw output:", rawText);
-    throw new Error("Invalid JSON format from AI");
+    throw new Error("Invalid JSON format from local LLM");
   }
 }
 
-async function generateWithTimeout(model: any, contents: any, config: any, timeoutMs = 25000) {
-  const timeoutPromise = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error("Request timed out")), timeoutMs)
-  );
-  const generatePromise = model.generateContent({ contents, generationConfig: config });
-  return Promise.race([generatePromise, timeoutPromise]);
+/**
+ * Calls the local Ollama instance.
+ * Ollama POST /api/generate → { response: string }
+ */
+async function callOllama(prompt: string, timeoutMs = 60000): Promise<string> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const res = await fetch(`${OLLAMA_BASE_URL}/api/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: OLLAMA_MODEL,
+        prompt,
+        stream: false,
+        options: { temperature: 0.1 },
+      }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Ollama error ${res.status}: ${text}`);
+    }
+
+    const data = await res.json();
+    return data.response as string;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
-async function generateWithRetry(model: any, contents: any, config: any, retries = 3) {
+/**
+ * Retry wrapper with timeout awareness — mirrors the original logic.
+ */
+async function generateWithRetry(prompt: string, retries = 3): Promise<string> {
   for (let i = 0; i < retries; i++) {
     try {
-      return await generateWithTimeout(model, contents, config);
+      return await callOllama(prompt);
     } catch (error: any) {
-      const isRetryable = error.status === 503 || error.status === 429 || error.message === "Request timed out";
+      const isRetryable =
+        error.name === "AbortError" ||          // timeout
+        error.message?.includes("503") ||
+        error.message?.includes("429");
+
       if (isRetryable && i < retries - 1) {
         await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
         continue;
@@ -37,22 +70,18 @@ async function generateWithRetry(model: any, contents: any, config: any, retries
       throw error;
     }
   }
+  throw new Error("All retries exhausted");
 }
 
+// ─── Route Handler ────────────────────────────────────────────────────────────
 export async function POST(req: Request) {
   try {
-    if (!API_KEY) {
-      return NextResponse.json({ error: "API Key not configured" }, { status: 500 });
-    }
-
     const body = await req.json();
     const { problemContext, diagnosis, vehicle } = body;
 
     if (!diagnosis) {
       return NextResponse.json({ error: "Missing diagnosis" }, { status: 400 });
     }
-
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     const vehicleInfo = vehicle
       ? `${vehicle.year} ${vehicle.make} ${vehicle.model}`
@@ -95,17 +124,12 @@ Respond with ONLY this JSON structure, no other text:
   }
 }`;
 
-    const result = await generateWithRetry(
-      model,
-      [{ role: "user", parts: [{ text: prompt }] }],
-      { temperature: 0.1 }
-    );
-
-    const responseData = safeJsonParse((result as any).response.text());
+    const raw          = await generateWithRetry(prompt);
+    const responseData = safeJsonParse(raw);
     return NextResponse.json(responseData);
 
   } catch (error: any) {
-    console.error("Repair procedure API error:", error);
+    console.error("Local LLM Error (repair):", error);
     return NextResponse.json(
       { error: error.message || "Failed to generate repair procedure" },
       { status: 500 }

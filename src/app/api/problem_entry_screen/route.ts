@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+// ─── Ollama Config ────────────────────────────────────────────────────────────
+const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
+const OLLAMA_MODEL    = process.env.OLLAMA_MODEL    || "gemma4:e2b";
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 function safeJsonParse(rawText: string) {
   let clean = rawText.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
   const jsonMatch = clean.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
@@ -11,25 +13,68 @@ function safeJsonParse(rawText: string) {
     return JSON.parse(clean);
   } catch (e) {
     console.error("Failed to parse JSON. Raw output:", rawText);
-    throw new Error("Invalid JSON format from AI");
+    throw new Error("Invalid JSON format from local LLM");
   }
 }
 
-async function generateWithRetry(model: any, content: any, config: any, retries = 3) {
+/**
+ * Calls the local Ollama instance.
+ * Ollama POST /api/generate → { response: string }
+ */
+async function callOllama(prompt: string, timeoutMs = 60000): Promise<string> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const res = await fetch(`${OLLAMA_BASE_URL}/api/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: OLLAMA_MODEL,
+        prompt,
+        stream: false,
+        options: { temperature: 0.1 },
+      }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Ollama error ${res.status}: ${text}`);
+    }
+
+    const data = await res.json();
+    return data.response as string;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Retry wrapper — mirrors the original generateWithRetry logic.
+ * Retries on network errors or Ollama 503/429.
+ */
+async function generateWithRetry(prompt: string, retries = 3): Promise<string> {
   for (let i = 0; i < retries; i++) {
     try {
-      return await model.generateContent({ contents: content, generationConfig: config });
+      return await callOllama(prompt);
     } catch (error: any) {
-      const isTransientError = error.status === 503 || error.status === 429;
-      if (isTransientError && i < retries - 1) {
+      const isTransient =
+        error.name === "AbortError" ||
+        error.message?.includes("503") ||
+        error.message?.includes("429");
+
+      if (isTransient && i < retries - 1) {
         await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
         continue;
       }
       throw error;
     }
   }
+  throw new Error("All retries exhausted");
 }
 
+// ─── System instruction (unchanged from original) ─────────────────────────────
 const systemInstruction = `You are "Autobot", an expert automotive diagnostic assistant.
 Your job is to help identify vehicle problems based on user descriptions.
 Rules:
@@ -38,15 +83,13 @@ Rules:
 - Keep explanations simple and easy to understand.
 - ALWAYS respond with raw JSON only. No markdown. No explanation outside the JSON.`;
 
+// ─── Route Handler ────────────────────────────────────────────────────────────
 export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { callType, initialProblem, qaHistory } = body;
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-    const baseConfig = { temperature: 0.1 };
-
-    // ── Call 0: Validate Input ──────────────────────────────────────
+    // ── Call 0: Validate Input ──────────────────────────────────────────────
     if (callType === "validate-input") {
       const prompt = `${systemInstruction}
 
@@ -57,12 +100,12 @@ Respond with ONLY this JSON, no other text:
 
 If not automotive: {"isValid": false, "reason": "explanation here"}`;
 
-      const result = await generateWithRetry(model, [{ role: "user", parts: [{ text: prompt }] }], baseConfig);
-      const response = safeJsonParse(result.response.text());
+      const raw      = await generateWithRetry(prompt);
+      const response = safeJsonParse(raw);
       return NextResponse.json({ type: "validation", ...response });
     }
 
-    // ── Call 1: Get Questions ───────────────────────────────────────
+    // ── Call 1: Get Questions ───────────────────────────────────────────────
     if (callType === "get-questions") {
       const prompt = `${systemInstruction}
 
@@ -73,14 +116,17 @@ Generate exactly 4 short, specific follow-up questions to narrow down the diagno
 Respond with ONLY this JSON, no other text:
 {"questions": ["question 1", "question 2", "question 3", "question 4"]}`;
 
-      const result = await generateWithRetry(model, [{ role: "user", parts: [{ text: prompt }] }], baseConfig);
-      const response = safeJsonParse(result.response.text());
+      const raw      = await generateWithRetry(prompt);
+      const response = safeJsonParse(raw);
       return NextResponse.json({ type: "questions", questions: response.questions });
     }
 
-    // ── Call 2: Get Diagnosis ───────────────────────────────────────
+    // ── Call 2: Get Diagnosis ───────────────────────────────────────────────
     if (callType === "get-diagnosis") {
-      const historyText = qaHistory.map((qa: any) => `Q: ${qa.question}\nA: ${qa.answer}`).join("\n");
+      const historyText = qaHistory
+        .map((qa: any) => `Q: ${qa.question}\nA: ${qa.answer}`)
+        .join("\n");
+
       const prompt = `${systemInstruction}
 
 A user reports this vehicle problem: "${initialProblem}"
@@ -99,15 +145,18 @@ Respond with ONLY this JSON, no other text:
   ]
 }`;
 
-      const result = await generateWithRetry(model, [{ role: "user", parts: [{ text: prompt }] }], baseConfig);
-      const response = safeJsonParse(result.response.text());
+      const raw      = await generateWithRetry(prompt);
+      const response = safeJsonParse(raw);
       return NextResponse.json({ type: "diagnosis", diagnoses: response.diagnoses });
     }
 
     return NextResponse.json({ error: "Unknown callType" }, { status: 400 });
 
   } catch (error: any) {
-    console.error("Gemma API Error:", error);
-    return NextResponse.json({ error: "Service busy or invalid response. Try again." }, { status: 500 });
+    console.error("Local LLM Error (diagnostic):", error);
+    return NextResponse.json(
+      { error: "Local model busy or returned invalid response. Try again." },
+      { status: 500 }
+    );
   }
 }
