@@ -21,6 +21,7 @@ interface RepairStep {
 export interface NextMaintenance {
   label: string;
   interval: string;
+  date: string; // ISO date string (YYYY-MM-DD)
 }
 
 export interface RepairProcedure {
@@ -150,6 +151,7 @@ const RepairModeScreen = ({
           nextMaintenance: data.nextMaintenance ?? {
             label: "General inspection",
             interval: "12 months",
+            date: new Date(Date.now() + 12 * 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
           },
         },
       };

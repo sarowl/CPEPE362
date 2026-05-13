@@ -91,7 +91,8 @@ Respond with ONLY this JSON structure, no other text:
   "postRepairNote": "2-4 sentences on what to verify after repair.",
   "nextMaintenance": {
     "label": "Follow-up maintenance item",
-    "interval": "e.g. 30,000 mi or 12 months"
+    "interval": "e.g. 30,000 mi or 12 months",
+    "date": "YYYY-MM-DD format - specific date for next maintenance based on interval"
   }
 }`;
 

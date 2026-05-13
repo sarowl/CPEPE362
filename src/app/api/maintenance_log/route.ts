@@ -22,7 +22,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { carId, diagnosisTitle, nextMaintenance } = body;
+    const { carId, diagnosisTitle, nextMaintenance, nextMaintenanceDate } = body;
 
     if (!carId || !diagnosisTitle) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -38,6 +38,7 @@ export async function POST(req: Request) {
         notes: nextMaintenance
           ? `${nextMaintenance.label} — ${nextMaintenance.interval}`
           : null,
+        reminder: nextMaintenanceDate || null, // ISO date string for next maintenance reminder
       });
 
     if (insertError) {
