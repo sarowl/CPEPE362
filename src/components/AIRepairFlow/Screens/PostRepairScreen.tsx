@@ -15,6 +15,7 @@ export interface Diagnosis {
 export interface NextMaintenance {
   label: string;
   interval: string;
+  date: string; // ISO date string (YYYY-MM-DD)
 }
 
 interface PostRepairScreenProps {
@@ -62,7 +63,8 @@ useEffect(() => {
           carId,
           diagnosisTitle: diagnosis.title,
           postRepairNote,
-          nextMaintenance,
+          nextMaintenance: nextMaintenance,
+          nextMaintenanceDate: nextMaintenance.date,
         }),
       });
 
@@ -112,6 +114,9 @@ useEffect(() => {
                 <p className="text-sm font-medium text-foreground">Next maintenance</p>
                 <p className="text-xs text-muted-foreground">
                   {nextMaintenance.label} — {nextMaintenance.interval}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Due: {new Date(nextMaintenance.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                 </p>
               </div>
             </div>

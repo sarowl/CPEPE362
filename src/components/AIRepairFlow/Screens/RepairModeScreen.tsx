@@ -21,6 +21,7 @@ interface RepairStep {
 export interface NextMaintenance {
   label: string;
   interval: string;
+  date: string; // ISO date string (YYYY-MM-DD)
 }
 
 export interface RepairProcedure {
@@ -141,15 +142,21 @@ const RepairModeScreen = ({
         throw new Error("No repair steps were returned.");
       }
 
+      // Calculate next maintenance date (12 months from today)
+      const today = new Date();
+      const nextYear = new Date(today.getFullYear() + 1, today.getMonth(), today.getDate());
+      const defaultMaintenanceDate = nextYear.toISOString().split('T')[0];
+
       const procedure: RepairProcedure = {
         steps: data.steps,
         tools: data.tools ?? [],
         parts: data.parts ?? [],
         repairResult: {
           postRepairNote: data.postRepairNote ?? "",
-          nextMaintenance: data.nextMaintenance ?? {
-            label: "General inspection",
-            interval: "12 months",
+          nextMaintenance: {
+            label: data.nextMaintenance?.label?.trim() || "General inspection",
+            interval: data.nextMaintenance?.interval?.trim() || "12 months",
+            date: data.nextMaintenance?.date || defaultMaintenanceDate,
           },
         },
       };
