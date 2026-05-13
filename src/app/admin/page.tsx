@@ -9,7 +9,7 @@ import {
   Users, BookOpen, Car, FileText, BarChart2, MessageSquare,
   LogOut, Shield, ChevronRight, Plus, CheckCircle, XCircle,
   Clock, Trash2, Ban, RefreshCw, Search, Bell, Upload, X,
-  Edit2, AlertCircle, ImageIcon, ZoomIn, ZoomOut,
+  Edit2, AlertCircle, ImageIcon, ZoomIn, ZoomOut, Eye
 } from "lucide-react";
 
 import { resolveCarModelImage } from "@/lib/carTypeImage";
@@ -191,10 +191,64 @@ export default function AdminPage() {
   const [deleteManualName,    setDeleteManualName]    = useState("");
   const [deleteManualLoading, setDeleteManualLoading] = useState(false);
 
+  // Reported Forums
+  const [reportedPosts, setReportedPosts] = useState<{forum_id:string;title:string;brand_id:string;content:string;report_reason:string|null;Users:{name:string}}[]>([]);
+  const [viewReportedPost, setViewReportedPost] = useState<{forum_id:string;title:string;brand_id:string;content:string;report_reason:string|null;Users:{name:string}}|null>(null);
+  const [forumLoading, setForumLoading] = useState(false);
+
   // ── Toast ────────────────────────────────────────────────────
   const toast = useCallback((text:string, type:"ok"|"err"="ok")=>{
     setNoticeMsg({text,type}); setTimeout(()=>setNoticeMsg(null),5000);
   },[]);
+
+  // Fetch Reported Forums
+  const fetchReportedPosts = useCallback(async () => {
+    setForumLoading(true);
+    try {
+      const res = await fetch("/api/forum_reported_posts");
+      const json = await res.json();
+      setReportedPosts(json.posts ?? []);
+    } catch {
+      toast("Failed to load reported posts.", "err");
+    } finally {
+      setForumLoading(false);
+    }
+  }, [toast]);
+
+  const handleDeleteReportedPost = async (forum_id: string) => {
+    if (!session?.email) return;
+    const res = await fetch("/api/forum_post_delete_admin", {
+     method: "DELETE",
+     headers: { 
+        "Content-Type": "application/json",
+        "x-admin-email": session.email,
+      },
+      body: JSON.stringify({ forum_id }),
+    });
+    if (res.ok) {
+      setReportedPosts(prev => prev.filter(p => p.forum_id !== forum_id));
+      toast("Post deleted.");
+    } else {
+      toast("Failed to delete post.", "err");
+    }
+  };
+
+  const handleIgnoreReport = async (forum_id: string) => {
+    const res = await fetch("/api/forum_post_ignore_report", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ forum_id }),
+    });
+    if (res.ok) {
+      setReportedPosts(prev => prev.filter(p => p.forum_id !== forum_id));
+      toast("Report ignored.");
+    } else {
+      toast("Failed to ignore report.", "err");
+    }
+  };
+  
+  useEffect(() => { if (activeTab === "forum") fetchReportedPosts(); }, [activeTab, fetchReportedPosts]);
+
 
   // ── Fetch pending count on mount ─────────────────────────────
   useEffect(()=>{
@@ -939,6 +993,11 @@ export default function AdminPage() {
                   <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Admin / Forum</p>
                   <h2 className="font-black uppercase tracking-tighter text-base mt-0.5">Forum Moderation</h2>
                 </div>
+                <button onClick={fetchReportedPosts}
+                  className="flex items-center gap-1.5 px-3 py-1.5 border border-border hover:bg-secondary transition-colors text-xs font-semibold">
+                  <RefreshCw size={12} className={`text-muted-foreground ${forumLoading?"animate-spin":""}`}/>
+                  <span className="text-muted-foreground">Refresh</span>
+                </button>
               </div>
               <div className="border border-border bg-background overflow-hidden">
                 <div className="grid grid-cols-[2.5fr_1.5fr_0.8fr_auto] gap-4 px-5 py-2.5 bg-secondary border-b border-border">
@@ -946,13 +1005,95 @@ export default function AdminPage() {
                     <span key={h} className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">{h}</span>
                   ))}
                 </div>
-                <div className="py-14 text-center text-sm text-muted-foreground">No reported posts.</div>
+                {forumLoading
+                  ? <div className="py-14 text-center text-xs text-muted-foreground">Loading...</div>
+                  : reportedPosts.length === 0
+                    ? <div className="py-14 text-center text-sm text-muted-foreground">No reported posts.</div>
+                    : reportedPosts.map((p, i) => (
+                        <div key={p.forum_id}
+                          className={`grid grid-cols-[2.5fr_1.5fr_0.8fr_auto] gap-4 px-5 py-3.5 items-center hover:bg-secondary/30 transition-colors ${i < reportedPosts.length - 1 ? "border-b border-border" : ""}`}>
+                          <span className="text-xs font-medium truncate" title={p.title}>{p.title}</span>
+                          <span className="text-xs text-muted-foreground truncate">{p.Users?.name ?? "Unknown"}</span>
+                          <span className="text-[9px] font-bold uppercase tracking-wide px-2 py-0.5 border w-fit bg-red-50 text-red-600 border-red-200">
+                            Reported
+                          </span>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => setViewReportedPost(p)}
+                              className="p-1.5 hover:bg-secondary rounded"
+                              title="View Post"
+                            >
+                              <Eye size={13} className="text-muted-foreground"/>
+                            </button>
+                            <button
+                              onClick={() => handleIgnoreReport(p.forum_id)}
+                              className="p-1.5 hover:bg-yellow-50 rounded"
+                              title="Ignore Report"
+                            >
+                              <XCircle size={13} className="text-yellow-500"/>
+                            </button>
+                            <button
+                              onClick={() => handleDeleteReportedPost(p.forum_id)}
+                              className="p-1.5 hover:bg-red-50 rounded"
+                              title="Delete Post"
+                            >
+                              <Trash2 size={13} className="text-red-500"/>
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                }
               </div>
             </section>
           )}
 
         </main>
       </div>
+
+      {/* ══ VIEW REPORTED POST MODAL ══ */}
+      {viewReportedPost && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 backdrop-blur-sm px-4"
+          onClick={() => setViewReportedPost(null)}>
+          <div className="w-full max-w-lg bg-background border border-border shadow-[8px_8px_0_0_var(--ink)] max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-secondary sticky top-0">
+              <div>
+                <p className="text-[9px] font-mono uppercase tracking-widest text-muted-foreground capitalize">{viewReportedPost.brand_id}</p>
+                <h3 className="font-black uppercase tracking-tighter text-sm mt-0.5">{viewReportedPost.title}</h3>
+              </div>
+              <button onClick={() => setViewReportedPost(null)} className="p-1 hover:bg-border rounded">
+                <X size={15} className="text-muted-foreground"/>
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Author</p>
+                <p className="text-sm">{viewReportedPost.Users?.name ?? "Unknown"}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Post Content</p>
+                <p className="text-sm leading-relaxed text-ink/80 border border-border bg-secondary/30 px-4 py-3">{viewReportedPost.content}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Report Reason</p>
+                <p className="text-sm text-red-600 font-medium">{viewReportedPost.report_reason ?? "No reason provided"}</p>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-border flex items-center justify-end gap-3 sticky bottom-0 bg-background">
+              <button onClick={() => { handleIgnoreReport(viewReportedPost.forum_id); setViewReportedPost(null); }}
+                className="px-4 py-2 text-xs font-bold border border-yellow-300 text-yellow-600 hover:bg-yellow-50">
+                Ignore Report
+              </button>
+              <button onClick={() => { handleDeleteReportedPost(viewReportedPost.forum_id); setViewReportedPost(null); }}
+                className="px-4 py-2 text-xs font-bold bg-red-600 text-white hover:bg-red-700 flex items-center gap-1.5">
+                <Trash2 size={11}/> Delete Post
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+
 
       {/* ══ ADD MODEL MODAL ══ */}
       {addModelFor&&(
