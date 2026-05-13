@@ -63,7 +63,7 @@ useEffect(() => {
           carId,
           diagnosisTitle: diagnosis.title,
           postRepairNote,
-          nextMaintenance: nextMaintenance.label,
+          nextMaintenance: nextMaintenance,
           nextMaintenanceDate: nextMaintenance.date,
         }),
       });
