@@ -6,6 +6,7 @@ import Navbar from "./Navbar";
 import { ExperienceType, Profiletype } from "@/lib/types";
 import ProfileContributionsTab from "@/components/ProfileContributionsTab";
 import SnakeLoading from "@/components/SnakeLoading";
+import ProfileActivityTab from "@/components/ProfileActivityTab";
 
 
 const certificationImages = ["/card-ai.jpg", "/card-community.jpg", "/card-guides.jpg"];
@@ -788,10 +789,7 @@ export default function Profile() {
         {activeTab === "contributions" && <ProfileContributionsTab />}
 
         {activeTab === "activity" && (
-          <div>
-            <h1 className="text-3xl font-bold mb-6">Activity</h1>
-            <p className="text-gray-700">Your activity will appear here.</p>
-          </div>
+          <ProfileActivityTab />
         )}
 
         {/* [Req #10] Liked Guides — private to owner */}

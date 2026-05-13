@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
-import { ChevronRight, ThumbsUp, ThumbsDown, Pencil, X, Check } from "lucide-react";
+import { ChevronRight, ThumbsUp, ThumbsDown, Pencil, X, Check, Flag } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 
@@ -75,6 +75,33 @@ export default function ForumPostPage() {
   const [editCommentContent, setEditCommentContent] = useState("");
   const [savingComment, setSavingComment] = useState(false);
 
+  // Forum Post Report Function
+  const [reporting, setReporting] = useState(false);
+  const [reported, setReported] = useState(false);
+  
+  // Forum Post Report Window
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportReason, setReportReason] = useState("");
+  const [selectedReason, setSelectedReason] = useState("");
+
+  const REPORT_REASONS = [
+    "Spam or advertising",
+    "Misinformation",
+    "Harassment or hate speech",
+    "Inappropriate content",
+    "Off-topic or wrong brand",
+    "Other",
+  ];
+
+  useEffect(() => {
+    if (showReportModal) {
+     document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [showReportModal]);  
+  
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
@@ -345,6 +372,25 @@ export default function ForumPostPage() {
     }
   };
 
+  const handleReport = async () => {
+    if (!post) return;
+    setReporting(true);
+    try {
+    const finalReason = selectedReason === "Other" ? reportReason : selectedReason;
+     await fetch("/api/forum_post_report", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ forum_id: post.forum_id, report_reason: finalReason }),
+      });
+      setReported(true);
+      setShowReportModal(false);
+    } catch {
+      // silently fail
+    } finally {
+     setReporting(false);
+    }
+  };
+
   // ── Loading ──────────────────────────────────────────────────────────────
   if (loading) {
     return (
@@ -491,7 +537,8 @@ export default function ForumPostPage() {
           )}
 
           {/* Post Votes */}
-          <div className="flex items-center gap-4 pt-4 border-t border-border">
+          <div className="flex items-center justify-between pt-4 border-t border-border">
+            <div className="flex items-center gap-4">
             <button
               onClick={() => handleVote(post.forum_id, "post", 1)}
               disabled={!user || user.id === post.user_id || voting}
@@ -529,6 +576,80 @@ export default function ForumPostPage() {
               <span>{postVotes.dislikes}</span>
             </button>
           </div>
+            {user && user.id !== post.user_id && (
+            <>
+              <button
+                onClick={() => setShowReportModal(true)}
+                disabled={reported}
+                className={`flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest transition-colors disabled:cursor-not-allowed ${
+                  reported ? "text-red-500 font-bold" : "text-muted-foreground hover:text-red-500"
+                }`}
+              >
+                <Flag size={11} />
+                {reported ? "Reported" : "Report"}
+              </button>
+
+              {showReportModal && (
+                <div
+                  className="z-50 flex items-center justify-center bg-ink/60 backdrop-blur-sm"
+                  style={{ position: "fixed", top: "-400px", left: 0, right: 0, bottom: 0 }}
+                  onClick={() => setShowReportModal(false)}
+                >
+                  <div
+                    className="bg-background border border-border w-full max-w-md shadow-[8px_8px_0_0_var(--ink)] p-6"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <h2 className="font-black uppercase tracking-tighter text-base mb-1">Report Post</h2>
+                    <p className="text-xs text-muted-foreground mb-4">Select a reason for reporting this post.</p>
+          
+                    <div className="flex flex-col gap-2 mb-4">
+                      {REPORT_REASONS.map((reason) => (
+                        <button
+                          key={reason}
+                          onClick={() => setSelectedReason(reason)}
+                          className={`text-left px-4 py-2.5 border font-mono text-xs uppercase tracking-widest transition-colors ${
+                            selectedReason === reason
+                              ? "bg-ink text-white border-ink"
+                              : "bg-background border-border hover:border-ink"
+                          }`}
+                        >
+                          {reason}
+                        </button>
+                      ))}
+                    </div>
+
+                    {selectedReason === "Other" && (
+                      <textarea
+                        value={reportReason}
+                        onChange={(e) => setReportReason(e.target.value)}
+                        rows={3}
+                        placeholder="Describe the issue..."
+                        className="w-full bg-background border border-border px-4 py-3 font-mono text-sm text-ink placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors resize-none mb-4"
+                      />
+                    )}
+
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={handleReport}
+                        disabled={reporting || !selectedReason || (selectedReason === "Other" && !reportReason.trim())}
+                        className="bg-red-500 text-white px-6 py-2 font-mono text-xs font-bold uppercase tracking-widest hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {reporting ? "Submitting..." : "Submit Report"}
+                      </button>
+                      <button
+                        onClick={() => setShowReportModal(false)}
+                        className="border border-border px-6 py-2 font-mono text-xs font-bold uppercase tracking-widest hover:border-ink transition-all"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                  </div>
+              )}
+            </>
+          )}
+          </div>
+
         </section>
 
         {/* COMMENTS HEADER */}
