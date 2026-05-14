@@ -1,10 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
   ChevronLeft,
   WrenchIcon,
   ArrowLeft,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import { Diagnosis } from "./DiagnosisScreen";
 import ToolsAndPartsScreen from "./ToolsAndPartsScreen";
@@ -21,6 +23,7 @@ interface RepairStep {
 export interface NextMaintenance {
   label: string;
   interval: string;
+  date: string; // ISO date string (YYYY-MM-DD)
 }
 
 export interface RepairProcedure {
@@ -101,10 +104,36 @@ const RepairModeScreen = ({
   const [error, setError] = useState<string | null>(null);
   // Gates the repair steps — show tools/parts checklist first
   const [showChecklist, setShowChecklist] = useState(true);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const speechSynthesisRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   useEffect(() => {
     injectSnakeStyle();
   }, []);
+
+  // ── Text-to-Speech handler ─────────────────────────────────────────────────
+  const speakStepInstructions = (stepTitle: string, stepInstruction: string) => {
+    // Stop any ongoing speech
+    window.speechSynthesis.cancel();
+
+    const text = `${stepTitle}. ${stepInstruction}`;
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 0.95; // Slightly slower for clarity
+    utterance.pitch = 1;
+    utterance.volume = 1;
+
+    utterance.onstart = () => setIsSpeaking(true);
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = () => setIsSpeaking(false);
+
+    speechSynthesisRef.current = utterance;
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const stopSpeech = () => {
+    window.speechSynthesis.cancel();
+    setIsSpeaking(false);
+  };
 
   // ── Fetch AI-generated repair steps ────────────────────────────────────────
   useEffect(() => {
@@ -141,15 +170,21 @@ const RepairModeScreen = ({
         throw new Error("No repair steps were returned.");
       }
 
+      // Calculate next maintenance date (12 months from today)
+      const today = new Date();
+      const nextYear = new Date(today.getFullYear() + 1, today.getMonth(), today.getDate());
+      const defaultMaintenanceDate = nextYear.toISOString().split('T')[0];
+
       const procedure: RepairProcedure = {
         steps: data.steps,
         tools: data.tools ?? [],
         parts: data.parts ?? [],
         repairResult: {
           postRepairNote: data.postRepairNote ?? "",
-          nextMaintenance: data.nextMaintenance ?? {
-            label: "General inspection",
-            interval: "12 months",
+          nextMaintenance: {
+            label: data.nextMaintenance?.label?.trim() || "General inspection",
+            interval: data.nextMaintenance?.interval?.trim() || "12 months",
+            date: data.nextMaintenance?.date || defaultMaintenanceDate,
           },
         },
       };
@@ -179,16 +214,31 @@ const RepairModeScreen = ({
     if (!step) return;
     setCompletedSteps(new Set([...completedSteps, step.id]));
     if (isLastStep) {
+      stopSpeech();
       onComplete(repairResult!);
     } else {
       setCurrentStep(currentStep + 1);
     }
   };
 
+  // ── Auto-speak when step changes ────────────────────────────────────────────
+  useEffect(() => {
+    if (step && !showChecklist) {
+      speakStepInstructions(step.title, step.instruction);
+    }
+  }, [step, showChecklist]);
+
   const goToPreviousStep = () => {
     if (isFirstStep) return;
     setCurrentStep((prev) => prev - 1);
   };
+
+  // ── Cleanup speech on unmount ─────────────────────────────────────────────
+  useEffect(() => {
+    return () => {
+      window.speechSynthesis.cancel();
+    };
+  }, []);
 
   // ── Loading state ───────────────────────────────────────────────────────────
   if (loading) {
@@ -279,7 +329,13 @@ const RepairModeScreen = ({
         diagnosis={diagnosis}
         tools={tools}
         parts={parts}
-        onProceed={() => setShowChecklist(false)}
+        onProceed={() => {
+          setShowChecklist(false);
+          // Speak first step when starting repair
+          if (steps.length > 0) {
+            setTimeout(() => speakStepInstructions(steps[0].title, steps[0].instruction), 300);
+          }
+        }}
         onBack={onBack}
       />
     );
@@ -315,14 +371,42 @@ const RepairModeScreen = ({
 
       {step && (
         <div className="space-y-4">
-          <h2 className="text-2xl font-bold text-foreground leading-tight">{step.title}</h2>
+          <div className="flex items-start justify-between gap-3">
+            <h2 className="text-2xl font-bold text-foreground leading-tight flex-1">{step.title}</h2>
+            <button
+              onClick={() => {
+                if (isSpeaking) {
+                  stopSpeech();
+                } else {
+                  speakStepInstructions(step.title, step.instruction);
+                }
+              }}
+              className="flex-shrink-0 p-2 rounded-lg hover:bg-muted transition-colors"
+              title={isSpeaking ? "Stop audio" : "Play audio"}
+            >
+              {isSpeaking ? (
+                <VolumeX className="h-5 w-5 text-primary" />
+              ) : (
+                <Volume2 className="h-5 w-5 text-muted-foreground hover:text-foreground" />
+              )}
+            </button>
+          </div>
           <p className="text-sm text-muted-foreground leading-relaxed">{step.instruction}</p>
         </div>
       )}
 
       <div className="pt-4 space-y-3">
         <button
-          onClick={confirmStep}
+          onClick={() => {
+            confirmStep();
+            // Speak next step if not the last step
+            if (!isLastStep && currentStep + 1 < steps.length) {
+              setTimeout(() => {
+                const nextStep = steps[currentStep + 1];
+                speakStepInstructions(nextStep.title, nextStep.instruction);
+              }, 300);
+            }
+          }}
           className="w-full py-4 bg-primary text-primary-foreground rounded-xl flex items-center justify-center gap-2 font-bold shadow-lg shadow-primary/20 hover:opacity-90 active:scale-[0.98] transition-all"
         >
           <CheckCircle2 className="h-5 w-5" />

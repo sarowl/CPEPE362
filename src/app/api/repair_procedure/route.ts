@@ -58,8 +58,18 @@ export async function POST(req: Request) {
       ? `${vehicle.year} ${vehicle.make} ${vehicle.model}`
       : "Unknown Vehicle";
 
+    // Get current date in YYYY-MM-DD format
+    const today = new Date();
+    const currentDateStr = today.toISOString().split('T')[0];
+    
+    // Calculate maintenance date (12 months from today)
+    const nextYear = new Date(today.getFullYear() + 1, today.getMonth(), today.getDate());
+    const maintenanceDateStr = nextYear.toISOString().split('T')[0];
+
     const prompt = `You are "Autobot", an expert automotive repair assistant.
 ALWAYS respond with raw JSON only. No markdown. No explanation outside the JSON.
+
+IMPORTANT: Today's date is ${currentDateStr}. Use this for all date calculations.
 
 Vehicle: ${vehicleInfo}
 Diagnosis: ${diagnosis.title}
@@ -90,8 +100,9 @@ Respond with ONLY this JSON structure, no other text:
   ],
   "postRepairNote": "2-4 sentences on what to verify after repair.",
   "nextMaintenance": {
-    "label": "Follow-up maintenance item",
-    "interval": "e.g. 30,000 mi or 12 months"
+    "label": "Follow-up maintenance item (must be specific and non-empty)",
+    "interval": "e.g. 30,000 mi or 12 months",
+    "date": "${maintenanceDateStr} or a specific YYYY-MM-DD date based on the recommended interval"
   }
 }`;
 

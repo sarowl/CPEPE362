@@ -113,7 +113,7 @@ const BRANDS = [
 ];
 const MODEL_TYPES = ["Sedan","SUV","Hatchback","Pickup Truck","Van","MPV","Crossover","Coupe","Convertible","Wagon","Electric","Hybrid","Sports","Truck","EV"];
 
-type Tab = "users"|"guides"|"car-models"|"documents"|"reports"|"forum";
+type Tab = "users"|"guides"|"car-models"|"documents"|"forum";
 
 interface UserRow { user_id: string; name: string; email: string; created_at: string; last_sign_in_at: string | null; status: "Active" | "Suspended" | "Pending"; provider?: string;  }
 interface CarModelRow { id:string; name:string; slug:string; category:string; years:string; info?:string; model_img?:string; brand_id:string; }
@@ -652,7 +652,6 @@ export default function AdminPage() {
               {id:"guides",    icon:<BookOpen size={14}/>,     label:"Guides", badge: pendingCount},
               {id:"car-models",icon:<Car size={14}/>,          label:"Car Models"},
               {id:"documents", icon:<FileText size={14}/>,     label:"Documents"},
-              {id:"reports",   icon:<BarChart2 size={14}/>,    label:"Reports"},
               {id:"forum",     icon:<MessageSquare size={14}/>,label:"Forum"},
             ] as {id:Tab;icon:React.ReactNode;label:string;badge?:number}[]).map(item=>(
               <button key={item.id} onClick={()=>setActiveTab(item.id)}
@@ -987,35 +986,7 @@ export default function AdminPage() {
             </section>
           )}
 
-          {/* ── REPORTS ── */}
-          {activeTab==="reports"&&(
-            <section>
-              <div className="mb-5">
-                <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Admin / Reports</p>
-                <h2 className="font-black uppercase tracking-tighter text-base mt-0.5">Platform Reports</h2>
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                {[
-                  {label:"Total Users",    value:users.length||"—", icon:<Users size={17}/>,    accent:"border-blue-200 bg-blue-50",   text:"text-blue-600"},
-                  {label:"Active Guides",  value:"—",               icon:<BookOpen size={17}/>, accent:"border-green-200 bg-green-50", text:"text-green-600"},
-                  {label:"Pending Reviews",value:pendingCount||"—", icon:<Clock size={17}/>,    accent:"border-yellow-200 bg-yellow-50",text:"text-yellow-600"},
-                  {label:"Filed Reports",  value:"—",               icon:<BarChart2 size={17}/>,accent:"border-red-200 bg-red-50",     text:"text-red-500"},
-                ].map(s=>(
-                  <div key={s.label} className={`border p-5 ${s.accent}`}>
-                    <span className={`${s.text} mb-3 block`}>{s.icon}</span>
-                    <p className="text-2xl font-black">{s.value}</p>
-                    <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground mt-1">{s.label}</p>
-                  </div>
-                ))}
-              </div>
-              <div className="border border-border bg-background p-8 flex flex-col items-center justify-center h-52 gap-2">
-                <BarChart2 size={28} className="text-border"/>
-                <p className="text-xs font-mono text-muted-foreground uppercase tracking-widest">Chart Area — Coming Soon</p>
-              </div>
-            </section>
-          )}
-
-{/* ── FORUM ── */}
+          {/* ── FORUM ── */}
           {activeTab==="forum"&&(
             <section>
               <div className="mb-5 flex items-start justify-between gap-3">
