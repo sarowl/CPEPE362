@@ -20,7 +20,6 @@ export async function DELETE(req: Request) {
 
     const supabase = createAdminClient();
 
-    // 0. Verify the user exists and confirm_name matches
     const { data: userRow, error: fetchErr } = await supabase
       .from("Users")
       .select("user_id, name")
@@ -36,23 +35,13 @@ export async function DELETE(req: Request) {
         { status: 400 }
       );
 
-    // 1. Soft delete: mark status as Deleted in Users table
-    const { error: updateErr } = await supabase
-      .from("Users")
-      .update({ status: "Deleted" })
-      .eq("user_id", user_id);
-
-    if (updateErr)
-      return NextResponse.json({ error: updateErr.message }, { status: 500 });
-
-    // 2. Remove from auth.users so the email can be re-registered
     const { error: authDeleteErr } = await supabase.auth.admin.deleteUser(user_id);
     if (authDeleteErr)
-      console.warn("Could not remove from auth:", authDeleteErr.message);
+      return NextResponse.json({ error: authDeleteErr.message }, { status: 500 });
 
     return NextResponse.json({
       success: true,
-      message: "User has been deleted.",
+      message: "User authentication has been deleted.",
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
