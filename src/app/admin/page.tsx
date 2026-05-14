@@ -195,6 +195,7 @@ export default function AdminPage() {
   const [reportedPosts, setReportedPosts] = useState<{forum_id:string;title:string;brand_id:string;content:string;report_reason:string|null;Users:{name:string}}[]>([]);
   const [viewReportedPost, setViewReportedPost] = useState<{forum_id:string;title:string;brand_id:string;content:string;report_reason:string|null;Users:{name:string}}|null>(null);
   const [forumLoading, setForumLoading] = useState(false);
+  const [deletionReason, setDeletionReason] = useState("");
 
   // ── Toast ────────────────────────────────────────────────────
   const toast = useCallback((text:string, type:"ok"|"err"="ok")=>{
@@ -215,15 +216,15 @@ export default function AdminPage() {
     }
   }, [toast]);
 
-  const handleDeleteReportedPost = async (forum_id: string) => {
+  const handleDeleteReportedPost = async (forum_id: string, deletion_reason?: string) => {
     if (!session?.email) return;
     const res = await fetch("/api/forum_post_delete_admin", {
-     method: "DELETE",
-     headers: { 
+      method: "DELETE",
+      headers: { 
         "Content-Type": "application/json",
         "x-admin-email": session.email,
       },
-      body: JSON.stringify({ forum_id }),
+      body: JSON.stringify({ forum_id, deletion_reason }),
     });
     if (res.ok) {
       setReportedPosts(prev => prev.filter(p => p.forum_id !== forum_id));
@@ -1078,13 +1079,23 @@ export default function AdminPage() {
                 <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Report Reason</p>
                 <p className="text-sm text-red-600 font-medium">{viewReportedPost.report_reason ?? "No reason provided"}</p>
               </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Deletion Reason <span className="text-muted-foreground font-normal">(optional)</span></p>
+                <textarea
+                  value={deletionReason}
+                  onChange={(e) => setDeletionReason(e.target.value)}
+                  rows={2}
+                  placeholder="e.g. Violates community guidelines..."
+                  className="w-full border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:border-ink resize-none"
+                />
+              </div>
             </div>
             <div className="px-6 py-4 border-t border-border flex items-center justify-end gap-3 sticky bottom-0 bg-background">
               <button onClick={() => { handleIgnoreReport(viewReportedPost.forum_id); setViewReportedPost(null); }}
                 className="px-4 py-2 text-xs font-bold border border-yellow-300 text-yellow-600 hover:bg-yellow-50">
                 Ignore Report
               </button>
-              <button onClick={() => { handleDeleteReportedPost(viewReportedPost.forum_id); setViewReportedPost(null); }}
+              <button onClick={() => { handleDeleteReportedPost(viewReportedPost.forum_id, deletionReason); setViewReportedPost(null); setDeletionReason(""); }}
                 className="px-4 py-2 text-xs font-bold bg-red-600 text-white hover:bg-red-700 flex items-center gap-1.5">
                 <Trash2 size={11}/> Delete Post
               </button>
