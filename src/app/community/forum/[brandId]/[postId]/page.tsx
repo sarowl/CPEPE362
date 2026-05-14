@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
-import { ChevronRight, ThumbsUp, ThumbsDown, Pencil, X, Check, Flag } from "lucide-react";
+import { ChevronRight, ThumbsUp, ThumbsDown, Pencil, X, Check, Flag, Trash2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 
@@ -372,6 +372,21 @@ export default function ForumPostPage() {
     }
   };
 
+  const handleDeleteComment = async (comment_id: string) => {
+    try {
+      const res = await fetch("/api/forum_comment_delete", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ comment_id }),
+      });
+      if (res.ok) {
+        setComments(prev => prev.filter(c => c.comment_id !== comment_id));
+      }
+    } catch {
+      // silently fail
+    }
+  };
+
   const handleReport = async () => {
     if (!post) return;
     setReporting(true);
@@ -392,7 +407,7 @@ export default function ForumPostPage() {
   };
 
   // ── Loading ──────────────────────────────────────────────────────────────
-  if (loading) {
+  if (loading) {  
     return (
       <div className="min-h-screen bg-paper text-ink flex flex-col animate-fade-in">
         <Navbar />
@@ -700,14 +715,22 @@ export default function ForumPostPage() {
                       </span>
                     </div>
 
-                    {/* Edit button — only visible to comment owner */}
+                    {/* Edit/Delete buttons — only visible to comment owner */}
                     {user?.id === c.user_id && editingCommentId !== c.comment_id && (
-                      <button
-                        onClick={() => handleEditComment(c)}
-                        className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground hover:text-primary transition-colors"
-                      >
-                        <Pencil size={11} /> Edit
-                      </button>
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => handleEditComment(c)}
+                          className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground hover:text-primary transition-colors"
+                        >
+                          <Pencil size={11} /> Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeleteComment(c.comment_id)}
+                          className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground hover:text-red-500 transition-colors"
+                        >
+                          <Trash2 size={11} /> Delete
+                        </button>
+                      </div>
                     )}
 
                     {/* Save / Cancel — visible when editing */}
